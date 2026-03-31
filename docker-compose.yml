@@ -1,0 +1,53 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: quill-mongodb
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: quill
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet --eval \"try { rs.status().ok } catch (error) { 0 }\" | grep 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mongodb-init-replica:
+    image: mongo:7
+    container_name: quill-mongodb-init
+    restart: "no"
+    depends_on:
+      mongodb:
+        condition: service_started
+    entrypoint:
+      [
+        "bash",
+        "-lc",
+        "until mongosh --host mongodb:27017 --quiet --eval \"db.adminCommand({ ping: 1 }).ok\" | grep 1; do sleep 2; done; mongosh --host mongodb:27017 --quiet --eval \"try { rs.status().ok } catch (error) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }) }\"",
+      ]
+
+  redis:
+    image: redis:7-alpine
+    container_name: quill-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  mongodb_data:
+  redis_data:
