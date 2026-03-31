@@ -60,8 +60,7 @@ Equipo desarrollador: Atelynx
 Más detalle en:
 
 - [Arquitectura](./docs/architecture.md)
-- [Brief del proyecto](./docs/project-brief.md)
-- [Reglas del dominio](./docs/domain-rules.md)
+ 
 
 ## Estructura del repositorio
 
