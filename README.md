@@ -60,6 +60,7 @@ Equipo desarrollador: Atelynx
 Más detalle en:
 
 - [Arquitectura](./docs/architecture.md)
+- [Backend docs](./docs/backend/README.md)
  
 
 ## Estructura del repositorio
