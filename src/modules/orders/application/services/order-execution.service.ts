@@ -48,6 +48,7 @@ export class OrderExecutionService {
 
   @Cron(CronExpression.EVERY_10_SECONDS)
   async handleMarketTick(): Promise<void> {
+    // Prevent overlapping cycles if an execution takes longer than the interval.
     if (this.isRunning) {
       return;
     }
@@ -58,6 +59,7 @@ export class OrderExecutionService {
     } catch (error) {
       this.logger.error('Error in market execution cycle', error);
     } finally {
+      // Ensure the lock is released even on failure to allow future ticks.
       this.isRunning = false;
     }
   }
