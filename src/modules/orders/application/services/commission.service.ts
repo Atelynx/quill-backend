@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Decimal } from 'decimal.js';
+import Decimal from 'decimal.js';
 
 @Injectable()
 export class CommissionService {

@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
-import { Decimal } from 'decimal.js';
+import Decimal from 'decimal.js';
 import { MarketService } from '../../../market/application/services/market.service';
 import {
   Position,

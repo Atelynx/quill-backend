@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { AnyBulkWriteOperation, Model } from 'mongoose';
-import { Decimal } from 'decimal.js';
+import Decimal from 'decimal.js';
 import { CacheService } from '../../../system/application/services/cache.service';
 import { seedStocks } from '../../domain/constants/seed-stocks';
 import { MockMarketDataProvider } from '../../infrastructure/providers/mock-market-data.provider';
