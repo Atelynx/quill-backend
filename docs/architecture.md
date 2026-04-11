@@ -66,7 +66,7 @@ Para que el proyecto sea ejecutable sin dependencias externas obligatorias, el s
 Implementaciones previstas:
 
 - `mock`: proveedor por defecto para el MVP, con acciones semilla y variación controlada de precios
-- `alpaca`: integración futura mediante variables de entorno, sin acoplar la lógica de negocio al proveedor externo
+- `other`: integración futura mediante variables de entorno, sin acoplar la lógica de negocio al proveedor externo
 
 Esta decisión evita bloquear el desarrollo por credenciales o límites de una API externa, pero deja el sistema preparado para conectarse a una fuente real.
 

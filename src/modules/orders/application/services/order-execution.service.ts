@@ -1,10 +1,9 @@
 import {
   Injectable,
   Logger,
-  OnModuleDestroy,
-  OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Interval } from '@nestjs/schedule';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
 import { MarketService } from '../../../market/application/services/market.service';
@@ -27,9 +26,8 @@ import {
 import { CommissionService } from './commission.service';
 
 @Injectable()
-export class OrderExecutionService implements OnModuleInit, OnModuleDestroy {
+export class OrderExecutionService {
   private readonly logger = new Logger(OrderExecutionService.name);
-  private intervalRef: NodeJS.Timeout | null = null;
   private isRunning = false;
 
   constructor(
@@ -45,62 +43,47 @@ export class OrderExecutionService implements OnModuleInit, OnModuleDestroy {
     @InjectModel(Trade.name)
     private readonly tradeModel: Model<TradeDocument>,
     private readonly commissionService: CommissionService,
-  ) {}
+  ) { }
 
-  onModuleInit(): void {
-    const seconds = this.configService.get<number>(
-      'MARKET_TICK_INTERVAL_SECONDS',
-      15,
-    );
-    this.intervalRef = setInterval(() => {
-      void this.executeCycle();
-    }, seconds * 1000);
-  }
-
-  onModuleDestroy(): void {
-    if (this.intervalRef) {
-      clearInterval(this.intervalRef);
-    }
-  }
-
-  private async executeCycle(): Promise<void> {
+  @Interval(15000) // Default interval, but we can also use a dynamic approach if needed
+  async handleMarketTick(): Promise<void> {
     if (this.isRunning) {
       return;
     }
 
     this.isRunning = true;
-
     try {
-      const quotes = await this.marketService.refreshMarket();
-      const quoteMap = new Map(
-        quotes.map((quote) => [quote.symbol, quote.currentPrice]),
-      );
-      const pendingOrders = await this.orderModel
-        .find({ status: 'PENDING' })
-        .exec();
-
-      for (const order of pendingOrders) {
-        const marketPrice = quoteMap.get(order.symbol);
-
-        if (!marketPrice || !this.shouldExecute(order, marketPrice)) {
-          continue;
-        }
-
-        await this.executeOrder(order, marketPrice);
-      }
+      await this.executeCycle();
     } catch (error) {
-      this.logger.error('No fue posible ejecutar el ciclo de mercado.', error);
+      this.logger.error('Error in market execution cycle', error);
     } finally {
       this.isRunning = false;
     }
   }
 
-  private shouldExecute(order: OrderDocument, marketPrice: number): boolean {
-    if (order.side === 'BUY') {
-      return marketPrice <= order.limitPrice;
-    }
+  private async executeCycle(): Promise<void> {
+    const quotes = await this.marketService.refreshMarket();
+    const quoteMap = new Map(
+      quotes.map((quote) => [quote.symbol, quote.currentPrice]),
+    );
 
-    return marketPrice >= order.limitPrice;
+    const pendingOrders = await this.orderModel
+      .find({ status: 'PENDING' })
+      .exec();
+
+    for (const order of pendingOrders) {
+      const marketPrice = quoteMap.get(order.symbol);
+
+      if (marketPrice && this.shouldExecute(order, marketPrice)) {
+        await this.executeOrder(order, marketPrice);
+      }
+    }
+  }
+
+  private shouldExecute(order: OrderDocument, marketPrice: number): boolean {
+    return order.side === 'BUY'
+      ? marketPrice <= order.limitPrice
+      : marketPrice >= order.limitPrice;
   }
 
   private async executeOrder(
@@ -108,7 +91,6 @@ export class OrderExecutionService implements OnModuleInit, OnModuleDestroy {
     marketPrice: number,
   ): Promise<void> {
     const session = await this.connection.startSession();
-
     try {
       await session.withTransaction(async () => {
         const [liveOrder, user] = await Promise.all([
@@ -127,109 +109,164 @@ export class OrderExecutionService implements OnModuleInit, OnModuleDestroy {
         const executedAt = new Date();
 
         if (liveOrder.side === 'BUY') {
-          user.reservedBalance = Number(
-            (user.reservedBalance - liveOrder.reservedAmount).toFixed(2),
+          await this.processBuyOrder(
+            session,
+            user,
+            liveOrder,
+            grossAmount,
+            commissionAmount,
+            marketPrice,
           );
-          user.availableBalance = Number(
-            (
-              user.availableBalance +
-              liveOrder.reservedAmount -
-              grossAmount -
-              commissionAmount
-            ).toFixed(2),
+        } else {
+          await this.processSellOrder(
+            session,
+            user,
+            liveOrder,
+            grossAmount,
+            commissionAmount,
           );
-
-          const existingPosition = await this.positionModel
-            .findOne({
-              userId: new Types.ObjectId(user.id),
-              symbol: liveOrder.symbol,
-            })
-            .session(session)
-            .exec();
-
-          if (existingPosition) {
-            const totalCost =
-              existingPosition.quantity * existingPosition.averageCost +
-              grossAmount;
-            existingPosition.quantity += liveOrder.quantity;
-            existingPosition.averageCost = Number(
-              (totalCost / existingPosition.quantity).toFixed(2),
-            );
-            await existingPosition.save({ session });
-          } else {
-            await this.positionModel.create(
-              [
-                {
-                  userId: new Types.ObjectId(user.id),
-                  symbol: liveOrder.symbol,
-                  quantity: liveOrder.quantity,
-                  reservedQuantity: 0,
-                  averageCost: marketPrice,
-                },
-              ],
-              { session },
-            );
-          }
         }
 
-        if (liveOrder.side === 'SELL') {
-          const position = await this.positionModel
-            .findOne({
-              userId: new Types.ObjectId(user.id),
-              symbol: liveOrder.symbol,
-            })
-            .session(session)
-            .exec();
-
-          if (!position) {
-            return;
-          }
-
-          position.quantity -= liveOrder.quantity;
-          position.reservedQuantity -= liveOrder.quantity;
-          user.availableBalance = Number(
-            (user.availableBalance + grossAmount - commissionAmount).toFixed(2),
-          );
-
-          if (position.quantity <= 0) {
-            await position.deleteOne({ session });
-          } else {
-            await position.save({ session });
-          }
-        }
-
-        liveOrder.status = 'EXECUTED';
-        liveOrder.executionPrice = marketPrice;
-        liveOrder.commissionAmount = commissionAmount;
-        liveOrder.executedAt = executedAt;
-
-        await Promise.all([
-          user.save({ session }),
-          liveOrder.save({ session }),
-          this.tradeModel.create(
-            [
-              {
-                userId: new Types.ObjectId(user.id),
-                orderId: new Types.ObjectId(liveOrder.id),
-                symbol: liveOrder.symbol,
-                side: liveOrder.side,
-                quantity: liveOrder.quantity,
-                executionPrice: marketPrice,
-                grossAmount,
-                commissionAmount,
-                netAmount:
-                  liveOrder.side === 'BUY'
-                    ? Number((grossAmount + commissionAmount).toFixed(2))
-                    : Number((grossAmount - commissionAmount).toFixed(2)),
-                executedAt,
-              },
-            ],
-            { session },
-          ),
-        ]);
+        await this.finalizeOrder(
+          session,
+          user,
+          liveOrder,
+          marketPrice,
+          grossAmount,
+          commissionAmount,
+          executedAt,
+        );
       });
+    } catch (error) {
+      this.logger.error(`Failed to execute order ${order.id}`, error);
     } finally {
       await session.endSession();
     }
+  }
+
+  private async processBuyOrder(
+    session: any,
+    user: UserDocument,
+    order: OrderDocument,
+    grossAmount: number,
+    commissionAmount: number,
+    marketPrice: number,
+  ): Promise<void> {
+    user.reservedBalance = Number(
+      (user.reservedBalance - order.reservedAmount).toFixed(2),
+    );
+    user.availableBalance = Number(
+      (
+        user.availableBalance +
+        order.reservedAmount -
+        grossAmount -
+        commissionAmount
+      ).toFixed(2),
+    );
+
+    const existingPosition = await this.positionModel
+      .findOne({
+        userId: new Types.ObjectId(user.id),
+        symbol: order.symbol,
+      })
+      .session(session)
+      .exec();
+
+    if (existingPosition) {
+      const totalCost =
+        existingPosition.quantity * existingPosition.averageCost + grossAmount;
+      existingPosition.quantity += order.quantity;
+      existingPosition.averageCost = Number(
+        (totalCost / existingPosition.quantity).toFixed(2),
+      );
+      await existingPosition.save({ session });
+    } else {
+      await this.positionModel.create(
+        [
+          {
+            userId: new Types.ObjectId(user.id),
+            symbol: order.symbol,
+            quantity: order.quantity,
+            reservedQuantity: 0,
+            averageCost: marketPrice,
+          },
+        ],
+        { session },
+      );
+    }
+  }
+
+  private async processSellOrder(
+    session: any,
+    user: UserDocument,
+    order: OrderDocument,
+    grossAmount: number,
+    commissionAmount: number,
+  ): Promise<void> {
+    const position = await this.positionModel
+      .findOne({
+        userId: new Types.ObjectId(user.id),
+        symbol: order.symbol,
+      })
+      .session(session)
+      .exec();
+
+    if (!position) {
+      throw new Error(`Position not found for symbol ${order.symbol}`);
+    }
+
+    position.quantity -= order.quantity;
+    position.reservedQuantity -= order.quantity;
+    user.availableBalance = Number(
+      (user.availableBalance + grossAmount - commissionAmount).toFixed(2),
+    );
+
+    if (position.quantity <= 0) {
+      await position.deleteOne({ session });
+    } else {
+      await position.save({ session });
+    }
+  }
+
+  private async finalizeOrder(
+    session: any,
+    user: UserDocument,
+    order: OrderDocument,
+    marketPrice: number,
+    grossAmount: number,
+    commissionAmount: number,
+    executedAt: Date,
+  ): Promise<void> {
+    order.status = 'EXECUTED';
+    order.executionPrice = marketPrice;
+    order.commissionAmount = commissionAmount;
+    order.executedAt = executedAt;
+
+    const netAmount =
+      order.side === 'BUY'
+        ? Number((grossAmount + commissionAmount).toFixed(2))
+        : Number((grossAmount - commissionAmount).toFixed(2));
+
+    await Promise.all([
+      user.save({ session }),
+      order.save({ session }),
+      this.tradeModel.create(
+        [
+          {
+            userId: new Types.ObjectId(user.id),
+            orderId: new Types.ObjectId(order.id),
+            symbol: order.symbol,
+            side: order.side,
+            quantity: order.quantity,
+            executionPrice: marketPrice,
+            grossAmount,
+            commissionAmount,
+            netAmount,
+            executedAt,
+          },
+        ],
+        { session },
+      ),
+    ]);
   }
 }

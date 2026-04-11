@@ -5,7 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { AnyBulkWriteOperation, Model } from 'mongoose';
 import { CacheService } from '../../../system/application/services/cache.service';
 import { seedStocks } from '../../domain/constants/seed-stocks';
 import { MockMarketDataProvider } from '../../infrastructure/providers/mock-market-data.provider';
@@ -84,24 +84,36 @@ export class MarketService implements OnModuleInit {
     }
 
     const snapshotsToInsert: { symbol: string; price: number }[] = [];
+    const stockUpdateOperations: AnyBulkWriteOperation[] = [];
 
     for (const stock of stocks) {
       const nextPrice = this.provider.generateNextPrice(stock);
-      stock.currentPrice = nextPrice;
-      stock.dayChangePercentage = Number(
+      const dayChangePercentage = Number(
         (
           ((nextPrice - stock.previousClose) / stock.previousClose) *
           100
         ).toFixed(2),
       );
-      await stock.save();
+
+      stockUpdateOperations.push({
+        updateOne: {
+          filter: { _id: stock._id },
+          update: {
+            $set: {
+              currentPrice: nextPrice,
+              dayChangePercentage: dayChangePercentage,
+            },
+          },
+        },
+      });
 
       snapshotsToInsert.push({
         symbol: stock.symbol,
         price: nextPrice,
       });
 
-      await this.cacheService.set(
+      // Update cache in parallel (non-blocking for DB loop)
+      void this.cacheService.set(
         `market:${stock.symbol}`,
         JSON.stringify({
           symbol: stock.symbol,
@@ -109,6 +121,10 @@ export class MarketService implements OnModuleInit {
           updatedAt: new Date().toISOString(),
         }),
       );
+    }
+
+    if (stockUpdateOperations.length) {
+      await this.stockModel.bulkWrite(stockUpdateOperations);
     }
 
     if (snapshotsToInsert.length) {
