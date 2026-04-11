@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { Decimal } from 'decimal.js';
 import { UsersService } from '../../../users/application/services/users.service';
 import {
   Stock,
@@ -38,15 +39,21 @@ export class PortfolioService {
       .map((position) => {
         const quote = quoteMap.get(position.symbol);
         const marketPrice = quote?.currentPrice ?? 0;
-        const marketValue = Number(
-          (position.quantity * marketPrice).toFixed(2),
-        );
-        const costBasis = Number(
-          (position.quantity * position.averageCost).toFixed(2),
-        );
-        const unrealizedProfitLoss = Number(
-          (marketValue - costBasis).toFixed(2),
-        );
+        
+        const marketValue = new Decimal(position.quantity)
+          .times(marketPrice)
+          .toDecimalPlaces(2)
+          .toNumber();
+          
+        const costBasis = new Decimal(position.quantity)
+          .times(position.averageCost)
+          .toDecimalPlaces(2)
+          .toNumber();
+          
+        const unrealizedProfitLoss = new Decimal(marketValue)
+          .minus(costBasis)
+          .toDecimalPlaces(2)
+          .toNumber();
 
         return {
           symbol: position.symbol,
@@ -59,23 +66,25 @@ export class PortfolioService {
         };
       });
 
-    const investedValue = Number(
-      enrichedPositions
-        .reduce((acc, position) => acc + position.marketValue, 0)
-        .toFixed(2),
-    );
-    const unrealizedProfitLoss = Number(
-      enrichedPositions
-        .reduce((acc, position) => acc + position.unrealizedProfitLoss, 0)
-        .toFixed(2),
-    );
+    const investedValue = enrichedPositions
+      .reduce((acc, pos) => acc.plus(pos.marketValue), new Decimal(0))
+      .toDecimalPlaces(2)
+      .toNumber();
+      
+    const unrealizedProfitLossTotal = enrichedPositions
+      .reduce((acc, pos) => acc.plus(pos.unrealizedProfitLoss), new Decimal(0))
+      .toDecimalPlaces(2)
+      .toNumber();
 
     return {
       availableBalance: user.availableBalance,
       reservedBalance: user.reservedBalance,
       investedValue,
-      totalEquity: Number((user.availableBalance + investedValue).toFixed(2)),
-      unrealizedProfitLoss,
+      totalEquity: new Decimal(user.availableBalance)
+        .plus(investedValue)
+        .toDecimalPlaces(2)
+        .toNumber(),
+      unrealizedProfitLoss: unrealizedProfitLossTotal,
       positions: enrichedPositions,
     };
   }

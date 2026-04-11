@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { AnyBulkWriteOperation, Model } from 'mongoose';
+import { Decimal } from 'decimal.js';
 import { CacheService } from '../../../system/application/services/cache.service';
 import { seedStocks } from '../../domain/constants/seed-stocks';
 import { MockMarketDataProvider } from '../../infrastructure/providers/mock-market-data.provider';
@@ -88,12 +89,13 @@ export class MarketService implements OnModuleInit {
 
     for (const stock of stocks) {
       const nextPrice = this.provider.generateNextPrice(stock);
-      const dayChangePercentage = Number(
-        (
-          ((nextPrice - stock.previousClose) / stock.previousClose) *
-          100
-        ).toFixed(2),
-      );
+      
+      const dayChangePercentage = new Decimal(nextPrice)
+        .minus(stock.previousClose)
+        .dividedBy(stock.previousClose)
+        .times(100)
+        .toDecimalPlaces(2)
+        .toNumber();
 
       stockUpdateOperations.push({
         updateOne: {
@@ -145,20 +147,27 @@ export class MarketService implements OnModuleInit {
     }
 
     const now = Date.now();
-    const stocks = seedStocks.map((stock) => ({
-      ...stock,
-      previousClose: Number((stock.currentPrice * 0.985).toFixed(2)),
-      dayChangePercentage: 1.5,
-    }));
+    const stocks = seedStocks.map((stock) => {
+      const previousClose = new Decimal(stock.currentPrice)
+        .times(0.985)
+        .toDecimalPlaces(2)
+        .toNumber();
+      
+      return {
+        ...stock,
+        previousClose,
+        dayChangePercentage: 1.5,
+      };
+    });
 
     await this.stockModel.insertMany(stocks);
 
     const snapshots = stocks.flatMap((stock) =>
       Array.from({ length: 24 }, (_, index) => {
-        const factor = 1 + (index - 12) * 0.0015;
+        const factor = new Decimal(1).plus(new Decimal(index - 12).times(0.0015));
         return {
           symbol: stock.symbol,
-          price: Number((stock.currentPrice * factor).toFixed(2)),
+          price: new Decimal(stock.currentPrice).times(factor).toDecimalPlaces(2).toNumber(),
           createdAt: new Date(now - (24 - index) * 60 * 60 * 1000),
         };
       }),

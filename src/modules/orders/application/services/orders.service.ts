@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { Decimal } from 'decimal.js';
 import {
   Stock,
   StockDocument,
@@ -62,22 +63,31 @@ export class OrdersService {
     let reservedAmount = 0;
 
     if (dto.side === 'BUY') {
-      const grossAmount = normalizedQuantity * dto.limitPrice;
-      const estimatedCommission = this.commissionService.calculate(grossAmount);
-      reservedAmount = Number((grossAmount + estimatedCommission).toFixed(2));
+      const grossAmount = new Decimal(normalizedQuantity).times(dto.limitPrice);
+      const estimatedCommission = this.commissionService.calculate(grossAmount.toNumber());
+      
+      const totalReserved = grossAmount
+        .plus(estimatedCommission)
+        .toDecimalPlaces(2);
+      
+      reservedAmount = totalReserved.toNumber();
 
-      if (user.availableBalance < reservedAmount) {
+      if (new Decimal(user.availableBalance).lessThan(reservedAmount)) {
         throw new BadRequestException(
           'Saldo insuficiente para reservar la orden.',
         );
       }
 
-      user.availableBalance = Number(
-        (user.availableBalance - reservedAmount).toFixed(2),
-      );
-      user.reservedBalance = Number(
-        (user.reservedBalance + reservedAmount).toFixed(2),
-      );
+      user.availableBalance = new Decimal(user.availableBalance)
+        .minus(reservedAmount)
+        .toDecimalPlaces(2)
+        .toNumber();
+        
+      user.reservedBalance = new Decimal(user.reservedBalance)
+        .plus(reservedAmount)
+        .toDecimalPlaces(2)
+        .toNumber();
+        
       await user.save();
     }
 

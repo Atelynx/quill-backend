@@ -3,9 +3,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
+import { Decimal } from 'decimal.js';
 import { MarketService } from '../../../market/application/services/market.service';
 import {
   Position,
@@ -45,7 +46,7 @@ export class OrderExecutionService {
     private readonly commissionService: CommissionService,
   ) { }
 
-  @Interval(15000) // Default interval, but we can also use a dynamic approach if needed
+  @Cron(CronExpression.EVERY_10_SECONDS)
   async handleMarketTick(): Promise<void> {
     if (this.isRunning) {
       return;
@@ -102,9 +103,11 @@ export class OrderExecutionService {
           return;
         }
 
-        const grossAmount = Number(
-          (liveOrder.quantity * marketPrice).toFixed(2),
-        );
+        const grossAmount = new Decimal(liveOrder.quantity)
+          .times(marketPrice)
+          .toDecimalPlaces(2)
+          .toNumber();
+        
         const commissionAmount = this.commissionService.calculate(grossAmount);
         const executedAt = new Date();
 
@@ -152,17 +155,17 @@ export class OrderExecutionService {
     commissionAmount: number,
     marketPrice: number,
   ): Promise<void> {
-    user.reservedBalance = Number(
-      (user.reservedBalance - order.reservedAmount).toFixed(2),
-    );
-    user.availableBalance = Number(
-      (
-        user.availableBalance +
-        order.reservedAmount -
-        grossAmount -
-        commissionAmount
-      ).toFixed(2),
-    );
+    user.reservedBalance = new Decimal(user.reservedBalance)
+      .minus(order.reservedAmount)
+      .toDecimalPlaces(2)
+      .toNumber();
+
+    user.availableBalance = new Decimal(user.availableBalance)
+      .plus(order.reservedAmount)
+      .minus(grossAmount)
+      .minus(commissionAmount)
+      .toDecimalPlaces(2)
+      .toNumber();
 
     const existingPosition = await this.positionModel
       .findOne({
@@ -173,12 +176,13 @@ export class OrderExecutionService {
       .exec();
 
     if (existingPosition) {
-      const totalCost =
-        existingPosition.quantity * existingPosition.averageCost + grossAmount;
-      existingPosition.quantity += order.quantity;
-      existingPosition.averageCost = Number(
-        (totalCost / existingPosition.quantity).toFixed(2),
-      );
+      const currentTotalCost = new Decimal(existingPosition.quantity).times(existingPosition.averageCost);
+      const newTotalCost = currentTotalCost.plus(grossAmount);
+      const newQuantity = existingPosition.quantity + order.quantity;
+      
+      existingPosition.quantity = newQuantity;
+      existingPosition.averageCost = newTotalCost.dividedBy(newQuantity).toDecimalPlaces(2).toNumber();
+      
       await existingPosition.save({ session });
     } else {
       await this.positionModel.create(
@@ -217,9 +221,12 @@ export class OrderExecutionService {
 
     position.quantity -= order.quantity;
     position.reservedQuantity -= order.quantity;
-    user.availableBalance = Number(
-      (user.availableBalance + grossAmount - commissionAmount).toFixed(2),
-    );
+    
+    user.availableBalance = new Decimal(user.availableBalance)
+      .plus(grossAmount)
+      .minus(commissionAmount)
+      .toDecimalPlaces(2)
+      .toNumber();
 
     if (position.quantity <= 0) {
       await position.deleteOne({ session });
@@ -242,10 +249,9 @@ export class OrderExecutionService {
     order.commissionAmount = commissionAmount;
     order.executedAt = executedAt;
 
-    const netAmount =
-      order.side === 'BUY'
-        ? Number((grossAmount + commissionAmount).toFixed(2))
-        : Number((grossAmount - commissionAmount).toFixed(2));
+    const netAmount = order.side === 'BUY'
+      ? new Decimal(grossAmount).plus(commissionAmount).toDecimalPlaces(2).toNumber()
+      : new Decimal(grossAmount).minus(commissionAmount).toDecimalPlaces(2).toNumber();
 
     await Promise.all([
       user.save({ session }),
