@@ -242,7 +242,7 @@ El proyecto ya incluye el flujo principal completo:
 
 ## Mejoras futuras
 
-- Integración completa con Alpaca u otro proveedor real
+- Integración completa un proveedor real
 - Cancelación de órdenes abiertas
 - Watchlists y alertas
 - Panel administrativo para comisiones y parámetros del simulador

@@ -45,7 +45,7 @@ async function bootstrap(): Promise<void> {
     .build();
   const document = SwaggerModule.createDocument(app, options);
   // Swagger path: http://localhost:3000/api/docs
-  SwaggerModule.setup(`${apiPath}/docs`, app, document);
+  SwaggerModule.setup(`${apiPath}/swagger`, app, document);
 
   await app.listen(port);
   logger.log(`Backend de Quill escuchando en http://localhost:${port}/api`);
