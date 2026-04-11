@@ -5,6 +5,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
 import compression from 'compression';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
@@ -33,7 +34,18 @@ async function bootstrap(): Promise<void> {
     }),
   );
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.setGlobalPrefix('api');
+  const apiPath = 'api';
+  app.setGlobalPrefix(apiPath);
+  // Swagger Options
+  const options = new DocumentBuilder()
+    .addBearerAuth()
+    .setTitle('Quill Swagger API')
+    .setDescription('API documentation')
+    .setVersion('1.0')
+    .build();
+  const document = SwaggerModule.createDocument(app, options);
+  // Swagger path: http://localhost:3000/api/docs
+  SwaggerModule.setup(`${apiPath}/docs`, app, document);
 
   await app.listen(port);
   logger.log(`Backend de Quill escuchando en http://localhost:${port}/api`);
