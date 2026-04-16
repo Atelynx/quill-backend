@@ -115,14 +115,11 @@ export class MarketService implements OnModuleInit {
       });
 
       // Update cache in parallel (non-blocking for DB loop)
-      void this.cacheService.set(
-        `market:${stock.symbol}`,
-        JSON.stringify({
-          symbol: stock.symbol,
-          price: nextPrice,
-          updatedAt: new Date().toISOString(),
-        }),
-      );
+      void this.cacheService.set(`market:${stock.symbol}`, {
+        symbol: stock.symbol,
+        price: nextPrice,
+        updatedAt: new Date().toISOString(),
+      });
     }
 
     if (stockUpdateOperations.length) {
