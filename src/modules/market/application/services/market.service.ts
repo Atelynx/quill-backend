@@ -38,8 +38,13 @@ export class MarketService implements OnModuleInit {
     await this.seedInitialStocks();
   }
 
-  async listQuotes() {
-    return this.stockModel.find().sort({ symbol: 1 }).lean().exec();
+  async listQuotes()  {
+    return await this.stockModel
+    .find()
+    .sort({ symbol: 1 })
+    .lean()
+    .exec();
+    
   }
 
   async getQuote(symbol: string) {
