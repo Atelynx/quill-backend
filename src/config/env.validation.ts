@@ -9,6 +9,6 @@ export const envValidationSchema = Joi.object({
   JWT_EXPIRES_IN: Joi.string().default('1d'),
   INITIAL_BALANCE: Joi.number().positive().default(100000),
   COMMISSION_RATE: Joi.number().min(0).max(1).default(0.005),
-  MARKET_PROVIDER: Joi.string().valid('mock', 'other').default('mock'),
+  MARKET_PROVIDER: Joi.string().valid('mock').default('mock'),
   MARKET_TICK_INTERVAL_SECONDS: Joi.number().min(5).default(15),
 });
