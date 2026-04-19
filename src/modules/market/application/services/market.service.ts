@@ -3,13 +3,14 @@ import {
   Logger,
   NotFoundException,
   OnModuleInit,
+  Inject,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { AnyBulkWriteOperation, Model } from 'mongoose';
 import Decimal from 'decimal.js';
+import type { MarketDataProvider } from '../../infrastructure/providers/market-data-provider.interface';
 import { CacheService } from '../../../system/application/services/cache.service';
 import { seedStocks } from '../../domain/constants/seed-stocks';
-import { MockMarketDataProvider } from '../../infrastructure/providers/mock-market-data.provider';
 import {
   PriceSnapshot,
   PriceSnapshotDocument,
@@ -29,7 +30,8 @@ export class MarketService implements OnModuleInit {
     private readonly stockModel: Model<StockDocument>,
     @InjectModel(PriceSnapshot.name)
     private readonly snapshotModel: Model<PriceSnapshotDocument>,
-    private readonly provider: MockMarketDataProvider,
+    @Inject('MARKET_DATA_PROVIDER')
+    private readonly provider: MarketDataProvider,
     private readonly cacheService: CacheService,
     private readonly marketGateway: MarketGateway,
   ) {}
@@ -93,38 +95,47 @@ export class MarketService implements OnModuleInit {
     const stockUpdateOperations: AnyBulkWriteOperation[] = [];
 
     for (const stock of stocks) {
-      const nextPrice = this.provider.generateNextPrice(stock);
-      
-      const dayChangePercentage = new Decimal(nextPrice)
-        .minus(stock.previousClose)
-        .dividedBy(stock.previousClose)
-        .times(100)
-        .toDecimalPlaces(2)
-        .toNumber();
+      try {
+        // Use provider.getQuote() for abstraction
+        const quote = await this.provider.getQuote(stock.symbol);
 
-      stockUpdateOperations.push({
-        updateOne: {
-          filter: { _id: stock._id },
-          update: {
-            $set: {
-              currentPrice: nextPrice,
-              dayChangePercentage: dayChangePercentage,
+        const dayChangePercentage = new Decimal(quote.price)
+          .minus(stock.previousClose)
+          .dividedBy(stock.previousClose)
+          .times(100)
+          .toDecimalPlaces(2)
+          .toNumber();
+
+        stockUpdateOperations.push({
+          updateOne: {
+            filter: { _id: stock._id },
+            update: {
+              $set: {
+                currentPrice: quote.price,
+                dayChangePercentage: dayChangePercentage,
+              },
             },
           },
-        },
-      });
+        });
 
-      snapshotsToInsert.push({
-        symbol: stock.symbol,
-        price: nextPrice,
-      });
+        snapshotsToInsert.push({
+          symbol: quote.symbol,
+          price: quote.price,
+        });
 
-      // Update cache in parallel (non-blocking for DB loop)
-      void this.cacheService.set(`market:${stock.symbol}`, {
-        symbol: stock.symbol,
-        price: nextPrice,
-        updatedAt: new Date().toISOString(),
-      });
+        // Update cache in parallel (non-blocking for DB loop)
+        void this.cacheService.set(`market:${stock.symbol}`, {
+          symbol: quote.symbol,
+          price: quote.price,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        // GRACEFUL: Log error but continue with next symbol
+        this.logger.error(
+          `Failed to update price for ${stock.symbol}: ${error.message}`,
+          error.stack,
+        );
+      }
     }
 
     if (stockUpdateOperations.length) {
