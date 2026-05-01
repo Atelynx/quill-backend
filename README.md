@@ -67,15 +67,12 @@ Más detalle en:
 
 ```text
 .
-|-- apps
-|   |-- backend
-|   `-- frontend
-|-- docs
-|   |-- architecture.md
-|   |-- domain-rules.md
-|   `-- project-brief.md
-|-- packages
-|   `-- shared
+|-- src/                    # Backend source code
+|   |-- common/             # Utilities, guards, filters, decorators
+|   |-- config/             # Environment and configuration
+|   `-- modules/            # Functional modules
+|-- docs/                   # Documentation
+|-- test/                   # E2E tests
 |-- .env.example
 |-- docker-compose.yml
 `-- package.json
@@ -86,31 +83,17 @@ Más detalle en:
 ### Backend
 
 ```text
-apps/backend/src
-|-- common
-|-- config
-`-- modules
-    |-- auth
-    |-- users
-    |-- market
-    |-- orders
-    |-- portfolio
-    |-- trades
-    `-- system
-```
-
-### Frontend
-
-```text
-apps/frontend/src
-|-- app
-|-- modules
-|   |-- auth
-|   |-- dashboard
-|   |-- orders
-|   |-- portfolio
-|   `-- trades
-`-- shared
+src/
+|-- common/                 # Decorators, guards, filters, interfaces
+|-- config/                 # Environment validation
+`-- modules/
+    |-- auth/               # User authentication
+    |-- users/              # User management
+    |-- market/             # Stock data & pricing
+    |-- orders/             # Order creation & execution
+    |-- portfolio/          # User positions & metrics
+    |-- trades/             # Trade history
+    `-- system/             # Health check & cache
 ```
 
 ## Variables de entorno
@@ -142,8 +125,6 @@ MONGODB_URI=mongodb://localhost:27017/quill?replicaSet=rs0
 
 ```bash
 npm install
-npm install --prefix apps/backend
-npm install --prefix apps/frontend
 ```
 
 ### 2. Levantar servicios de infraestructura
@@ -249,7 +230,6 @@ El proyecto ya incluye el flujo principal completo:
 - Métricas históricas más profundas del portafolio
 - Adaptación híbrida con Capacitor
 - Migrar de App router a Routes handlers
-- añadir swagger
 
 ## Validación realizada
 
