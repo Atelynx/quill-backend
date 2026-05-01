@@ -10,6 +10,22 @@
 - Scheduler interno para ticks de mercado
 - WebSockets con Socket.IO
 
+## Precisión Financiera
+
+Se utiliza **Decimal.js** para todos los cálculos monetarios. Esto evita errores de precisión de punto flotante de JavaScript que pueden afectar cálculos de balance, comisiones y valores de portafolio.
+
+## Actualizaciones en Tiempo Real
+
+**Socket.IO** implementa un gateway WebSocket que difunde cotizaciones de precios a todos los clientes conectados. El servidor emite eventos `market.quotes` cada vez que se actualiza el mercado, permitiendo que el frontend refleje cambios de precio sin polling.
+
+## Proveedor de Datos de Mercado Desacoplado
+
+El sistema usa un patrón **`MarketDataProvider`** abstracto. Por defecto corre con el proveedor `mock`, que permite ejecutar el proyecto sin credenciales externas. La arquitectura está lista para integrar otros proveedores (finnhub, eodhd) sin cambios en la lógica de negocio.
+
+## Estrategia de Cache Híbrida
+
+El **`CacheService`** intenta usar Redis cuando está disponible. Si Redis no responde, automáticamente cae a un cache en memoria usando `Map`. Esto garantiza que la demo nunca se detiene por fallos de infraestructura externa.
+
 ## Punto de entrada
 
 El backend inicia en `src/main.ts`.

@@ -6,11 +6,10 @@ Construir un MVP profesional de Quill como una plataforma web educativa para sim
 
 ## Enfoque general
 
-Se implementará un monorepo con dos aplicaciones principales y un paquete compartido:
+Se implementa un repositorio monolítico modular con backend y frontend separados:
 
-- `apps/backend`: API y lógica de negocio con NestJS
-- `apps/frontend`: cliente web responsive con React + Vite
-- `packages/shared`: tipos, contratos y utilidades compartidas entre frontend y backend
+- Backend: API y lógica de negocio con NestJS en `src/`
+- Frontend: Cliente web responsive con React + Vite en directorio separado
 
 Esta estructura permite separar responsabilidades sin introducir complejidad innecesaria.
 
@@ -178,18 +177,15 @@ El frontend usará React + Vite + TypeScript con organización por funcionalidad
 
 ```text
 .
-|-- apps
-|   |-- backend
-|   `-- frontend
-|-- docs
-|   |-- architecture.md
-|   `-- project-brief.md
-|-- packages
-|   `-- shared
+|-- src/
+|   |-- common/
+|   |-- config/
+|   `-- modules/
+|-- docs/
+|-- test/
 |-- .env.example
 |-- docker-compose.yml
-|-- package.json
-`-- README.md
+`-- package.json
 ```
 
 ## Riesgos controlados
