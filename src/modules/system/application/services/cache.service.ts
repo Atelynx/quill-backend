@@ -1,17 +1,10 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CacheManagerStore } from 'cache-manager';
 import Redis from 'ioredis';
 
 @Injectable()
-export class CacheService
-  implements OnModuleInit, OnModuleDestroy, CacheManagerStore
-{
+export class CacheService implements OnModuleInit, OnModuleDestroy, CacheManagerStore {
   private readonly logger = new Logger(CacheService.name);
   private readonly fallbackStore = new Map<string, string>();
   private redis: Redis | null = null;
@@ -26,9 +19,7 @@ export class CacheService
   async onModuleInit(): Promise<void> {
     const url = this.configService.get<string>('REDIS_URL');
 
-    if (!url) {
-      return;
-    }
+    if (!url) return;
 
     try {
       this.redis = new Redis(url, {
@@ -38,39 +29,29 @@ export class CacheService
         enableOfflineQueue: false,
         retryStrategy: () => null,
       });
-
       this.redis.on('error', (error) => {
         this.activateFallback(`Redis no disponible: ${error.message}`);
       });
-
       await this.redis.connect();
       await this.redis.ping();
       this.connected = true;
-      await this.redis.set("mish",  67 );
     } catch {
-      this.activateFallback(
-        'Redis no pudo inicializarse. Se usara cache en memoria.',
-      );
+      this.activateFallback('Redis no pudo inicializarse. Se usara cache en memoria.');
     }
   }
 
   async onModuleDestroy(): Promise<void> {
-    if (!this.redis) {
-      return;
-    }
+    if (!this.redis) return;
 
     try {
-      if (this.redis.status !== 'end') {
-        await this.redis.quit();
-      }
+      if (this.redis.status !== 'end') await this.redis.quit();
     } catch {
       this.redis.disconnect(false);
     }
   }
 
   async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-    const stringValue =
-      typeof value === 'string' ? value : JSON.stringify(value);
+    const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
 
     if (this.connected && this.redis) {
       if (ttl) {
@@ -85,17 +66,12 @@ export class CacheService
   }
 
   async get<T>(key: string): Promise<T | undefined> {
-    let rawValue: string | null | undefined;
+    const rawValue =
+      this.connected && this.redis
+        ? await this.redis.get(key)
+        : this.fallbackStore.get(key);
 
-    if (this.connected && this.redis) {
-      rawValue = await this.redis.get(key);
-    } else {
-      rawValue = this.fallbackStore.get(key);
-    }
-
-    if (!rawValue) {
-      return undefined;
-    }
+    if (!rawValue) return undefined;
 
     try {
       return JSON.parse(rawValue) as T;
@@ -128,18 +104,12 @@ export class CacheService
     this.fallbackStore.clear();
   }
 
-  async clear(): Promise<void> {
-    return this.reset();
-  }
+  async clear(): Promise<void> { return this.reset(); }
 
   async ttl(key: string): Promise<number> {
-    if (this.connected && this.redis) {
-      return this.redis.pttl(key);
-    }
-    return -1;
+    return this.connected && this.redis ? this.redis.pttl(key) : -1;
   }
 
-  // Mandatory methods for CacheManagerStore interface
   async mget(...keys: string[]): Promise<unknown[]> {
     return Promise.all(keys.map((key) => this.get(key)));
   }
@@ -155,9 +125,7 @@ export class CacheService
   }
 
   async keys(): Promise<string[]> {
-    if (this.connected && this.redis) {
-      return this.redis.keys('*');
-    }
+    if (this.connected && this.redis) return this.redis.keys('*');
     return Array.from(this.fallbackStore.keys());
   }
 

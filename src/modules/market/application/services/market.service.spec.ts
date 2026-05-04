@@ -18,11 +18,11 @@ describe('MarketService', () => {
     getQuote: jest.Mock;
     generateNextPrice?: jest.Mock;
   };
-  let cacheService: {
-    set: jest.Mock;
+  let marketRefreshService: {
+    refreshMarket: jest.Mock;
   };
-  let marketGateway: {
-    emitQuotes: jest.Mock;
+  let marketSeedService: {
+    seedInitialStocks: jest.Mock;
   };
 
   beforeEach(() => {
@@ -37,22 +37,15 @@ describe('MarketService', () => {
       find: jest.fn(),
       insertMany: jest.fn(),
     };
-    provider = {
-      getQuote: jest.fn(),
-    };
-    cacheService = {
-      set: jest.fn(),
-    };
-    marketGateway = {
-      emitQuotes: jest.fn(),
-    };
+    provider = { getQuote: jest.fn() };
+    marketRefreshService = { refreshMarket: jest.fn() };
+    marketSeedService = { seedInitialStocks: jest.fn() };
 
     service = new MarketService(
       stockModel as never,
       snapshotModel as never,
-      provider as never,
-      cacheService as never,
-      marketGateway as never,
+      marketRefreshService as never,
+      marketSeedService as never,
     );
   });
 
@@ -105,73 +98,14 @@ describe('MarketService', () => {
     );
   });
 
-  describe('refreshMarket()', () => {
-    it('should call provider.getQuote() for each stock', async () => {
-      const stocks = [
-        {
-          _id: '1',
-          symbol: 'COPEC',
-          previousClose: 100,
-          currentPrice: 105,
-        },
-      ];
+  it('delega el refresh de mercado al servicio especializado', async () => {
+    marketRefreshService.refreshMarket.mockResolvedValue([{ symbol: 'COPEC' }]);
 
-      stockModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(stocks),
-      });
+    const result = await service.refreshMarket({ allowExternalFetch: true });
 
-      provider.getQuote.mockResolvedValue({
-        symbol: 'COPEC',
-        price: 110,
-        previousClose: 100,
-      });
-
-      stockModel.bulkWrite.mockResolvedValue({});
-      snapshotModel.insertMany.mockResolvedValue([]);
-
-      const exec = jest.fn().mockResolvedValue([]);
-      const lean = jest.fn().mockReturnValue({ exec });
-      const sort = jest.fn().mockReturnValue({ lean });
-      stockModel.find.mockReturnValue({ sort, exec: jest.fn().mockResolvedValue(stocks) });
-
-      await service.refreshMarket();
-
-      expect(provider.getQuote).toHaveBeenCalledWith('COPEC');
+    expect(marketRefreshService.refreshMarket).toHaveBeenCalledWith({
+      allowExternalFetch: true,
     });
-
-    it('should update stock with quote price', async () => {
-      const stocks = [
-        {
-          _id: '1',
-          symbol: 'AAPL',
-          previousClose: 170,
-          currentPrice: 172,
-        },
-      ];
-
-      stockModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(stocks),
-      });
-
-      provider.getQuote.mockResolvedValue({
-        symbol: 'AAPL',
-        price: 175,
-        previousClose: 170,
-      });
-
-      stockModel.bulkWrite.mockResolvedValue({});
-      snapshotModel.insertMany.mockResolvedValue([]);
-
-      const exec = jest.fn().mockResolvedValue([]);
-      const lean = jest.fn().mockReturnValue({ exec });
-      const sort = jest.fn().mockReturnValue({ lean });
-      stockModel.find.mockReturnValue({ sort, exec: jest.fn().mockResolvedValue(stocks) });
-
-      await service.refreshMarket();
-
-      expect(stockModel.bulkWrite).toHaveBeenCalled();
-      const updateCall = stockModel.bulkWrite.mock.calls[0][0][0];
-      expect(updateCall.updateOne.update.$set.currentPrice).toBe(175);
-    });
+    expect(result).toEqual([{ symbol: 'COPEC' }]);
   });
 });

@@ -25,6 +25,15 @@ export class Stock {
 
   @Prop({ required: true, default: 0 })
   dayChangePercentage!: number;
+
+  @Prop({ default: 'mock' })
+  source?: string;
+
+  @Prop()
+  volume?: number;
+
+  @Prop()
+  lastMarketDate?: Date;
 }
 
 export const StockSchema = SchemaFactory.createForClass(Stock);

@@ -1,7 +1,13 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
+import { EodhdDailyRefreshScheduler } from './application/services/eodhd-daily-refresh.scheduler';
+import { MarketRefreshService } from './application/services/market-refresh.service';
+import { MarketSeedService } from './application/services/market-seed.service';
 import { MarketService } from './application/services/market.service';
+import { MarketSnapshotService } from './application/services/market-snapshot.service';
+import { MarketUpdateWriterService } from './application/services/market-update-writer.service';
+import { EodhdMarketDataProvider } from './infrastructure/providers/eodhd-market-data.provider';
 import { MockMarketDataProvider } from './infrastructure/providers/mock-market-data.provider';
 import { ProviderFactory } from './infrastructure/providers/provider.factory';
 import {
@@ -22,16 +28,27 @@ import { MarketGateway } from './presentation/gateways/market.gateway';
   controllers: [MarketController],
   providers: [
     MarketService,
+    MarketRefreshService,
+    MarketSeedService,
+    MarketSnapshotService,
+    MarketUpdateWriterService,
+    EodhdDailyRefreshScheduler,
     MockMarketDataProvider,
+    EodhdMarketDataProvider,
     {
       provide: 'MARKET_DATA_PROVIDER',
-      inject: [MockMarketDataProvider, ConfigService],
+      inject: [MockMarketDataProvider, EodhdMarketDataProvider, ConfigService],
       useFactory: (
         mockProvider: MockMarketDataProvider,
+        eodhdProvider: EodhdMarketDataProvider,
         configService: ConfigService,
       ) => {
         const providerName = configService.get('MARKET_PROVIDER', 'mock');
-        return ProviderFactory.createProvider(providerName, mockProvider);
+        return ProviderFactory.createProvider(
+          providerName,
+          mockProvider,
+          eodhdProvider,
+        );
       },
     },
     MarketGateway,

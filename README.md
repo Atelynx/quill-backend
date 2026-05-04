@@ -112,12 +112,49 @@ Variables principales:
 - `COMMISSION_RATE`
 - `MARKET_PROVIDER`
 - `MARKET_TICK_INTERVAL_SECONDS`
+- `EODHD_API_KEY`
+- `EODHD_BASE_URL`
+- `EODHD_EXCHANGE_CODE`
+- `EODHD_SYMBOLS`
+- `EODHD_DAILY_REFRESH_ENABLED`
+- `EODHD_DAILY_REFRESH_CRON`
+- `EODHD_CACHE_TTL_SECONDS`
 
 Cadena local recomendada para MongoDB:
 
 ```bash
 MONGODB_URI=mongodb://localhost:27017/quill?replicaSet=rs0
 ```
+
+### Provider de mercado
+
+Para desarrollo local sin consumo externo usa:
+
+```bash
+MARKET_PROVIDER=mock
+```
+
+Para activar EODHD usa:
+
+```bash
+MARKET_PROVIDER=eodhd
+EODHD_API_KEY=tu_api_key_local
+EODHD_BASE_URL=https://eodhd.com/api
+EODHD_EXCHANGE_CODE=SN
+EODHD_SYMBOLS=SQM-B.SN,VAPORES.SN,BSANTANDER.SN,COPEC.SN,CENCOSUD.SN,CHILE.SN,CMPC.SN,COLBUN.SN
+EODHD_DAILY_REFRESH_ENABLED=true
+EODHD_DAILY_REFRESH_CRON=0 30 18 * * 1-5
+EODHD_CACHE_TTL_SECONDS=86400
+```
+
+No subas `EODHD_API_KEY` al repositorio ni la pegues en logs, issues o capturas.
+La integracion usa refresh diario para cuidar el limite del plan gratis: los
+endpoints REST y WebSocket leen BD/cache y no consultan EODHD por request. Si
+EODHD falla, el backend usa el ultimo snapshot guardado; si no existe snapshot,
+usa el provider `mock`.
+
+Para probar sin gastar llamadas reales, deja `MARKET_PROVIDER=mock` o ejecuta
+la suite de tests, donde Axios se mockea y `EODHD_DAILY_REFRESH_ENABLED=false`.
 
 ## Cómo ejecutar el proyecto
 

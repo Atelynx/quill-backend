@@ -13,7 +13,12 @@ export interface TestAppContext {
   mongoServer: MongoMemoryReplSet;
 }
 
-function applyTestEnvironment(mongoUri: string) {
+interface TestAppOptions {
+  marketProvider?: 'mock' | 'eodhd';
+}
+
+function applyTestEnvironment(mongoUri: string, options: TestAppOptions = {}) {
+  process.env.MONGOMS_MD5_CHECK = 'false';
   process.env.BACKEND_PORT = '3000';
   process.env.FRONTEND_ORIGIN = 'http://localhost:5173';
   process.env.MONGODB_URI = mongoUri;
@@ -22,14 +27,20 @@ function applyTestEnvironment(mongoUri: string) {
   process.env.JWT_EXPIRES_IN = '1d';
   process.env.INITIAL_BALANCE = '100000';
   process.env.COMMISSION_RATE = '0.005';
-  process.env.MARKET_PROVIDER = 'mock';
+  process.env.MARKET_PROVIDER = options.marketProvider ?? 'mock';
   process.env.MARKET_TICK_INTERVAL_SECONDS = '3600';
+  process.env.EODHD_API_KEY = 'test-eodhd-token';
+  process.env.EODHD_DAILY_REFRESH_ENABLED = 'false';
 }
 
-export async function createTestApp(): Promise<TestAppContext> {
+export async function createTestApp(
+  options: TestAppOptions = {},
+): Promise<TestAppContext> {
+  process.env.MONGOMS_MD5_CHECK = 'false';
   const mongoServer = await MongoMemoryReplSet.create({
     binary: {
       version: '7.0.14',
+      checkMD5: false,
     },
     replSet: {
       count: 1,
@@ -38,7 +49,7 @@ export async function createTestApp(): Promise<TestAppContext> {
   });
   await mongoServer.waitUntilRunning();
 
-  applyTestEnvironment(mongoServer.getUri());
+  applyTestEnvironment(mongoServer.getUri(), options);
 
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const importedModule = require('../../src/app.module') as {

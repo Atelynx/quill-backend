@@ -20,7 +20,9 @@ Se utiliza **Decimal.js** para todos los cálculos monetarios. Esto evita errore
 
 ## Proveedor de Datos de Mercado Desacoplado
 
-El sistema usa un patrón **`MarketDataProvider`** abstracto. Por defecto corre con el proveedor `mock`, que permite ejecutar el proyecto sin credenciales externas. La arquitectura está lista para integrar otros proveedores (finnhub, eodhd) sin cambios en la lógica de negocio.
+El sistema usa un patrón **`MarketDataProvider`** abstracto. Por defecto corre con el proveedor `mock`, que permite ejecutar el proyecto sin credenciales externas. También puede usar `eodhd` para datos de mercado chileno con refresh diario, snapshots persistidos y fallback a datos guardados o mock si la API externa falla.
+
+EODHD no se consulta en cada request REST ni en cada conexión WebSocket. El scheduler diario, configurable con `EODHD_DAILY_REFRESH_CRON`, es el único flujo con permiso de hacer llamadas reales. Antes de llamar a EODHD se revisan snapshots `source=eodhd` del día; si ya existen, se reutilizan.
 
 ## Estrategia de Cache Híbrida
 
@@ -62,8 +64,18 @@ Variables importantes:
 - `COMMISSION_RATE`
 - `MARKET_PROVIDER`
 - `MARKET_TICK_INTERVAL_SECONDS`
+- `EODHD_API_KEY`
+- `EODHD_BASE_URL`
+- `EODHD_EXCHANGE_CODE`
+- `EODHD_SYMBOLS`
+- `EODHD_DAILY_REFRESH_ENABLED`
+- `EODHD_DAILY_REFRESH_CRON`
+- `EODHD_CACHE_TTL_SECONDS`
 
 La validacion esta centralizada en `src/config/env.validation.ts`.
+
+`EODHD_API_KEY` solo es obligatoria cuando `MARKET_PROVIDER=eodhd`. No debe
+versionarse ni exponerse. `.env.example` deja el valor vacío a propósito.
 
 ## Piezas transversales
 
