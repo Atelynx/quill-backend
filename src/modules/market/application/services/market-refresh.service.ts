@@ -11,6 +11,7 @@ import { MarketUpdateWriterService } from './market-update-writer.service';
 @Injectable()
 export class MarketRefreshService {
   private readonly logger = new Logger(MarketRefreshService.name);
+  private isRefreshing = false;
 
   constructor(
     @InjectModel(Stock.name) private readonly stockModel: Model<StockDocument>,
@@ -21,36 +22,46 @@ export class MarketRefreshService {
   ) {}
 
   async refreshMarket(options: MarketRefreshOptions = {}) {
-    const stocks = await this.stockModel.find().exec();
-    const providerName = this.provider.getName().toLowerCase();
-
-    if (!stocks.length) {
-      this.logger.warn('Sin acciones en la base de datos. Verifique que MARKET_PROVIDER este configurado.');
+    if (this.isRefreshing) {
+      this.logger.warn('Refresh already in progress, skipping.');
       return [];
     }
 
-    this.logger.log(
-      `Iniciando refresh para ${stocks.length} acciones con provider "${providerName}" (allowExternalFetch: ${!!options.allowExternalFetch})`,
-    );
+    this.isRefreshing = true;
+    try {
+      const stocks = await this.stockModel.find().exec();
+      const providerName = this.provider.getName().toLowerCase();
 
-    const updates =
-      providerName === 'eodhd'
-        ? await this.resolveEodhdUpdates(stocks)
-        : await this.resolveProviderUpdates(stocks);
+      if (!stocks.length) {
+        this.logger.warn('Sin acciones en la base de datos. Verifique que MARKET_PROVIDER este configurado.');
+        return [];
+      }
 
-    const validUpdates = updates.filter(
-      (update): update is NonNullable<typeof update> => update !== null,
-    );
+      this.logger.log(
+        `Iniciando refresh para ${stocks.length} acciones con provider "${providerName}" (allowExternalFetch: ${!!options.allowExternalFetch})`,
+      );
 
-    this.logger.log(
-      `Refresh completado: ${validUpdates.length}/${stocks.length} actualizaciones validas para persistir`,
-    );
+      const updates =
+        providerName === 'eodhd'
+          ? await this.resolveEodhdUpdates(stocks)
+          : await this.resolveProviderUpdates(stocks);
 
-    await this.updateWriter.persist(validUpdates, providerName);
-    const quotes = await this.stockModel.find().sort({ symbol: 1 }).lean().exec();
-    this.marketGateway.emitQuotes(quotes);
-    this.logger.log(`${quotes.length} cotizaciones emitidas por WebSocket`);
-    return quotes;
+      const validUpdates = updates.filter(
+        (update): update is NonNullable<typeof update> => update !== null,
+      );
+
+      this.logger.log(
+        `Refresh completado: ${validUpdates.length}/${stocks.length} actualizaciones validas para persistir`,
+      );
+
+      await this.updateWriter.persist(validUpdates, providerName);
+      const quotes = await this.stockModel.find().sort({ symbol: 1 }).lean().exec();
+      this.marketGateway.emitQuotes(quotes);
+      this.logger.log(`${quotes.length} cotizaciones emitidas por WebSocket`);
+      return quotes;
+    } finally {
+      this.isRefreshing = false;
+    }
   }
 
   private async resolveEodhdUpdates(
