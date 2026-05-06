@@ -11,17 +11,14 @@ describe('MarketRefreshService', () => {
   };
   let stockModel: any;
   let provider: any;
-  let mockProvider: any;
   let snapshotService: any;
   let updateWriter: any;
+  let marketGateway: any;
   let service: MarketRefreshService;
 
   beforeEach(() => {
     stockModel = { find: jest.fn() };
     provider = { getName: jest.fn(() => 'EODHD'), getQuote: jest.fn() };
-    mockProvider = {
-      getQuote: jest.fn().mockResolvedValue(quote(95, 'mock')),
-    };
     snapshotService = {
       getLatestMap: jest.fn(),
       quoteFromSnapshot: jest.fn((targetStock, snapshot) =>
@@ -29,24 +26,23 @@ describe('MarketRefreshService', () => {
       ),
     };
     updateWriter = { persist: jest.fn().mockResolvedValue(undefined) };
+    marketGateway = { emitQuotes: jest.fn() };
 
     service = new MarketRefreshService(
       stockModel,
       provider,
-      mockProvider,
       snapshotService,
       updateWriter,
-      { emitQuotes: jest.fn() } as never,
+      marketGateway,
     );
   });
 
-  it('no llama a EODHD si ya hay snapshot actualizado del dia', async () => {
+  it('no llama a API si ya hay snapshot actualizado del dia', async () => {
     mockStocks();
     snapshotService.getLatestMap
-      .mockResolvedValueOnce(new Map([['COPEC.SN', snapshot(110, 'eodhd')]]))
-      .mockResolvedValueOnce(new Map());
+      .mockResolvedValueOnce(new Map([['COPEC.SN', snapshot(110, 'eodhd')]]));
 
-    await service.refreshMarket({ allowExternalFetch: true });
+    await service.refreshMarket();
 
     expect(provider.getQuote).not.toHaveBeenCalled();
     expect(updateWriter.persist.mock.calls[0][0][0]).toMatchObject({
@@ -55,57 +51,52 @@ describe('MarketRefreshService', () => {
     });
   });
 
-  it('usa ultimo snapshot si EODHD falla', async () => {
+  it('llama a API si no hay snapshot de hoy y guarda resultado', async () => {
     mockStocks();
     snapshotService.getLatestMap
       .mockResolvedValueOnce(new Map())
       .mockResolvedValueOnce(new Map([['COPEC.SN', snapshot(102, 'eodhd')]]));
-    provider.getQuote.mockRejectedValue(new Error('timeout'));
-
-    await service.refreshMarket({ allowExternalFetch: true });
-
-    expect(mockProvider.getQuote).not.toHaveBeenCalled();
-    expect(updateWriter.persist.mock.calls[0][0][0].quote.price).toBe(102);
-  });
-
-  it('usa mock si EODHD falla y no hay snapshot', async () => {
-    mockStocks();
-    snapshotService.getLatestMap
-      .mockResolvedValueOnce(new Map())
-      .mockResolvedValueOnce(new Map());
-    provider.getQuote.mockRejectedValue(new Error('timeout'));
-
-    await service.refreshMarket({ allowExternalFetch: true });
-
-    expect(mockProvider.getQuote).toHaveBeenCalledWith('COPEC.SN');
-    expect(updateWriter.persist.mock.calls[0][0][0].quote.price).toBe(95);
-  });
-
-  it('marca snapshot para guardar cuando EODHD responde correctamente', async () => {
-    mockStocks();
-    snapshotService.getLatestMap
-      .mockResolvedValueOnce(new Map())
-      .mockResolvedValueOnce(new Map());
     provider.getQuote.mockResolvedValue(quote(120, 'eodhd'));
 
-    await service.refreshMarket({ allowExternalFetch: true });
+    await service.refreshMarket();
 
+    expect(provider.getQuote).toHaveBeenCalledWith('COPEC.SN');
     expect(updateWriter.persist.mock.calls[0][0][0]).toMatchObject({
       save: true,
       quote: expect.objectContaining({ price: 120, source: 'eodhd' }),
     });
   });
 
-  it('no llama a EODHD en refresh operativo sin permiso externo', async () => {
+  it('usa ultimo snapshot si API falla y no hay snapshot de hoy', async () => {
+    mockStocks();
+    snapshotService.getLatestMap
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(new Map([['COPEC.SN', snapshot(102, 'eodhd')]]));
+    provider.getQuote.mockRejectedValue(new Error('timeout'));
+
+    await service.refreshMarket();
+
+    expect(updateWriter.persist.mock.calls[0][0][0].quote.price).toBe(102);
+  });
+
+  it('registra advertencia si API falla y no hay ningun snapshot', async () => {
     mockStocks();
     snapshotService.getLatestMap
       .mockResolvedValueOnce(new Map())
       .mockResolvedValueOnce(new Map());
+    provider.getQuote.mockRejectedValue(new Error('timeout'));
 
     await service.refreshMarket();
 
-    expect(provider.getQuote).not.toHaveBeenCalled();
-    expect(mockProvider.getQuote).toHaveBeenCalledWith('COPEC.SN');
+    expect(updateWriter.persist.mock.calls[0][0]).toEqual([]);
+  });
+
+  it('retorna array vacio si no hay acciones en BD', async () => {
+    stockModel.find.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue([]) });
+
+    const result = await service.refreshMarket();
+
+    expect(result).toEqual([]);
   });
 
   function mockStocks() {

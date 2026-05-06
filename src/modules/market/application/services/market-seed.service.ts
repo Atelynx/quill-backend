@@ -24,6 +24,11 @@ export class MarketSeedService {
 
   async seedInitialStocks(): Promise<void> {
     const seedData = this.resolveSeedStocks();
+
+    if (!seedData.length) {
+      return;
+    }
+
     const symbols = seedData.map((stock) => stock.symbol);
     const existingStocks = await this.stockModel
       .find({ symbol: { $in: symbols } })
@@ -41,27 +46,35 @@ export class MarketSeedService {
       return;
     }
 
+    const isMock = this.configService.get<string>('MARKET_PROVIDER')?.toLowerCase() === 'mock';
     const now = Date.now();
+
     const stocks = missingStocks.map((stock) => {
-      const previousClose = new Decimal(stock.currentPrice)
-        .times(0.985)
-        .toDecimalPlaces(2)
-        .toNumber();
+      const base = isMock ? stock.currentPrice : 0;
+      const previousClose = isMock
+        ? new Decimal(stock.currentPrice).times(0.985).toDecimalPlaces(2).toNumber()
+        : 0;
 
       return {
         ...stock,
+        currentPrice: base,
         previousClose,
-        dayChangePercentage: 1.5,
-        source: 'mock',
+        dayChangePercentage: isMock ? 1.5 : 0,
+        source: isMock ? 'mock' : 'eodhd',
       };
     });
 
     await this.stockModel.insertMany(stocks);
-    await this.snapshotModel.insertMany(this.buildSnapshots(stocks, now));
-    this.logger.log('Mercado inicial sembrado con datos de ejemplo.');
+
+    if (isMock) {
+      await this.snapshotModel.insertMany(this.buildMockSnapshots(stocks, now));
+      this.logger.log('Mercado inicial sembrado con datos de ejemplo.');
+    } else {
+      this.logger.log('Registros placeholder creados para simbolos EODHD. Ejecutando captura inicial...');
+    }
   }
 
-  private buildSnapshots(
+  private buildMockSnapshots(
     stocks: Array<{ symbol: string; currentPrice: number }>,
     now: number,
   ) {
@@ -83,24 +96,29 @@ export class MarketSeedService {
   }
 
   private resolveSeedStocks() {
-    const provider = this.configService.get<string>('MARKET_PROVIDER', 'mock');
+    const provider = this.configService.get<string>('MARKET_PROVIDER');
 
-    if (provider.toLowerCase() !== 'eodhd') {
+    if (provider?.toLowerCase() === 'mock') {
       return seedStocks;
     }
 
-    const symbols = this.configService
-      .get<string>('EODHD_SYMBOLS', '')
-      .split(',')
-      .map((symbol) => symbol.trim().toUpperCase())
-      .filter(Boolean);
+    if (provider?.toLowerCase() === 'eodhd') {
+      const symbols = this.configService
+        .get<string>('EODHD_SYMBOLS', '')
+        .split(',')
+        .map((symbol) => symbol.trim().toUpperCase())
+        .filter(Boolean);
 
-    return symbols.map((symbol) => ({
-      symbol,
-      name: symbol,
-      sector: 'Mercado chileno',
-      currency: 'CLP',
-      currentPrice: 100,
-    }));
+      return symbols.map((symbol) => ({
+        symbol,
+        name: symbol,
+        sector: 'Mercado chileno',
+        currency: 'CLP',
+        currentPrice: 0,
+        previousClose: 0,
+      }));
+    }
+
+    return [];
   }
 }

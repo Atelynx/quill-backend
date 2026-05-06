@@ -25,7 +25,7 @@ export class EodhdMarketDataProvider implements MarketDataProvider {
     const normalizedSymbol = symbol.trim().toUpperCase();
     const url = `${this.baseUrl}/real-time/${encodeURIComponent(normalizedSymbol)}`;
     const apiToken = this.configService.getOrThrow<string>('EODHD_API_KEY');
-
+    this.logger.log(`fetching to eodhd`);
     try {
       const response = await axios.get<EodhdQuoteResponse>(url, {
         params: { api_token: apiToken, fmt: 'json' },
