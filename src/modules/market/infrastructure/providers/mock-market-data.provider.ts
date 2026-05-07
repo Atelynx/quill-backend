@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import type { StockDocument } from '../schemas/stock.schema';
-import { MarketDataProvider } from './market-data-provider.interface';
 import { MarketQuote } from '../../domain/interfaces/market-quote.interface';
+import { seedStocks } from '../../domain/constants/seed-stocks';
+import { MarketDataProvider, StockSeed } from './market-data-provider.interface';
 
+/**
+ * Mock market data provider that generates realistic price movements
+ * using a momentum-based algorithm. No external API calls are made.
+ */
 @Injectable()
 export class MockMarketDataProvider implements MarketDataProvider {
   private readonly momentumBySymbol = new Map<string, number>();
@@ -18,7 +23,7 @@ export class MockMarketDataProvider implements MarketDataProvider {
   async getQuote(symbol: string): Promise<MarketQuote> {
     const upperSymbol = symbol.toUpperCase();
 
-    // Get or initialize mock stock data
+    // Initialize mock stock data on first request
     if (!this.mockStocks.has(upperSymbol)) {
       this.mockStocks.set(upperSymbol, {
         price: 100,
@@ -44,7 +49,7 @@ export class MockMarketDataProvider implements MarketDataProvider {
     return {
       symbol: upperSymbol,
       price: nextPrice,
-      currency: 'USD', // Mock uses USD
+      currency: 'USD',
       timestamp: new Date(),
       exchange: 'MOCK',
       previousClose: stock.previousClose,
@@ -52,16 +57,34 @@ export class MockMarketDataProvider implements MarketDataProvider {
     };
   }
 
-  /**
-   * Return provider name for logging.
-   */
   getName(): string {
     return 'Mock';
   }
 
   /**
+   * Return seed data for initial stock setup.
+   * Uses the predefined Chilean/US stock list with realistic prices.
+   */
+  getSeedData(): StockSeed[] {
+    const basePrice = 0.985; // 1.5% below current price for previousClose
+
+    return seedStocks.map((stock) => ({
+      symbol: stock.symbol,
+      name: stock.name,
+      sector: stock.sector,
+      currency: stock.currency,
+      currentPrice: stock.currentPrice,
+      previousClose: Number(
+        (stock.currentPrice * basePrice).toFixed(2),
+      ),
+      dayChangePercentage: 1.5,
+      source: 'mock',
+    }));
+  }
+
+  /**
    * Generate next price with momentum algorithm.
-   * This is the original logic, kept for backward compatibility.
+   * Internal helper kept for backward compatibility.
    */
   generateNextPrice(
     stock: Pick<StockDocument, 'symbol' | 'currentPrice'>,
