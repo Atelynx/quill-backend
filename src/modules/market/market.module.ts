@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
-import { EodhdDailyRefreshScheduler } from './application/services/eodhd-daily-refresh.scheduler';
+import { MarketRefreshScheduler } from './application/services/market-refresh.scheduler';
 import { MarketRefreshService } from './application/services/market-refresh.service';
 import { MarketSeedService } from './application/services/market-seed.service';
 import { MarketService } from './application/services/market.service';
-import { MarketSnapshotService } from './application/services/market-snapshot.service';
 import { MarketUpdateWriterService } from './application/services/market-update-writer.service';
 import { EodhdMarketDataProvider } from './infrastructure/providers/eodhd-market-data.provider';
 import { MockMarketDataProvider } from './infrastructure/providers/mock-market-data.provider';
+import { NoneMarketDataProvider } from './infrastructure/providers/none-market-data.provider';
 import { ProviderFactory } from './infrastructure/providers/provider.factory';
 import {
   PriceSnapshot,
@@ -30,24 +30,35 @@ import { MarketGateway } from './presentation/gateways/market.gateway';
     MarketService,
     MarketRefreshService,
     MarketSeedService,
-    MarketSnapshotService,
     MarketUpdateWriterService,
-    EodhdDailyRefreshScheduler,
+    MarketRefreshScheduler,
     MockMarketDataProvider,
+    NoneMarketDataProvider,
     EodhdMarketDataProvider,
     {
+      /**
+       * Factory provider that selects the active MarketDataProvider
+       * based on the MARKET_PROVIDER environment variable.
+       */
       provide: 'MARKET_DATA_PROVIDER',
-      inject: [MockMarketDataProvider, EodhdMarketDataProvider, ConfigService],
+      inject: [
+        MockMarketDataProvider,
+        EodhdMarketDataProvider,
+        NoneMarketDataProvider,
+        ConfigService,
+      ],
       useFactory: (
         mockProvider: MockMarketDataProvider,
         eodhdProvider: EodhdMarketDataProvider,
+        noneProvider: NoneMarketDataProvider,
         configService: ConfigService,
       ) => {
-        const providerName = configService.get('MARKET_PROVIDER', 'mock');
+        const providerName = configService.get<string>('MARKET_PROVIDER');
         return ProviderFactory.createProvider(
           providerName,
           mockProvider,
           eodhdProvider,
+          noneProvider,
         );
       },
     },

@@ -11,101 +11,91 @@ describe('MarketRefreshService', () => {
   };
   let stockModel: any;
   let provider: any;
-  let mockProvider: any;
-  let snapshotService: any;
   let updateWriter: any;
+  let marketGateway: any;
   let service: MarketRefreshService;
 
   beforeEach(() => {
     stockModel = { find: jest.fn() };
-    provider = { getName: jest.fn(() => 'EODHD'), getQuote: jest.fn() };
-    mockProvider = {
-      getQuote: jest.fn().mockResolvedValue(quote(95, 'mock')),
-    };
-    snapshotService = {
-      getLatestMap: jest.fn(),
-      quoteFromSnapshot: jest.fn((targetStock, snapshot) =>
-        quote(snapshot.price, snapshot.source, targetStock),
-      ),
+    provider = {
+      getName: jest.fn(() => 'Mock'),
+      getQuote: jest.fn(),
+      getQuotes: jest.fn(),
     };
     updateWriter = { persist: jest.fn().mockResolvedValue(undefined) };
+    marketGateway = { emitQuotes: jest.fn() };
 
     service = new MarketRefreshService(
       stockModel,
       provider,
-      mockProvider,
-      snapshotService,
       updateWriter,
-      { emitQuotes: jest.fn() } as never,
+      marketGateway,
     );
   });
 
-  it('no llama a EODHD si ya hay snapshot actualizado del dia', async () => {
+  it('calls provider.getQuotes() and persists results', async () => {
     mockStocks();
-    snapshotService.getLatestMap
-      .mockResolvedValueOnce(new Map([['COPEC.SN', snapshot(110, 'eodhd')]]))
-      .mockResolvedValueOnce(new Map());
-
-    await service.refreshMarket({ allowExternalFetch: true });
-
-    expect(provider.getQuote).not.toHaveBeenCalled();
-    expect(updateWriter.persist.mock.calls[0][0][0]).toMatchObject({
-      save: false,
-      quote: expect.objectContaining({ price: 110 }),
-    });
-  });
-
-  it('usa ultimo snapshot si EODHD falla', async () => {
-    mockStocks();
-    snapshotService.getLatestMap
-      .mockResolvedValueOnce(new Map())
-      .mockResolvedValueOnce(new Map([['COPEC.SN', snapshot(102, 'eodhd')]]));
-    provider.getQuote.mockRejectedValue(new Error('timeout'));
-
-    await service.refreshMarket({ allowExternalFetch: true });
-
-    expect(mockProvider.getQuote).not.toHaveBeenCalled();
-    expect(updateWriter.persist.mock.calls[0][0][0].quote.price).toBe(102);
-  });
-
-  it('usa mock si EODHD falla y no hay snapshot', async () => {
-    mockStocks();
-    snapshotService.getLatestMap
-      .mockResolvedValueOnce(new Map())
-      .mockResolvedValueOnce(new Map());
-    provider.getQuote.mockRejectedValue(new Error('timeout'));
-
-    await service.refreshMarket({ allowExternalFetch: true });
-
-    expect(mockProvider.getQuote).toHaveBeenCalledWith('COPEC.SN');
-    expect(updateWriter.persist.mock.calls[0][0][0].quote.price).toBe(95);
-  });
-
-  it('marca snapshot para guardar cuando EODHD responde correctamente', async () => {
-    mockStocks();
-    snapshotService.getLatestMap
-      .mockResolvedValueOnce(new Map())
-      .mockResolvedValueOnce(new Map());
-    provider.getQuote.mockResolvedValue(quote(120, 'eodhd'));
-
-    await service.refreshMarket({ allowExternalFetch: true });
-
-    expect(updateWriter.persist.mock.calls[0][0][0]).toMatchObject({
-      save: true,
-      quote: expect.objectContaining({ price: 120, source: 'eodhd' }),
-    });
-  });
-
-  it('no llama a EODHD en refresh operativo sin permiso externo', async () => {
-    mockStocks();
-    snapshotService.getLatestMap
-      .mockResolvedValueOnce(new Map())
-      .mockResolvedValueOnce(new Map());
+    const apiQuote = quote(120, 'mock');
+    provider.getQuotes.mockResolvedValue([apiQuote]);
 
     await service.refreshMarket();
 
+    expect(provider.getQuotes).toHaveBeenCalledWith(['COPEC.SN']);
+    expect(updateWriter.persist).toHaveBeenCalledWith(
+      [expect.objectContaining({ quote: expect.objectContaining({ price: 120 }), save: true })],
+      'mock',
+    );
+  });
+
+  it('falls back to getQuote() when provider has no getQuotes()', async () => {
+    mockStocks();
+    provider.getQuotes = undefined;
+    provider.getQuote.mockResolvedValue(quote(115, 'mock'));
+
+    await service.refreshMarket();
+
+    expect(provider.getQuote).toHaveBeenCalledWith('COPEC.SN');
+    expect(updateWriter.persist).toHaveBeenCalled();
+  });
+
+  it('returns empty array if no stocks in database', async () => {
+    stockModel.find.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue([]) });
+
+    const result = await service.refreshMarket();
+
+    expect(result).toEqual([]);
     expect(provider.getQuote).not.toHaveBeenCalled();
-    expect(mockProvider.getQuote).toHaveBeenCalledWith('COPEC.SN');
+    expect(provider.getQuotes).not.toHaveBeenCalled();
+  });
+
+  it('skips refresh if already in progress', async () => {
+    mockStocks();
+    // Make the provider call slow enough that the second call overlaps
+    provider.getQuotes.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve([quote(120, 'mock')]), 100)),
+    );
+
+    const warnSpy = jest.spyOn((service as any).logger, 'warn');
+
+    // Fire first call in background
+    const promise1 = service.refreshMarket();
+    // Fire second call immediately — should be skipped
+    const result2 = await service.refreshMarket();
+
+    expect(result2).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledWith('Refresh already in progress, skipping.');
+
+    // Await the first call to clean up
+    await promise1;
+  });
+
+  it('emits quotes via WebSocket after refresh', async () => {
+    mockStocks();
+    provider.getQuotes.mockResolvedValue([quote(120, 'mock')]);
+
+    await service.refreshMarket();
+
+    expect(marketGateway.emitQuotes).toHaveBeenCalled();
   });
 
   function mockStocks() {
@@ -120,14 +110,10 @@ describe('MarketRefreshService', () => {
       });
   }
 
-  function snapshot(price: number, source: string) {
-    return { symbol: 'COPEC.SN', price, source, createdAt: new Date() };
-  }
-
-  function quote(price: number, source: string, targetStock = stock) {
+  function quote(price: number, source: string) {
     return {
-      symbol: targetStock.symbol,
-      name: targetStock.name,
+      symbol: stock.symbol,
+      name: stock.name,
       price,
       currency: 'CLP',
       timestamp: new Date(),

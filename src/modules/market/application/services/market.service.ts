@@ -9,10 +9,6 @@ import { Stock, StockDocument } from '../../infrastructure/schemas/stock.schema'
 import { MarketRefreshService } from './market-refresh.service';
 import { MarketSeedService } from './market-seed.service';
 
-interface RefreshOptions {
-  allowExternalFetch?: boolean;
-}
-
 @Injectable()
 export class MarketService implements OnModuleInit {
   constructor(
@@ -67,7 +63,7 @@ export class MarketService implements OnModuleInit {
       .exec();
   }
 
-  async refreshMarket(options?: RefreshOptions) {
-    return this.marketRefreshService.refreshMarket(options);
+  async refreshMarket() {
+    return this.marketRefreshService.refreshMarket();
   }
 }

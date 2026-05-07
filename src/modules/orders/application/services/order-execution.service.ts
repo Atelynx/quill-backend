@@ -65,7 +65,13 @@ export class OrderExecutionService {
   }
 
   private async executeCycle(): Promise<void> {
-    const quotes = await this.marketService.refreshMarket();
+    const quotes = await this.marketService.listQuotes();
+    await this.processPendingOrders(quotes);
+  }
+
+  private async processPendingOrders(
+    quotes: Array<{ symbol: string; currentPrice: number }>,
+  ): Promise<void> {
     const quoteMap = new Map(
       quotes.map((quote) => [quote.symbol, quote.close ?? quote.close]),
     );
@@ -76,7 +82,6 @@ export class OrderExecutionService {
 
     for (const order of pendingOrders) {
       const marketPrice = quoteMap.get(order.symbol);
-
       if (marketPrice && this.shouldExecute(order, marketPrice)) {
         await this.executeOrder(order, marketPrice);
       }

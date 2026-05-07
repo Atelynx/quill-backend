@@ -7,20 +7,53 @@ jest.mock('axios');
 describe('EodhdMarketDataProvider', () => {
   const axiosGet = axios.get as jest.Mock;
   let provider: EodhdMarketDataProvider;
+  let configMock: Partial<ConfigService>;
+  let stockModelMock: any;
+  let snapshotModelMock: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    provider = new EodhdMarketDataProvider({
+
+    configMock = {
       get: jest.fn((key: string, fallback?: unknown) => {
         const values: Record<string, unknown> = {
           EODHD_BASE_URL: 'https://eodhd.com/api',
           EODHD_EXCHANGE_CODE: 'SN',
         };
-
         return values[key] ?? fallback;
       }),
       getOrThrow: jest.fn(() => 'test-token'),
-    } as unknown as ConfigService);
+    };
+
+    stockModelMock = {
+      findOne: jest.fn(() => ({
+        lean: jest.fn(() => ({
+          exec: jest.fn().mockResolvedValue({
+            symbol: 'SQM-B.SN',
+            name: 'SQM-B',
+            previousClose: 100,
+            currency: 'CLP',
+          }),
+        })),
+      })),
+    };
+
+    snapshotModelMock = {
+      findOne: jest.fn(() => ({
+        sort: jest.fn(() => ({
+          lean: jest.fn(() => ({
+            exec: jest.fn().mockResolvedValue(null),
+          })),
+        })),
+      })),
+      create: jest.fn().mockResolvedValue(undefined),
+    };
+
+    provider = new EodhdMarketDataProvider(
+      configMock as ConfigService,
+      stockModelMock,
+      snapshotModelMock,
+    );
   });
 
   it('construye la URL sin exponer la API key', async () => {
@@ -104,5 +137,11 @@ describe('EodhdMarketDataProvider', () => {
       'CHILE.SN',
     ]);
     expect(axiosGet).toHaveBeenCalledTimes(3);
+  });
+
+  it('declares a daily refresh schedule', () => {
+    const schedule = provider.getRefreshSchedule();
+    expect(schedule).toBeDefined();
+    expect(schedule!.cronExpression).toBe('0 30 18 * * 1-5');
   });
 });

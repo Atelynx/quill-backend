@@ -223,7 +223,7 @@ describe('Quill API (e2e)', () => {
       );
 
     const executionService = app.get(OrderExecutionService);
-    await executionService.executeCycle();
+    await (executionService as any).executeCycle();
 
     const executedOrdersResponse = await request(httpServer)
       .get('/api/orders')

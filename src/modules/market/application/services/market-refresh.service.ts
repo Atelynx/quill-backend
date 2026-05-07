@@ -2,129 +2,111 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import type { MarketDataProvider } from '../../infrastructure/providers/market-data-provider.interface';
-import { MockMarketDataProvider } from '../../infrastructure/providers/mock-market-data.provider';
 import { Stock, StockDocument } from '../../infrastructure/schemas/stock.schema';
 import { MarketGateway } from '../../presentation/gateways/market.gateway';
-import { MarketRefreshOptions, MarketRefreshUpdate } from './market-refresh.types';
-import { MarketSnapshotService } from './market-snapshot.service';
 import { MarketUpdateWriterService } from './market-update-writer.service';
 
+/**
+ * Orchestrates periodic market data refreshes.
+ * Provider-agnostic: delegates all fetching logic to the active MarketDataProvider.
+ * Each provider handles its own caching, API calls, and fallback strategies internally.
+ */
 @Injectable()
 export class MarketRefreshService {
   private readonly logger = new Logger(MarketRefreshService.name);
+  private isRefreshing = false;
 
   constructor(
     @InjectModel(Stock.name) private readonly stockModel: Model<StockDocument>,
     @Inject('MARKET_DATA_PROVIDER') private readonly provider: MarketDataProvider,
-    private readonly mockProvider: MockMarketDataProvider,
-    private readonly snapshotService: MarketSnapshotService,
     private readonly updateWriter: MarketUpdateWriterService,
     private readonly marketGateway: MarketGateway,
   ) {}
 
-  async refreshMarket(options: MarketRefreshOptions = {}) {
-    const stocks = await this.stockModel.find().exec();
-
-    if (!stocks.length) {
+  /**
+   * Refreshes all tracked stocks by calling the active provider.
+   * Uses a concurrency lock to prevent overlapping refresh cycles.
+   * Returns the latest stock quotes after persistence.
+   */
+  async refreshMarket() {
+    // Prevent overlapping refresh cycles that would waste API quota
+    if (this.isRefreshing) {
+      this.logger.warn('Refresh already in progress, skipping.');
       return [];
     }
 
-    const providerName = this.provider.getName().toLowerCase();
-    const updates =
-      providerName === 'eodhd'
-        ? await this.resolveEodhdUpdates(stocks, !!options.allowExternalFetch)
-        : await this.resolveProviderUpdates(stocks);
+    this.isRefreshing = true;
+    try {
+      const stocks = await this.stockModel.find().exec();
+      const providerName = this.provider.getName().toLowerCase();
 
-    await this.updateWriter.persist(updates, providerName);
-    const quotes = await this.stockModel.find().sort({ symbol: 1 }).lean().exec();
-    this.marketGateway.emitQuotes(quotes);
-    return quotes;
+      if (!stocks.length) {
+        this.logger.warn('No stocks in database. Verify MARKET_PROVIDER is configured.');
+        return [];
+      }
+
+      this.logger.log(
+        `Starting refresh for ${stocks.length} stocks with provider "${providerName}"`,
+      );
+
+      // Delegate fetching to the provider — each provider handles its own caching/API strategy
+      const symbols = stocks.map((stock) => stock.symbol);
+      const quotes = await this.fetchQuotes(this.provider, symbols, stocks);
+
+      // Build updates for persistence
+      const updates = quotes.map((quote) => {
+        const matchingStock = stocks.find((s) => s.symbol === quote.symbol);
+        return matchingStock
+          ? { stock: matchingStock, quote, save: true }
+          : null;
+      }).filter((u): u is NonNullable<typeof u> => u !== null);
+
+      this.logger.log(
+        `Refresh completed: ${updates.length}/${stocks.length} valid updates to persist`,
+      );
+
+      await this.updateWriter.persist(updates, providerName);
+      const refreshedQuotes = await this.stockModel.find().sort({ symbol: 1 }).lean().exec();
+      this.marketGateway.emitQuotes(refreshedQuotes);
+      this.logger.log(`${refreshedQuotes.length} quotes emitted via WebSocket`);
+      return refreshedQuotes;
+    } finally {
+      this.isRefreshing = false;
+    }
   }
 
-  private async resolveEodhdUpdates(
+  /**
+   * Fetches quotes using the provider's getQuotes method if available,
+   * otherwise falls back to calling getQuote() per symbol.
+   */
+  private async fetchQuotes(
+    provider: MarketDataProvider,
+    symbols: string[],
     stocks: StockDocument[],
-    allowExternalFetch: boolean,
-  ): Promise<MarketRefreshUpdate[]> {
-    const dailySnapshots = await this.snapshotService.getLatestMap(stocks, {
-      from: this.today(),
-      source: 'eodhd',
-    });
-    const fallbackSnapshots = await this.snapshotService.getLatestMap(stocks);
+  ) {
+    if (provider.getQuotes) {
+      return provider.getQuotes(symbols);
+    }
 
-    return Promise.all(
-      stocks.map(async (stock) => {
-        const dailySnapshot = dailySnapshots.get(stock.symbol);
-
-        if (dailySnapshot) {
-          return {
-            stock,
-            quote: this.snapshotService.quoteFromSnapshot(stock, dailySnapshot),
-            save: false,
-          };
-        }
-
-        return this.resolveMissingDailyQuote(
-          stock,
-          fallbackSnapshots,
-          allowExternalFetch,
-        );
-      }),
-    );
-  }
-
-  private async resolveProviderUpdates(stocks: StockDocument[]) {
-    const updates: MarketRefreshUpdate[] = [];
-
-    for (const stock of stocks) {
+    // Fallback for providers that only implement getQuote()
+    const results: Array<{ symbol: string; price: number; currency: string; timestamp: Date; exchange: string; source?: string; name?: string; previousClose?: number; dayChangePercentage?: number; volume?: number }> = [];
+    for (const symbol of symbols) {
       try {
-        updates.push({
-          stock,
-          quote: await this.provider.getQuote(stock.symbol),
-          save: true,
-        });
+        const quote = await provider.getQuote(symbol);
+        results.push(quote);
+        this.logger.log(
+          `${symbol} updated: $${quote.price} (source: ${quote.source})`,
+        );
       } catch (error) {
         this.logger.error(
-          `No se pudo actualizar ${stock.symbol}: ${this.errorMessage(error)}`,
+          `Could not update ${symbol}: ${this.errorMessage(error)}`,
         );
       }
     }
-
-    return updates;
-  }
-
-  private async resolveMissingDailyQuote(
-    stock: StockDocument,
-    fallbackSnapshots: Awaited<ReturnType<MarketSnapshotService['getLatestMap']>>,
-    allowExternalFetch: boolean,
-  ): Promise<MarketRefreshUpdate> {
-    if (allowExternalFetch) {
-      try {
-        return { stock, quote: await this.provider.getQuote(stock.symbol), save: true };
-      } catch (error) {
-        this.logger.error(`EODHD fallo para ${stock.symbol}: ${this.errorMessage(error)}`);
-      }
-    }
-
-    const snapshot = fallbackSnapshots.get(stock.symbol);
-
-    if (snapshot) {
-      return {
-        stock,
-        quote: this.snapshotService.quoteFromSnapshot(stock, snapshot),
-        save: false,
-      };
-    }
-
-    return { stock, quote: await this.mockProvider.getQuote(stock.symbol), save: true };
-  }
-
-  private today(): Date {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    return date;
+    return results;
   }
 
   private errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : 'error desconocido';
+    return error instanceof Error ? error.message : 'unknown error';
   }
 }
