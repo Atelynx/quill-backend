@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import Decimal from 'decimal.js';
 import { Model } from 'mongoose';
+import type { MarketDataProvider } from '../../infrastructure/providers/market-data-provider.interface';
 import { seedStocks } from '../../domain/constants/seed-stocks';
 import {
   PriceSnapshot,
@@ -10,6 +11,11 @@ import {
 } from '../../infrastructure/schemas/price-snapshot.schema';
 import { Stock, StockDocument } from '../../infrastructure/schemas/stock.schema';
 
+/**
+ * Seeds initial stock records on application startup.
+ * Delegates seed data resolution to the active provider via getSeedData(),
+ * avoiding any hardcoded provider name comparisons.
+ */
 @Injectable()
 export class MarketSeedService {
   private readonly logger = new Logger(MarketSeedService.name);
@@ -19,6 +25,8 @@ export class MarketSeedService {
     private readonly stockModel: Model<StockDocument>,
     @InjectModel(PriceSnapshot.name)
     private readonly snapshotModel: Model<PriceSnapshotDocument>,
+    @Inject('MARKET_DATA_PROVIDER')
+    private readonly provider: MarketDataProvider,
     private readonly configService: ConfigService,
   ) {}
 
@@ -46,34 +54,67 @@ export class MarketSeedService {
       return;
     }
 
-    const isMock = this.configService.get<string>('MARKET_PROVIDER')?.toLowerCase() === 'mock';
-    const now = Date.now();
-
-    const stocks = missingStocks.map((stock) => {
-      const base = isMock ? stock.currentPrice : 0;
-      const previousClose = isMock
-        ? new Decimal(stock.currentPrice).times(0.985).toDecimalPlaces(2).toNumber()
-        : 0;
-
-      return {
-        ...stock,
-        currentPrice: base,
-        previousClose,
-        dayChangePercentage: isMock ? 1.5 : 0,
-        source: isMock ? 'mock' : 'eodhd',
-      };
-    });
-
+    const stocks = this.prepareSeedDocuments(missingStocks);
     await this.stockModel.insertMany(stocks);
 
-    if (isMock) {
+    // Persist initial mock snapshots so the provider has historical data
+    if (this.provider.getName().toLowerCase() === 'mock') {
+      const now = Date.now();
       await this.snapshotModel.insertMany(this.buildMockSnapshots(stocks, now));
-      this.logger.log('Mercado inicial sembrado con datos de ejemplo.');
+      this.logger.log('Initial market seeded with example data.');
     } else {
-      this.logger.log('Registros placeholder creados para simbolos EODHD. Ejecutando captura inicial...');
+      this.logger.log('Placeholder records created. Initial capture will run on next refresh.');
     }
   }
 
+  /**
+   * Resolves seed data from the provider's getSeedData() method.
+   * Falls back to mock seed stocks if the provider doesn't implement it.
+   */
+  private resolveSeedStocks() {
+    const providerSeedData = this.provider.getSeedData?.();
+    if (providerSeedData && providerSeedData.length > 0) {
+      return providerSeedData;
+    }
+
+    // Fallback: use the hardcoded mock stocks for backwards compatibility
+    return seedStocks.map((stock) => ({
+      symbol: stock.symbol,
+      name: stock.name,
+      sector: stock.sector,
+      currency: stock.currency,
+      currentPrice: stock.currentPrice,
+      previousClose: 0,
+    }));
+  }
+
+  /**
+   * Prepares stock documents for insertion, normalizing defaults.
+   */
+  private prepareSeedDocuments(seedData: Array<{
+    symbol: string;
+    name: string;
+    sector: string;
+    currency: string;
+    currentPrice: number;
+    previousClose?: number;
+    dayChangePercentage?: number;
+    source?: string;
+  }>) {
+    const providerName = this.provider.getName().toLowerCase();
+
+    return seedData.map((stock) => ({
+      ...stock,
+      currentPrice: stock.currentPrice ?? 0,
+      previousClose: stock.previousClose ?? 0,
+      dayChangePercentage: stock.dayChangePercentage ?? 0,
+      source: stock.source ?? providerName,
+    }));
+  }
+
+  /**
+   * Generates historical mock snapshots for initial market visualization.
+   */
   private buildMockSnapshots(
     stocks: Array<{ symbol: string; currentPrice: number }>,
     now: number,
@@ -93,32 +134,5 @@ export class MarketSeedService {
         };
       }),
     );
-  }
-
-  private resolveSeedStocks() {
-    const provider = this.configService.get<string>('MARKET_PROVIDER');
-
-    if (provider?.toLowerCase() === 'mock') {
-      return seedStocks;
-    }
-
-    if (provider?.toLowerCase() === 'eodhd') {
-      const symbols = this.configService
-        .get<string>('EODHD_SYMBOLS', '')
-        .split(',')
-        .map((symbol) => symbol.trim().toUpperCase())
-        .filter(Boolean);
-
-      return symbols.map((symbol) => ({
-        symbol,
-        name: symbol,
-        sector: 'Mercado chileno',
-        currency: 'CLP',
-        currentPrice: 0,
-        previousClose: 0,
-      }));
-    }
-
-    return [];
   }
 }
