@@ -42,7 +42,7 @@ describe('MarketUpdateWriterService', () => {
       { symbol: 'COPEC.SN', price: 120, source: 'eodhd' },
     ]);
     expect(stockModel.bulkWrite.mock.calls[0][0][0].updateOne.update.$set).toMatchObject({
-      currentPrice: 120,
+      close: 120,
       dayChangePercentage: 20,
       source: 'eodhd',
     });

@@ -15,7 +15,16 @@ export class Stock {
   currency!: string;
 
   @Prop({ required: true })
-  currentPrice!: number;
+  close!: number;
+
+  @Prop()
+  open?: number;
+
+  @Prop()
+  high?: number;
+
+  @Prop()
+  low?: number;
 
   @Prop({ required: true })
   previousClose!: number;

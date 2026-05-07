@@ -31,8 +31,8 @@ export class MockMarketDataProvider implements MarketDataProvider {
     // Generate next price using momentum algorithm
     const nextPrice = this.generateNextPrice({
       symbol: upperSymbol,
-      currentPrice: stock.price,
-    } as Pick<StockDocument, 'symbol' | 'currentPrice'>);
+      close: stock.price,
+    } as Pick<StockDocument, 'symbol' | 'close'>);
 
     // Update internal price
     stock.price = nextPrice;
@@ -64,12 +64,11 @@ export class MockMarketDataProvider implements MarketDataProvider {
    * This is the original logic, kept for backward compatibility.
    */
   generateNextPrice(
-    stock: Pick<StockDocument, 'symbol' | 'currentPrice'>,
+    stock: Pick<StockDocument, 'symbol' | 'close'>,
   ): number {
     const previousMomentum = this.momentumBySymbol.get(stock.symbol) ?? 0;
     const noise = (Math.random() - 0.5) * 0.006;
-    const wave =
-      Math.sin(Date.now() / 45000 + stock.currentPrice / 120) * 0.0016;
+    const wave = Math.sin(Date.now() / 45000 + stock.close / 120) * 0.0016;
 
     const nextMomentum = Math.max(
       Math.min(previousMomentum * 0.62 + noise + wave, 0.009),
@@ -78,7 +77,7 @@ export class MockMarketDataProvider implements MarketDataProvider {
 
     this.momentumBySymbol.set(stock.symbol, nextMomentum);
 
-    const nextPrice = stock.currentPrice * (1 + nextMomentum);
+    const nextPrice = stock.close * (1 + nextMomentum);
 
     return Number(Math.max(nextPrice, 5).toFixed(2));
   }

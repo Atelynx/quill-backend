@@ -43,7 +43,7 @@ export class MarketSeedService {
 
     const now = Date.now();
     const stocks = missingStocks.map((stock) => {
-      const previousClose = new Decimal(stock.currentPrice)
+      const previousClose = new Decimal(stock.close)
         .times(0.985)
         .toDecimalPlaces(2)
         .toNumber();
@@ -62,7 +62,7 @@ export class MarketSeedService {
   }
 
   private buildSnapshots(
-    stocks: Array<{ symbol: string; currentPrice: number }>,
+    stocks: Array<{ symbol: string; close: number }>,
     now: number,
   ) {
     return stocks.flatMap((stock) =>
@@ -72,7 +72,7 @@ export class MarketSeedService {
         return {
           symbol: stock.symbol,
           source: 'mock',
-          price: new Decimal(stock.currentPrice)
+          price: new Decimal(stock.close)
             .times(factor)
             .toDecimalPlaces(2)
             .toNumber(),
@@ -100,7 +100,7 @@ export class MarketSeedService {
       name: symbol,
       sector: 'Mercado chileno',
       currency: 'CLP',
-      currentPrice: 100,
+      close: 100,
     }));
   }
 }

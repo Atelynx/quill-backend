@@ -40,11 +40,11 @@ describe('PortfolioService', () => {
         createLeanQuery([
           {
             symbol: 'AAPL',
-            currentPrice: 110,
+              close: 110,
           },
           {
             symbol: 'MSFT',
-            currentPrice: 40,
+              close: 40,
           },
         ]),
       ),

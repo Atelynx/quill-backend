@@ -7,7 +7,7 @@ describe('MarketRefreshService', () => {
     name: 'COPEC',
     currency: 'CLP',
     previousClose: 100,
-    currentPrice: 100,
+    close: 100,
   };
   let stockModel: any;
   let provider: any;

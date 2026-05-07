@@ -67,7 +67,7 @@ export class OrderExecutionService {
   private async executeCycle(): Promise<void> {
     const quotes = await this.marketService.refreshMarket();
     const quoteMap = new Map(
-      quotes.map((quote) => [quote.symbol, quote.currentPrice]),
+      quotes.map((quote) => [quote.symbol, quote.close ?? quote.close]),
     );
 
     const pendingOrders = await this.orderModel
