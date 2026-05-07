@@ -101,11 +101,9 @@ describe('MarketService', () => {
   it('delega el refresh de mercado al servicio especializado', async () => {
     marketRefreshService.refreshMarket.mockResolvedValue([{ symbol: 'COPEC' }]);
 
-    const result = await service.refreshMarket({ allowExternalFetch: true });
+    const result = await service.refreshMarket();
 
-    expect(marketRefreshService.refreshMarket).toHaveBeenCalledWith({
-      allowExternalFetch: true,
-    });
+    expect(marketRefreshService.refreshMarket).toHaveBeenCalledWith();
     expect(result).toEqual([{ symbol: 'COPEC' }]);
   });
 });
