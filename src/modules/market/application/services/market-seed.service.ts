@@ -69,15 +69,18 @@ export class MarketSeedService {
 
   /**
    * Resolves seed data from the provider's getSeedData() method.
-   * Falls back to mock seed stocks if the provider doesn't implement it.
+   * Falls back to hardcoded mock stocks only if the provider
+   * does not implement getSeedData() at all.
    */
   private resolveSeedStocks() {
     const providerSeedData = this.provider.getSeedData?.();
-    if (providerSeedData && providerSeedData.length > 0) {
+
+    if (providerSeedData !== undefined) {
+      // Provider explicitly declared seed data (even if empty)
       return providerSeedData;
     }
 
-    // Fallback: use the hardcoded mock stocks for backwards compatibility
+    // Fallback: provider doesn't implement getSeedData, use hardcoded mock stocks
     return seedStocks.map((stock) => ({
       symbol: stock.symbol,
       name: stock.name,

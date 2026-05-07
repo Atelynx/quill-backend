@@ -17,7 +17,7 @@ import {
   EodhdQuoteResponse,
   normalizeEodhdQuote,
 } from './eodhd-quote.mapper';
-import { MarketDataProvider } from './market-data-provider.interface';
+import { MarketDataProvider, StockSeed } from './market-data-provider.interface';
 
 @Injectable()
 export class EodhdMarketDataProvider implements MarketDataProvider {
@@ -93,12 +93,42 @@ export class EodhdMarketDataProvider implements MarketDataProvider {
    * Declare the daily refresh schedule for EODHD.
    * Default: 6:30 PM Monday-Friday (after market close for Chilean stocks).
    */
+  /**
+   * Declare the daily refresh schedule for EODHD.
+   * Default: 6:30 PM Monday-Friday (after market close for Chilean stocks).
+   */
   getRefreshSchedule() {
     const cronExpression = this.configService.get<string>(
       'EODHD_DAILY_REFRESH_CRON',
       '0 30 18 * * 1-5',
     );
     return { cronExpression };
+  }
+
+  /**
+   * Return seed data from the EODHD_SYMBOLS env var.
+   * Creates placeholder records with zero prices until the first API fetch.
+   */
+  getSeedData(): StockSeed[] {
+    const symbols = this.configService
+      .get<string>('EODHD_SYMBOLS', '')
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
+
+    if (!symbols.length) {
+      return [];
+    }
+
+    return symbols.map((symbol) => ({
+      symbol,
+      name: symbol,
+      sector: 'Mercado chileno',
+      currency: 'CLP',
+      currentPrice: 0,
+      previousClose: 0,
+      source: 'eodhd',
+    }));
   }
 
   /**
