@@ -34,7 +34,7 @@ interface LoginResponse {
 
 interface StockQuoteResponse {
   symbol: string;
-  currentPrice: number;
+  close: number;
 }
 
 interface OrderResponse {
@@ -201,7 +201,7 @@ describe('Quill API (e2e)', () => {
         symbol: targetQuote.symbol,
         side: 'BUY',
         quantity: 2,
-        limitPrice: Number((targetQuote.currentPrice + 5).toFixed(2)),
+        limitPrice: Number((targetQuote.close + 5).toFixed(2)),
       })
       .expect(201);
     const orderBody = orderResponse.body as OrderResponse;
@@ -218,8 +218,8 @@ describe('Quill API (e2e)', () => {
       .spyOn(marketProvider, 'generateNextPrice')
       .mockImplementation((stock) =>
         stock.symbol === targetQuote.symbol
-          ? Number((targetQuote.currentPrice - 1).toFixed(2))
-          : stock.currentPrice,
+          ? Number((targetQuote.close - 1).toFixed(2))
+          : stock.close,
       );
 
     const executionService = app.get(OrderExecutionService);

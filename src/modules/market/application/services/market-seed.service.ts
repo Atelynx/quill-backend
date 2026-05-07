@@ -84,9 +84,8 @@ export class MarketSeedService {
     return seedStocks.map((stock) => ({
       symbol: stock.symbol,
       name: stock.name,
-      sector: stock.sector,
       currency: stock.currency,
-      currentPrice: stock.currentPrice,
+      close: stock.close,
       previousClose: 0,
     }));
   }
@@ -97,9 +96,8 @@ export class MarketSeedService {
   private prepareSeedDocuments(seedData: Array<{
     symbol: string;
     name: string;
-    sector: string;
     currency: string;
-    currentPrice: number;
+    close: number;
     previousClose?: number;
     dayChangePercentage?: number;
     source?: string;
@@ -108,7 +106,7 @@ export class MarketSeedService {
 
     return seedData.map((stock) => ({
       ...stock,
-      currentPrice: stock.currentPrice ?? 0,
+      close: stock.close ?? 0,
       previousClose: stock.previousClose ?? 0,
       dayChangePercentage: stock.dayChangePercentage ?? 0,
       source: stock.source ?? providerName,
@@ -119,7 +117,7 @@ export class MarketSeedService {
    * Generates historical mock snapshots for initial market visualization.
    */
   private buildMockSnapshots(
-    stocks: Array<{ symbol: string; currentPrice: number }>,
+    stocks: Array<{ symbol: string; close: number }>,
     now: number,
   ) {
     return stocks.flatMap((stock) =>

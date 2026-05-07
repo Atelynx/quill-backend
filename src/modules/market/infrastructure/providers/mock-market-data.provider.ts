@@ -66,16 +66,15 @@ export class MockMarketDataProvider implements MarketDataProvider {
    * Uses the predefined Chilean/US stock list with realistic prices.
    */
   getSeedData(): StockSeed[] {
-    const basePrice = 0.985; // 1.5% below current price for previousClose
+    const basePrice = 0.985;
 
     return seedStocks.map((stock) => ({
       symbol: stock.symbol,
       name: stock.name,
-      sector: stock.sector,
       currency: stock.currency,
-      currentPrice: stock.currentPrice,
+      close: stock.close,
       previousClose: Number(
-        (stock.currentPrice * basePrice).toFixed(2),
+        (stock.close * basePrice).toFixed(2),
       ),
       dayChangePercentage: 1.5,
       source: 'mock',

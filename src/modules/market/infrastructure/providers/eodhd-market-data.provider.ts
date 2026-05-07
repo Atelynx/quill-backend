@@ -123,9 +123,8 @@ export class EodhdMarketDataProvider implements MarketDataProvider {
     return symbols.map((symbol) => ({
       symbol,
       name: symbol,
-      sector: 'Mercado chileno',
       currency: 'CLP',
-      currentPrice: 0,
+      close: 0,
       previousClose: 0,
       source: 'eodhd',
     }));

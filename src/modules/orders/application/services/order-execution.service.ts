@@ -70,10 +70,10 @@ export class OrderExecutionService {
   }
 
   private async processPendingOrders(
-    quotes: Array<{ symbol: string; currentPrice: number }>,
+    quotes: Array<{ symbol: string; close: number }>,
   ): Promise<void> {
     const quoteMap = new Map(
-      quotes.map((quote) => [quote.symbol, quote.close ?? quote.close]),
+      quotes.map((quote) => [quote.symbol, quote.close]),
     );
 
     const pendingOrders = await this.orderModel

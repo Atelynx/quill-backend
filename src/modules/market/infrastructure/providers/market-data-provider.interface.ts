@@ -15,9 +15,8 @@ export interface ProviderRefreshSchedule {
 export interface StockSeed {
   symbol: string;
   name: string;
-  sector: string;
   currency: string;
-  currentPrice: number;
+  close: number;
   previousClose?: number;
   dayChangePercentage?: number;
   source?: string;

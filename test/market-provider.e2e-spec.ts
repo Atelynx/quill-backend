@@ -11,7 +11,7 @@ jest.mock('axios');
 
 interface StockQuoteResponse {
   symbol: string;
-  currentPrice: number;
+  close: number;
 }
 
 function getHttpServer(app: INestApplication): Parameters<typeof request>[0] {
