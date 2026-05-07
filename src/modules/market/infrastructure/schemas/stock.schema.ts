@@ -11,9 +11,6 @@ export class Stock {
   @Prop({ required: true })
   name!: string;
 
-  @Prop({ required: true })
-  sector!: string;
-
   @Prop({ required: true, default: 'USD' })
   currency!: string;
 
