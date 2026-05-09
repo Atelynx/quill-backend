@@ -1,32 +1,66 @@
 import type { MarketQuote } from '../../domain/interfaces/market-quote.interface';
 
 /**
+ * Optional scheduling configuration that a provider can declare.
+ * If implemented, the generic scheduler will register a cron job
+ * at the specified expression.
+ */
+export interface ProviderRefreshSchedule {
+  cronExpression: string;
+}
+
+/**
+ * Seed data used when initializing stocks for a provider.
+ */
+export interface StockSeed {
+  symbol: string;
+  name: string;
+  currency: string;
+  close: number;
+  previousClose?: number;
+  dayChangePercentage?: number;
+  source?: string;
+}
+
+/**
  * Abstract contract for market data providers.
- * All providers (Mock, MarketStack, Finnhub, etc.) must implement this.
+ * All providers (Mock, EODHD, Finnhub, etc.) must implement the
+ * required methods. Optional methods let providers declare their
+ * own scheduling, seeding, and caching behavior.
  */
 export interface MarketDataProvider {
   /**
-   * Get current quote for a symbol.
-   * @param symbol - Stock ticker symbol (e.g., 'COPEC', 'AAPL')
-   * @returns Promise resolving to normalized MarketQuote
-   * @throws Error if symbol not found or API call fails
+   * Fetch a single quote for the given symbol.
+   * Providers handle their own caching, API calls, and fallbacks internally.
    */
   getQuote(symbol: string): Promise<MarketQuote>;
 
   /**
-   * Get provider name for logging and debugging.
+   * Fetch quotes for multiple symbols.
+   * Default implementation in the base class calls getQuote() per symbol.
+   */
+  getQuotes?(symbols: string[]): Promise<MarketQuote[]>;
+
+  /**
+   * Human-readable provider name for logging and source tracking.
    */
   getName(): string;
 
   /**
-   * Optional: Validate if symbol exists before fetching quote.
-   * Used during startup to verify symbol availability.
+   * Optional: validate whether a symbol exists in the provider's universe.
    */
   validateSymbol?(symbol: string): Promise<boolean>;
 
   /**
-   * Optional: Generate next price for simulation/testing.
-   * Only implemented by MockProvider.
+   * Optional: declare a refresh schedule for the generic scheduler.
+   * Returns undefined if the provider does not need scheduled refreshes
+   * (e.g., Mock generates live prices on demand).
    */
-  generateNextPrice?(stock: any): number;
+  getRefreshSchedule?(): ProviderRefreshSchedule | undefined;
+
+  /**
+   * Optional: return seed data for initial stock setup.
+   * Returns undefined if the provider does not contribute seed data.
+   */
+  getSeedData?(): StockSeed[];
 }

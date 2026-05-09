@@ -3,7 +3,10 @@ export interface StockEntity {
   name: string;
   sector: string;
   currency: string;
-  currentPrice: number;
+  close: number;
+  open?: number;
+  high?: number;
+  low?: number;
   previousClose: number;
   dayChangePercentage: number;
 }

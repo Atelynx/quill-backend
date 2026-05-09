@@ -11,20 +11,35 @@ export class Stock {
   @Prop({ required: true })
   name!: string;
 
-  @Prop({ required: true })
-  sector!: string;
-
   @Prop({ required: true, default: 'USD' })
   currency!: string;
 
   @Prop({ required: true })
-  currentPrice!: number;
+  close!: number;
+
+  @Prop()
+  open?: number;
+
+  @Prop()
+  high?: number;
+
+  @Prop()
+  low?: number;
 
   @Prop({ required: true })
   previousClose!: number;
 
   @Prop({ required: true, default: 0 })
   dayChangePercentage!: number;
+
+  @Prop({ default: 'mock' })
+  source?: string;
+
+  @Prop()
+  volume?: number;
+
+  @Prop()
+  lastMarketDate?: Date;
 }
 
 export const StockSchema = SchemaFactory.createForClass(Stock);

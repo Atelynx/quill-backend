@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import type { StockDocument } from '../schemas/stock.schema';
-import { MarketDataProvider } from './market-data-provider.interface';
 import { MarketQuote } from '../../domain/interfaces/market-quote.interface';
+import { seedStocks } from '../../domain/constants/seed-stocks';
+import { MarketDataProvider, StockSeed } from './market-data-provider.interface';
 
+/**
+ * Mock market data provider that generates realistic price movements
+ * using a momentum-based algorithm. No external API calls are made.
+ */
 @Injectable()
 export class MockMarketDataProvider implements MarketDataProvider {
   private readonly momentumBySymbol = new Map<string, number>();
@@ -18,7 +23,7 @@ export class MockMarketDataProvider implements MarketDataProvider {
   async getQuote(symbol: string): Promise<MarketQuote> {
     const upperSymbol = symbol.toUpperCase();
 
-    // Get or initialize mock stock data
+    // Initialize mock stock data on first request
     if (!this.mockStocks.has(upperSymbol)) {
       this.mockStocks.set(upperSymbol, {
         price: 100,
@@ -31,8 +36,8 @@ export class MockMarketDataProvider implements MarketDataProvider {
     // Generate next price using momentum algorithm
     const nextPrice = this.generateNextPrice({
       symbol: upperSymbol,
-      currentPrice: stock.price,
-    } as Pick<StockDocument, 'symbol' | 'currentPrice'>);
+      close: stock.price,
+    } as Pick<StockDocument, 'symbol' | 'close'>);
 
     // Update internal price
     stock.price = nextPrice;
@@ -44,7 +49,7 @@ export class MockMarketDataProvider implements MarketDataProvider {
     return {
       symbol: upperSymbol,
       price: nextPrice,
-      currency: 'USD', // Mock uses USD
+      currency: 'USD',
       timestamp: new Date(),
       exchange: 'MOCK',
       previousClose: stock.previousClose,
@@ -52,24 +57,40 @@ export class MockMarketDataProvider implements MarketDataProvider {
     };
   }
 
-  /**
-   * Return provider name for logging.
-   */
   getName(): string {
     return 'Mock';
   }
 
   /**
+   * Return seed data for initial stock setup.
+   * Uses the predefined Chilean/US stock list with realistic prices.
+   */
+  getSeedData(): StockSeed[] {
+    const basePrice = 0.985;
+
+    return seedStocks.map((stock) => ({
+      symbol: stock.symbol,
+      name: stock.name,
+      currency: stock.currency,
+      close: stock.close,
+      previousClose: Number(
+        (stock.close * basePrice).toFixed(2),
+      ),
+      dayChangePercentage: 1.5,
+      source: 'mock',
+    }));
+  }
+
+  /**
    * Generate next price with momentum algorithm.
-   * This is the original logic, kept for backward compatibility.
+   * Internal helper kept for backward compatibility.
    */
   generateNextPrice(
-    stock: Pick<StockDocument, 'symbol' | 'currentPrice'>,
+    stock: Pick<StockDocument, 'symbol' | 'close'>,
   ): number {
     const previousMomentum = this.momentumBySymbol.get(stock.symbol) ?? 0;
     const noise = (Math.random() - 0.5) * 0.006;
-    const wave =
-      Math.sin(Date.now() / 45000 + stock.currentPrice / 120) * 0.0016;
+    const wave = Math.sin(Date.now() / 45000 + stock.close / 120) * 0.0016;
 
     const nextMomentum = Math.max(
       Math.min(previousMomentum * 0.62 + noise + wave, 0.009),
@@ -78,7 +99,7 @@ export class MockMarketDataProvider implements MarketDataProvider {
 
     this.momentumBySymbol.set(stock.symbol, nextMomentum);
 
-    const nextPrice = stock.currentPrice * (1 + nextMomentum);
+    const nextPrice = stock.close * (1 + nextMomentum);
 
     return Number(Math.max(nextPrice, 5).toFixed(2));
   }

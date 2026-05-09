@@ -14,6 +14,9 @@ export class PriceSnapshot {
   @Prop({ required: true })
   price!: number;
 
+  @Prop({ default: 'mock' })
+  source?: string;
+
   createdAt!: Date;
 }
 
