@@ -21,6 +21,7 @@ export const envValidationSchema = Joi.object({
   EODHD_SYMBOLS: Joi.string().default(
     'SQM-B.SN,VAPORES.SN,BSANTANDER.SN,COPEC.SN,CENCOSUD.SN,CHILE.SN,CMPC.SN,COLBUN.SN',
   ),
+  MARKET_FETCH_ON_STARTUP: Joi.boolean().default(false),
   EODHD_DAILY_REFRESH_ENABLED: Joi.boolean().default(true),
   EODHD_DAILY_REFRESH_CRON: Joi.string().default('0 30 18 * * 1-5'),
   EODHD_CACHE_TTL_SECONDS: Joi.number().positive().default(86400),

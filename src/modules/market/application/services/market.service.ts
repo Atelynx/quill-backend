@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -16,12 +17,17 @@ export class MarketService implements OnModuleInit {
     private readonly stockModel: Model<StockDocument>,
     @InjectModel(PriceSnapshot.name)
     private readonly snapshotModel: Model<PriceSnapshotDocument>,
+    private readonly configService: ConfigService,
     private readonly marketRefreshService: MarketRefreshService,
     private readonly marketSeedService: MarketSeedService,
   ) {}
 
   async onModuleInit(): Promise<void> {
     await this.marketSeedService.seedInitialStocks();
+
+    if (this.configService.get<boolean>('MARKET_FETCH_ON_STARTUP')) {
+      await this.marketRefreshService.refreshMarket();
+    }
   }
 
   async listQuotes() {
