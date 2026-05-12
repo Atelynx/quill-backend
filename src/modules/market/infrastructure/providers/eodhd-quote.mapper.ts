@@ -1,19 +1,16 @@
 import Decimal from 'decimal.js';
+import type { RealTimeQuote } from 'eodhd';
 import type { MarketQuote } from '../../domain/interfaces/market-quote.interface';
 
-export interface EodhdQuoteResponse {
-  code?: string;
+/**
+ * Interface representing the EODHD API response.
+ * We extend the official SDK's RealTimeQuote to account for optional fields
+ * like 'name' which might be present in the raw JSON response but omitted
+ * from the SDK's base type definitions.
+ */
+export interface EodhdQuoteResponse extends Partial<RealTimeQuote> {
   name?: string;
-  timestamp?: number;
   date?: string;
-  open?: number | string;
-  high?: number | string;
-  low?: number | string;
-  close?: number | string;
-  previousClose?: number | string;
-  change?: number | string;
-  change_p?: number | string;
-  volume?: number | string;
 }
 
 export function normalizeEodhdQuote(
