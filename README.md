@@ -111,6 +111,7 @@ Variables principales:
 - `INITIAL_BALANCE`
 - `COMMISSION_RATE`
 - `MARKET_PROVIDER`
+- `MARKET_FETCH_ON_STARTUP` — si es `true`, obtiene todos los precios del proveedor al iniciar el backend (por defecto `false`)
 - `MARKET_TICK_INTERVAL_SECONDS`
 - `EODHD_API_KEY`
 - `EODHD_BASE_URL`
