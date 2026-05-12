@@ -1,11 +1,11 @@
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import { EODHDClient } from 'eodhd';
 import { EodhdMarketDataProvider } from './eodhd-market-data.provider';
 
-jest.mock('axios');
+jest.mock('eodhd');
 
 describe('EodhdMarketDataProvider', () => {
-  const axiosGet = axios.get as jest.Mock;
+  const mockRealTime = jest.fn();
   let provider: EodhdMarketDataProvider;
   let configMock: Partial<ConfigService>;
   let stockModelMock: any;
@@ -13,6 +13,10 @@ describe('EodhdMarketDataProvider', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    (EODHDClient as jest.Mock).mockImplementation(() => ({
+      realTime: mockRealTime,
+    }));
 
     configMock = {
       get: jest.fn((key: string, fallback?: unknown) => {
@@ -56,33 +60,33 @@ describe('EodhdMarketDataProvider', () => {
     );
   });
 
-  it('construye la URL sin exponer la API key', async () => {
-    axiosGet.mockResolvedValue({
-      data: { code: 'SQM-B.SN', close: 100, timestamp: 1710000000 },
+  it('inicializa el cliente SDK correctamente', async () => {
+    mockRealTime.mockResolvedValue({
+      code: 'SQM-B.SN',
+      close: 100,
+      timestamp: 1710000000,
     });
 
     await provider.getQuote('SQM-B.SN');
 
-    expect(axiosGet).toHaveBeenCalledWith(
-      'https://eodhd.com/api/real-time/SQM-B.SN',
+    expect(EODHDClient).toHaveBeenCalledWith(
       expect.objectContaining({
-        params: { api_token: 'test-token', fmt: 'json' },
+        apiToken: 'test-token',
+        baseUrl: 'https://eodhd.com/api',
       }),
     );
-    expect(axiosGet.mock.calls[0][0]).not.toContain('test-token');
+    expect(mockRealTime).toHaveBeenCalledWith('SQM-B.SN');
   });
 
   it('normaliza una respuesta EODHD correctamente', async () => {
-    axiosGet.mockResolvedValue({
-      data: {
-        code: 'COPEC.SN',
-        timestamp: 1710000000,
-        close: 7200,
-        previousClose: 7000,
-        change: 200,
-        change_p: 2.8571,
-        volume: 12345,
-      },
+    mockRealTime.mockResolvedValue({
+      code: 'COPEC.SN',
+      timestamp: 1710000000,
+      close: 7200,
+      previousClose: 7000,
+      change: 200,
+      change_p: 2.8571,
+      volume: 12345,
     });
 
     const quote = await provider.getQuote('COPEC.SN');
@@ -102,8 +106,10 @@ describe('EodhdMarketDataProvider', () => {
   });
 
   it('calcula variacion si EODHD no la envia', async () => {
-    axiosGet.mockResolvedValue({
-      data: { code: 'CHILE.SN', close: 105, previousClose: 100 },
+    mockRealTime.mockResolvedValue({
+      code: 'CHILE.SN',
+      close: 105,
+      previousClose: 100,
     });
 
     const quote = await provider.getQuote('CHILE.SN');
@@ -113,7 +119,7 @@ describe('EodhdMarketDataProvider', () => {
   });
 
   it('maneja errores de API sin revelar secretos', async () => {
-    axiosGet.mockRejectedValue(new Error('Request failed with status code 401'));
+    mockRealTime.mockRejectedValue(new Error('Request failed with status code 401'));
 
     await expect(provider.getQuote('CMPC.SN')).rejects.toThrow(
       'EODHD no pudo obtener CMPC.SN',
@@ -121,10 +127,10 @@ describe('EodhdMarketDataProvider', () => {
   });
 
   it('ignora un ticker fallido y continua con los demas', async () => {
-    axiosGet
-      .mockResolvedValueOnce({ data: { code: 'COPEC.SN', close: 7200 } })
+    mockRealTime
+      .mockResolvedValueOnce({ code: 'COPEC.SN', close: 7200 })
       .mockRejectedValueOnce(new Error('timeout'))
-      .mockResolvedValueOnce({ data: { code: 'CHILE.SN', close: 105 } });
+      .mockResolvedValueOnce({ code: 'CHILE.SN', close: 105 });
 
     const quotes = await provider.getQuotes([
       'COPEC.SN',
@@ -136,7 +142,7 @@ describe('EodhdMarketDataProvider', () => {
       'COPEC.SN',
       'CHILE.SN',
     ]);
-    expect(axiosGet).toHaveBeenCalledTimes(3);
+    expect(mockRealTime).toHaveBeenCalledTimes(3);
   });
 
   it('declares a daily refresh schedule', () => {
