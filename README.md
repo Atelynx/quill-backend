@@ -154,7 +154,7 @@ EODHD falla, el backend usa el ultimo snapshot guardado; si no existe snapshot,
 usa el provider `mock`.
 
 Para probar sin gastar llamadas reales, deja `MARKET_PROVIDER=mock` o ejecuta
-la suite de tests, donde Axios se mockea y `EODHD_DAILY_REFRESH_ENABLED=false`.
+la suite de tests, donde el SDK de EODHD se mockea y `EODHD_DAILY_REFRESH_ENABLED=false`.
 
 ## Cómo ejecutar el proyecto
 

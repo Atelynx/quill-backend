@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import axios from 'axios';
+import { EODHDClient } from 'eodhd';
 import Decimal from 'decimal.js';
 import type { MarketQuote } from '../../domain/interfaces/market-quote.interface';
 import {
@@ -14,7 +14,6 @@ import {
   PriceSnapshotDocument,
 } from '../../infrastructure/schemas/price-snapshot.schema';
 import {
-  EodhdQuoteResponse,
   normalizeEodhdQuote,
 } from './eodhd-quote.mapper';
 import { MarketDataProvider, StockSeed } from './market-data-provider.interface';
@@ -22,8 +21,8 @@ import { MarketDataProvider, StockSeed } from './market-data-provider.interface'
 @Injectable()
 export class EodhdMarketDataProvider implements MarketDataProvider {
   private readonly logger = new Logger(EodhdMarketDataProvider.name);
-  private readonly baseUrl: string;
   private readonly exchangeCode: string;
+  private readonly eodhdClient: EODHDClient;
 
   constructor(
     private readonly configService: ConfigService,
@@ -32,9 +31,15 @@ export class EodhdMarketDataProvider implements MarketDataProvider {
     @InjectModel(PriceSnapshot.name)
     private readonly snapshotModel: Model<PriceSnapshotDocument>,
   ) {
-    this.baseUrl = this.configService
-      .get<string>('EODHD_BASE_URL', 'https://eodhd.com/api')
-      .replace(/\/+$/, '');
+    const apiToken = this.configService.getOrThrow<string>('EODHD_API_KEY');
+    const baseUrl = this.configService.get<string>('EODHD_BASE_URL');
+
+    this.eodhdClient = new EODHDClient({
+      apiToken,
+      baseUrl: baseUrl?.replace(/\/+$/, ''),
+      timeout: 20000,
+    });
+
     this.exchangeCode = this.configService.get<string>('EODHD_EXCHANGE_CODE', 'SN');
   }
 
@@ -93,10 +98,6 @@ export class EodhdMarketDataProvider implements MarketDataProvider {
    * Declare the daily refresh schedule for EODHD.
    * Default: 6:30 PM Monday-Friday (after market close for Chilean stocks).
    */
-  /**
-   * Declare the daily refresh schedule for EODHD.
-   * Default: 6:30 PM Monday-Friday (after market close for Chilean stocks).
-   */
   getRefreshSchedule() {
     const cronExpression = this.configService.get<string>(
       'EODHD_DAILY_REFRESH_CRON',
@@ -134,16 +135,8 @@ export class EodhdMarketDataProvider implements MarketDataProvider {
    * Fetch a quote directly from the EODHD API.
    */
   private async fetchFromApi(symbol: string): Promise<MarketQuote> {
-    const url = `${this.baseUrl}/real-time/${encodeURIComponent(symbol)}`;
-    const apiToken = this.configService.getOrThrow<string>('EODHD_API_KEY');
-
-    const response = await axios.get<EodhdQuoteResponse>(url, {
-      params: { api_token: apiToken, fmt: 'json' },
-      timeout: 20000,
-      headers: { Accept: 'application/json' },
-    });
-
-    return normalizeEodhdQuote(response.data, symbol, this.exchangeCode);
+    const data = await this.eodhdClient.realTime(symbol);
+    return normalizeEodhdQuote(data, symbol, this.exchangeCode);
   }
 
   /**

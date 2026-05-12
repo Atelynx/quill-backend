@@ -30,6 +30,7 @@ function applyTestEnvironment(mongoUri: string, options: TestAppOptions = {}) {
   process.env.MARKET_PROVIDER = options.marketProvider ?? 'mock';
   process.env.MARKET_TICK_INTERVAL_SECONDS = '3600';
   process.env.EODHD_API_KEY = 'test-eodhd-token';
+  process.env.EODHD_SYMBOLS = 'BSANTANDER.SN,CENCOSUD.SN,CHILE.SN,CMPC.SN,COLBUN.SN,COPEC.SN,SQM-B.SN,VAPORES.SN';
   process.env.EODHD_DAILY_REFRESH_ENABLED = 'false';
 }
 

@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import axios from 'axios';
+import { EODHDClient } from 'eodhd';
 import request from 'supertest';
 import {
   createTestApp,
@@ -7,7 +7,7 @@ import {
   type TestAppContext,
 } from './support/test-app';
 
-jest.mock('axios');
+jest.mock('eodhd');
 
 interface StockQuoteResponse {
   symbol: string;
@@ -20,12 +20,18 @@ function getHttpServer(app: INestApplication): Parameters<typeof request>[0] {
 
 describe('Market providers (e2e)', () => {
   let testContext: TestAppContext | undefined;
+  const mockRealTime = jest.fn();
 
   jest.setTimeout(120000);
 
-  afterEach(async () => {
-    jest.restoreAllMocks();
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (EODHDClient as jest.Mock).mockImplementation(() => ({
+      realTime: mockRealTime,
+    }));
+  });
 
+  afterEach(async () => {
     if (testContext) {
       await destroyTestApp(testContext);
       testContext = undefined;
@@ -33,8 +39,7 @@ describe('Market providers (e2e)', () => {
   });
 
   it('responde endpoint de mercado con provider EODHD sin API real', async () => {
-    const axiosGet = axios.get as jest.Mock;
-    axiosGet.mockRejectedValue(new Error('No debe llamar API real en e2e'));
+    mockRealTime.mockRejectedValue(new Error('No debe llamar API real en e2e'));
     testContext = await createTestApp({ marketProvider: 'eodhd' });
 
     const response = await request(getHttpServer(testContext.app))
@@ -52,6 +57,6 @@ describe('Market providers (e2e)', () => {
       'SQM-B.SN',
       'VAPORES.SN',
     ]);
-    expect(axiosGet).not.toHaveBeenCalled();
+    expect(mockRealTime).not.toHaveBeenCalled();
   });
 });
