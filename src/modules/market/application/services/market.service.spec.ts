@@ -18,6 +18,9 @@ describe('MarketService', () => {
     getQuote: jest.Mock;
     generateNextPrice?: jest.Mock;
   };
+  let configService: {
+    get: jest.Mock;
+  };
   let marketRefreshService: {
     refreshMarket: jest.Mock;
   };
@@ -38,12 +41,14 @@ describe('MarketService', () => {
       insertMany: jest.fn(),
     };
     provider = { getQuote: jest.fn() };
+    configService = { get: jest.fn() };
     marketRefreshService = { refreshMarket: jest.fn() };
     marketSeedService = { seedInitialStocks: jest.fn() };
 
     service = new MarketService(
       stockModel as never,
       snapshotModel as never,
+      configService as never,
       marketRefreshService as never,
       marketSeedService as never,
     );
