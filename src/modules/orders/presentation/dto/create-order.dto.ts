@@ -9,7 +9,7 @@ import {
 
 export class CreateOrderDto {
   @IsString()
-  @Length(1, 10)
+  @Length(1, 20)
   symbol!: string;
 
   @IsEnum(['BUY', 'SELL'])
