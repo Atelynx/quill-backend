@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ScheduleModule } from '@nestjs/schedule';
 import { resolveEnvFilePaths } from './config/env-file-paths';
@@ -20,6 +21,7 @@ import { UsersModule } from './modules/users/users.module';
       envFilePath: resolveEnvFilePaths(),
       validationSchema: envValidationSchema,
     }),
+    EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     MongooseModule.forRootAsync({
       inject: [ConfigService],
