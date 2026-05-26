@@ -46,21 +46,21 @@ Responsabilidad:
 - mantener el catalogo de acciones
 - exponer precios actuales
 - guardar historial de snapshots
-- emitir cotizaciones por WebSocket
+- emitir eventos de actualizacion via event bus
 
 Archivos clave:
 
 - `src/modules/market/application/services/market.service.ts`
 - `src/modules/market/infrastructure/providers/mock-market-data.provider.ts`
 - `src/modules/market/presentation/controllers/market.controller.ts`
-- `src/modules/market/presentation/gateways/market.gateway.ts`
+- `src/modules/market/application/services/market-refresh.service.ts`
 
 Detalles:
 
 - siembra acciones iniciales al arrancar si la coleccion esta vacia
 - calcula variacion diaria respecto a `previousClose`
 - guarda snapshots en cada refresh
-- publica el evento `market.quotes`
+- emite `internal.price.update` via EventEmitter al refrescar cotizaciones
 
 ## Orders
 
@@ -136,3 +136,26 @@ Detalles:
 
 - informa estado de MongoDB
 - informa si Redis esta operativo o en fallback
+
+## Realtime
+
+Responsabilidad:
+
+- gestionar conexiones WebSocket de clientes
+- autenticar clientes via JWT
+- manejar suscripciones a canales de datos (rooms)
+- escuchar eventos internos y reenviarlos a los clientes suscritos
+
+Archivos clave:
+
+- `src/modules/realtime/presentation/gateways/realtime.gateway.ts`
+- `src/modules/realtime/realtime.module.ts`
+
+Detalles:
+
+- opera en el namespace `/realtime`
+- clientes se autentican enviando JWT en `socket.handshake.auth.token`
+- suscripcion via mensaje `subscribe: { topic: string }`
+- canales con prefijo `stock:SYMBOL` y `user:USER_ID`
+- escucha `internal.price.update` y emite `price_update` a la sala correspondiente
+- sigue la Megaphone Rule: sin cron jobs, sin API calls, sin logica de negocio
