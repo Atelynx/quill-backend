@@ -16,7 +16,6 @@ import {
 } from './infrastructure/schemas/price-snapshot.schema';
 import { Stock, StockSchema } from './infrastructure/schemas/stock.schema';
 import { MarketController } from './presentation/controllers/market.controller';
-import { MarketGateway } from './presentation/gateways/market.gateway';
 
 @Module({
   imports: [
@@ -62,7 +61,6 @@ import { MarketGateway } from './presentation/gateways/market.gateway';
         );
       },
     },
-    MarketGateway,
   ],
   exports: [MarketService, MongooseModule, 'MARKET_DATA_PROVIDER'],
 })
