@@ -19,7 +19,7 @@ Implement a centralized, event-driven WebSocket Gateway using Socket.io. This mo
 
 
 4. **Connection Management:** Log and manage client connections and disconnections (`OnGatewayConnection`, `OnGatewayDisconnect`) to monitor active concurrent users.
-5. **(Optional but Recommended) Authentication Guard:** Secure the WebSocket connection ensuring only authenticated users (via JWT Token) can connect and receive data.
+5.**Authentication Guard:** Secure the WebSocket connection ensuring only authenticated users (via JWT Token) can connect and receive data.
 
 ## Implementation Flow Example
 
