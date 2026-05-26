@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { MarketModule } from './modules/market/market.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SystemModule } from './modules/system/system.module';
 import { TradesModule } from './modules/trades/trades.module';
 import { UsersModule } from './modules/users/users.module';
@@ -39,6 +40,7 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     MarketModule,
     PortfolioModule,
+    RealtimeModule,
     TradesModule,
     OrdersModule,
   ],
