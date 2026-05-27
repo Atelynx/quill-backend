@@ -116,13 +116,13 @@ describe('Order financial flows (e2e)', () => {
   });
 
   it('revierte la ejecucion si falla la creacion del trade', async () => {
-    await createStock(app, 'ROLLBACK.SN', 25);
+    await createStock(app, 'RBACK.SN', 25);
     const { token, user, server } = await registerAndLogin(app, 'rollback.flow@quill.dev');
-    await createPosition(app, user._id, 'ROLLBACK.SN', 4);
+    await createPosition(app, user._id, 'RBACK.SN', 4);
     await request(server)
       .post('/api/orders')
       .set('Authorization', `Bearer ${token}`)
-      .send({ symbol: 'ROLLBACK.SN', side: 'SELL', quantity: 2, limitPrice: 20 })
+      .send({ symbol: 'RBACK.SN', side: 'SELL', quantity: 2, limitPrice: 20 })
       .expect(201);
 
     const { orderModel, positionModel, tradeModel, userModel } =
@@ -133,9 +133,9 @@ describe('Order financial flows (e2e)', () => {
 
     await (app.get(OrderExecutionService) as any).executeCycle();
 
-    await expect(orderModel.findOne({ symbol: 'ROLLBACK.SN' }).lean()).resolves
+    await expect(orderModel.findOne({ symbol: 'RBACK.SN' }).lean()).resolves
       .toMatchObject({ status: 'PENDING' });
-    await expect(positionModel.findOne({ symbol: 'ROLLBACK.SN' }).lean())
+    await expect(positionModel.findOne({ symbol: 'RBACK.SN' }).lean())
       .resolves.toMatchObject({ quantity: 4, reservedQuantity: 2 });
     await expect(userModel.findById(user._id).lean()).resolves.toMatchObject({
       availableBalance: 100000,
