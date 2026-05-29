@@ -40,6 +40,12 @@ export class Stock {
 
   @Prop()
   lastMarketDate?: Date;
+
+  @Prop({ default: 0.015 })
+  baseVolatility!: number;
+
+  @Prop({ default: 0.0 })
+  baseDrift!: number;
 }
 
 export const StockSchema = SchemaFactory.createForClass(Stock);

@@ -9,4 +9,6 @@ export interface StockEntity {
   low?: number;
   previousClose: number;
   dayChangePercentage: number;
+  baseVolatility?: number;
+  baseDrift?: number;
 }
