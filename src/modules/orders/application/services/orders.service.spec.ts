@@ -98,6 +98,73 @@ describe('OrdersService', () => {
     });
   });
 
+  it('redondea la reserva de compra incluyendo la comision estimada', async () => {
+    const user = {
+      availableBalance: 100,
+      reservedBalance: 0,
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+
+    userModel.findById.mockReturnValue(createExecQuery(user));
+    stockModel.findOne.mockReturnValue(createExecQuery({ symbol: 'ROUND.SN' }));
+    commissionService.calculate.mockReturnValue(0.16);
+    orderModel.create.mockResolvedValue({ id: 'order-round' });
+
+    await service.createOrder(new Types.ObjectId().toString(), {
+      symbol: 'round.sn',
+      side: 'BUY',
+      quantity: 3,
+      limitPrice: 10.335,
+    });
+
+    expect(user.availableBalance).toBe(68.83);
+    expect(user.reservedBalance).toBe(31.17);
+    expect(orderModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: 'ROUND.SN',
+        quantity: 3,
+        reservedAmount: 31.17,
+      }),
+    );
+  });
+
+  it('crea una orden de venta valida y reserva acciones', async () => {
+    const position = {
+      quantity: 7,
+      reservedQuantity: 1,
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+
+    userModel.findById.mockReturnValue(
+      createExecQuery({
+        id: new Types.ObjectId().toString(),
+        availableBalance: 1000,
+        reservedBalance: 0,
+      }),
+    );
+    stockModel.findOne.mockReturnValue(createExecQuery({ symbol: 'SELL.SN' }));
+    positionModel.findOne.mockReturnValue(createExecQuery(position));
+    orderModel.create.mockResolvedValue({ id: 'order-sell' });
+
+    await service.createOrder(new Types.ObjectId().toString(), {
+      symbol: 'sell.sn',
+      side: 'SELL',
+      quantity: 3,
+      limitPrice: 25,
+    });
+
+    expect(position.reservedQuantity).toBe(4);
+    expect(position.save).toHaveBeenCalled();
+    expect(orderModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: 'SELL.SN',
+        side: 'SELL',
+        quantity: 3,
+        reservedAmount: 0,
+      }),
+    );
+  });
+
   it('rechaza la orden cuando el saldo disponible no alcanza', async () => {
     userModel.findById.mockReturnValue(
       createExecQuery({
@@ -124,6 +191,7 @@ describe('OrdersService', () => {
       service.createOrder(new Types.ObjectId().toString(), createOrderDto),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(orderModel.create).not.toHaveBeenCalled();
+    expect(commissionService.calculate).toHaveBeenCalledWith(100);
   });
 
   it('rechaza la venta cuando no hay posicion suficiente libre', async () => {

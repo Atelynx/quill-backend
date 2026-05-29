@@ -26,6 +26,7 @@ describe('MarketUpdateWriterService', () => {
             symbol: 'COPEC.SN',
             name: 'COPEC',
             price: 120,
+            close: 120,
             previousClose: 100,
             currency: 'CLP',
             timestamp: new Date('2026-01-01T12:00:00Z'),

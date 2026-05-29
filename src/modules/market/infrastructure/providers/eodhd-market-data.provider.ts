@@ -179,6 +179,7 @@ export class EodhdMarketDataProvider implements MarketDataProvider {
       symbol: stock.symbol,
       name: stock.name,
       price: snapshot.price,
+      close: snapshot.price,
       currency: stock.currency,
       timestamp: snapshot.createdAt,
       exchange: 'EODHD',

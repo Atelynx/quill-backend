@@ -1,3 +1,4 @@
+import { PRICE_UPDATE_EVENT } from '../../domain/constants/events';
 import { MarketRefreshService } from './market-refresh.service';
 
 describe('MarketRefreshService', () => {
@@ -12,7 +13,7 @@ describe('MarketRefreshService', () => {
   let stockModel: any;
   let provider: any;
   let updateWriter: any;
-  let marketGateway: any;
+  let eventEmitter: any;
   let service: MarketRefreshService;
 
   beforeEach(() => {
@@ -23,13 +24,13 @@ describe('MarketRefreshService', () => {
       getQuotes: jest.fn(),
     };
     updateWriter = { persist: jest.fn().mockResolvedValue(undefined) };
-    marketGateway = { emitQuotes: jest.fn() };
+    eventEmitter = { emit: jest.fn() };
 
     service = new MarketRefreshService(
       stockModel,
       provider,
       updateWriter,
-      marketGateway,
+      eventEmitter,
     );
   });
 
@@ -89,13 +90,13 @@ describe('MarketRefreshService', () => {
     await promise1;
   });
 
-  it('emits quotes via WebSocket after refresh', async () => {
+  it('emits price update event after refresh', async () => {
     mockStocks();
     provider.getQuotes.mockResolvedValue([quote(120, 'mock')]);
 
     await service.refreshMarket();
 
-    expect(marketGateway.emitQuotes).toHaveBeenCalled();
+    expect(eventEmitter.emit).toHaveBeenCalledWith(PRICE_UPDATE_EVENT, expect.any(Array));
   });
 
   function mockStocks() {

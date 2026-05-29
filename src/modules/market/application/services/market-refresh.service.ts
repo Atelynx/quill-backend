@@ -1,9 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { PRICE_UPDATE_EVENT } from '../../domain/constants/events';
 import type { MarketDataProvider } from '../../infrastructure/providers/market-data-provider.interface';
 import { Stock, StockDocument } from '../../infrastructure/schemas/stock.schema';
-import { MarketGateway } from '../../presentation/gateways/market.gateway';
 import { MarketUpdateWriterService } from './market-update-writer.service';
 
 /**
@@ -20,7 +21,7 @@ export class MarketRefreshService {
     @InjectModel(Stock.name) private readonly stockModel: Model<StockDocument>,
     @Inject('MARKET_DATA_PROVIDER') private readonly provider: MarketDataProvider,
     private readonly updateWriter: MarketUpdateWriterService,
-    private readonly marketGateway: MarketGateway,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -67,8 +68,8 @@ export class MarketRefreshService {
 
       await this.updateWriter.persist(updates, providerName);
       const refreshedQuotes = await this.stockModel.find().sort({ symbol: 1 }).lean().exec();
-      this.marketGateway.emitQuotes(refreshedQuotes);
-      this.logger.log(`${refreshedQuotes.length} quotes emitted via WebSocket`);
+      this.eventEmitter.emit(PRICE_UPDATE_EVENT, refreshedQuotes);
+      this.logger.log(`${refreshedQuotes.length} quotes emitted via event bus`);
       return refreshedQuotes;
     } finally {
       this.isRefreshing = false;
@@ -89,7 +90,7 @@ export class MarketRefreshService {
     }
 
     // Fallback for providers that only implement getQuote()
-    const results: Array<{ symbol: string; price: number; currency: string; timestamp: Date; exchange: string; source?: string; name?: string; previousClose?: number; dayChangePercentage?: number; volume?: number }> = [];
+    const results: Array<{ symbol: string; price: number; close?: number; currency: string; timestamp: Date; exchange: string; source?: string; name?: string; previousClose?: number; dayChangePercentage?: number; volume?: number }> = [];
     for (const symbol of symbols) {
       try {
         const quote = await provider.getQuote(symbol);
