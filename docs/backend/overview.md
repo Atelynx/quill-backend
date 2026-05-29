@@ -16,7 +16,11 @@ Se utiliza **Decimal.js** para todos los cálculos monetarios. Esto evita errore
 
 ## Actualizaciones en Tiempo Real
 
-**Socket.IO** implementa un gateway WebSocket que difunde cotizaciones de precios a todos los clientes conectados. El servidor emite eventos `market.quotes` cada vez que se actualiza el mercado, permitiendo que el frontend refleje cambios de precio sin polling.
+**Socket.IO** implementa un gateway WebSocket en el namespace `/realtime` que difunde cotizaciones de precios a los clientes suscritos.
+
+El `RealtimeGateway` actúa como un megáfono: no contiene lógica de negocio, ni cron jobs, ni llamadas externas. Solo escucha eventos internos vía `@nestjs/event-emitter` y los reenvía a las salas correspondientes.
+
+Cuando `MarketRefreshService` emite `internal.price.update`, el gateway captura el evento y emite `price_update` a la sala `stock:SYMBOL`. Los clientes se suscriben enviando `subscribe: { topic: string }` y se desuscriben con `unsubscribe: { topic: string }`.
 
 ## Proveedor de Datos de Mercado Desacoplado
 
@@ -48,6 +52,7 @@ Acciones principales en el bootstrap:
 - configuracion global con validacion Joi
 - conexion a MongoDB
 - scheduler global
+- EventEmitterModule para eventos internos
 - modulos funcionales del backend
 
 ## Configuracion de entorno
@@ -63,6 +68,7 @@ Variables importantes:
 - `INITIAL_BALANCE`
 - `COMMISSION_RATE`
 - `MARKET_PROVIDER`
+- `MARKET_FETCH_ON_STARTUP`
 - `MARKET_TICK_INTERVAL_SECONDS`
 - `EODHD_API_KEY`
 - `EODHD_BASE_URL`
@@ -117,6 +123,19 @@ Colecciones principales:
 - `orders`
 - `positions`
 - `trades`
+
+## Separacion por capas
+
+## Modulos funcionales
+
+- `auth`: registro, login, JWT, hashing de contraseñas
+- `users`: perfil básico, saldo inicial ficticio y lectura del usuario autenticado
+- `market`: catálogo de acciones, precios actuales, snapshots históricos y proveedor de mercado
+- `orders`: creación y consulta de órdenes limitadas de compra y venta
+- `portfolio`: posiciones del usuario, métricas del portafolio y resumen del dashboard
+- `trades`: historial de operaciones ejecutadas
+- `realtime`: gateway WebSocket para difusión de precios en vivo
+- `system`: healthcheck, configuración, seeds y utilidades transversales
 
 ## Separacion por capas
 

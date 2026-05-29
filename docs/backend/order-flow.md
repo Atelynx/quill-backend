@@ -44,10 +44,10 @@ Servicio principal:
 
 - `src/modules/orders/application/services/order-execution.service.ts`
 
-El ciclo hace dos cosas:
+El ciclo ejecuta cada `MARKET_TICK_INTERVAL_SECONDS`:
 
-1. refresca mercado con `MarketService.refreshMarket()`
-2. intenta ejecutar ordenes pendientes
+1. obtiene cotizaciones actuales con `MarketService.listQuotes()` (solo lectura, sin refresh)
+2. intenta ejecutar ordenes pendientes contra esas cotizaciones
 
 ### Condiciones de ejecucion
 
