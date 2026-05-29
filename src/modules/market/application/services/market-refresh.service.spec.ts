@@ -1,3 +1,4 @@
+import { PRICE_UPDATE_EVENT } from '../../domain/constants/events';
 import { MarketRefreshService } from './market-refresh.service';
 
 describe('MarketRefreshService', () => {
@@ -95,7 +96,7 @@ describe('MarketRefreshService', () => {
 
     await service.refreshMarket();
 
-    expect(eventEmitter.emit).toHaveBeenCalledWith('internal.price.update', expect.any(Array));
+    expect(eventEmitter.emit).toHaveBeenCalledWith(PRICE_UPDATE_EVENT, expect.any(Array));
   });
 
   function mockStocks() {

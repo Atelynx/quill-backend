@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { PRICE_UPDATE_EVENT } from '../../domain/constants/events';
 import type { MarketDataProvider } from '../../infrastructure/providers/market-data-provider.interface';
 import { Stock, StockDocument } from '../../infrastructure/schemas/stock.schema';
 import { MarketUpdateWriterService } from './market-update-writer.service';
@@ -67,7 +68,7 @@ export class MarketRefreshService {
 
       await this.updateWriter.persist(updates, providerName);
       const refreshedQuotes = await this.stockModel.find().sort({ symbol: 1 }).lean().exec();
-      this.eventEmitter.emit('internal.price.update', refreshedQuotes);
+      this.eventEmitter.emit(PRICE_UPDATE_EVENT, refreshedQuotes);
       this.logger.log(`${refreshedQuotes.length} quotes emitted via event bus`);
       return refreshedQuotes;
     } finally {
@@ -89,7 +90,7 @@ export class MarketRefreshService {
     }
 
     // Fallback for providers that only implement getQuote()
-    const results: Array<{ symbol: string; price: number; currency: string; timestamp: Date; exchange: string; source?: string; name?: string; previousClose?: number; dayChangePercentage?: number; volume?: number }> = [];
+    const results: Array<{ symbol: string; price: number; close?: number; currency: string; timestamp: Date; exchange: string; source?: string; name?: string; previousClose?: number; dayChangePercentage?: number; volume?: number }> = [];
     for (const symbol of symbols) {
       try {
         const quote = await provider.getQuote(symbol);

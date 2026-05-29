@@ -38,7 +38,7 @@ export class PortfolioService {
       .filter((position) => position.quantity > 0)
       .map((position) => {
         const quote = quoteMap.get(position.symbol);
-        const marketPrice = quote?.close ?? quote?.close ?? 0;
+        const marketPrice = quote?.close ?? 0;
         
         const marketValue = new Decimal(position.quantity)
           .times(marketPrice)

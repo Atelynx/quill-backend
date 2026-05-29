@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
+import { PRICE_UPDATE_EVENT } from '../../../market/domain/constants/events';
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -56,7 +57,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     this.logger.debug(`Client ${client.id} unsubscribed from ${room}`);
   }
 
-  @OnEvent('internal.price.update')
+  @OnEvent(PRICE_UPDATE_EVENT)
   handlePriceUpdate(quotes: Array<{ symbol: string; close: number; dayChangePercentage?: number }>): void {
     for (const quote of quotes) {
       this.server

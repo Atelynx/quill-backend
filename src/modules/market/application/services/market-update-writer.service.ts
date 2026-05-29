@@ -63,7 +63,7 @@ export class MarketUpdateWriterService {
         update: {
           $set: {
             name: update.quote.name ?? update.stock.name,
-            close: update.quote.close ?? update.quote.price,
+            close: update.quote.close,
             open: update.quote.open ?? update.stock.open,
             high: update.quote.high ?? update.stock.high,
             low: update.quote.low ?? update.stock.low,
