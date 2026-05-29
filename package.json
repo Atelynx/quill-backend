@@ -60,7 +60,6 @@
     "@nestjs/testing": "^11.0.1",
     "@types/bcrypt": "^6.0.0",
     "@types/compression": "^1.8.1",
-    "@types/decimal.js": "^0.0.32",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",

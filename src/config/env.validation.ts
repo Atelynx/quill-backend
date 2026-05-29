@@ -10,7 +10,8 @@ export const envValidationSchema = Joi.object({
   INITIAL_BALANCE: Joi.number().positive().default(100000),
   COMMISSION_RATE: Joi.number().min(0).max(1).default(0.005),
   MARKET_PROVIDER: Joi.string().valid('mock', 'eodhd').optional(),
-  MARKET_TICK_INTERVAL_SECONDS: Joi.number().min(5).default(15),
+  MARKET_TICK_INTERVAL_SECONDS: Joi.number().min(0).default(15),
+  SIMULATION_STRATEGY: Joi.string().valid('flat','gbm','nw').default('flat'),
   EODHD_API_KEY: Joi.when('MARKET_PROVIDER', {
     is: 'eodhd',
     then: Joi.string().required(),
