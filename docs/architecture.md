@@ -30,6 +30,7 @@ El backend seguirá un monolito modular con separación por capas dentro de cada
 - `orders`: creación y consulta de órdenes limitadas de compra y venta
 - `portfolio`: posiciones del usuario, métricas del portafolio y resumen del dashboard
 - `trades`: historial de operaciones ejecutadas
+- `realtime`: gateway WebSocket para difusión de precios en vivo vía eventos internos
 - `system`: healthcheck, configuración, seeds y utilidades transversales
 
 ### Reglas de negocio principales

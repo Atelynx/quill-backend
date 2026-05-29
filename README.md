@@ -32,7 +32,8 @@ Equipo desarrollador: Atelynx
 - Redis con fallback local en memoria
 - JWT para autenticación
 - Scheduler para actualización de mercado y ejecución de órdenes
-- WebSockets para difusión de precios
+- WebSockets (Socket.IO) para difusión de precios en el namespace `/realtime`
+- Event Emitter interno (`@nestjs/event-emitter`) para desacoplar servicios del gateway
 
 ## Qué resuelve el MVP
 
