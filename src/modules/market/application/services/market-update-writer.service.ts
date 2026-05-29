@@ -79,13 +79,25 @@ export class MarketUpdateWriterService {
   }
 
   private cacheQuote(update: MarketRefreshUpdate): void {
+    const symbol = update.stock.symbol;
+    const price = update.quote.price;
     void this.cacheService.set(
-      `market:${update.stock.symbol}`,
+      `market:${symbol}`,
       {
-        symbol: update.quote.symbol,
-        price: update.quote.price,
+        symbol,
+        price,
         updatedAt: new Date().toISOString(),
       },
+      this.cacheTtlMs(),
+    );
+    void this.cacheService.set(
+      `stock:${symbol}:base_price`,
+      price,
+      this.cacheTtlMs(),
+    );
+    void this.cacheService.set(
+      `stock:${symbol}:live_price`,
+      price,
       this.cacheTtlMs(),
     );
   }
