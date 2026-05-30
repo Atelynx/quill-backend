@@ -8,7 +8,7 @@ export class NoneCurrencyDataProvider implements CurrencyDataProvider {
 
   async getQuote(symbol: string): Promise<MarketQuote> {
     throw new Error(
-      `No currency provider configured for ${symbol}. Set CURRENCY_PROVIDER=mock or CURRENCY_PROVIDER=external in .env`,
+      `No currency provider configured for ${symbol}. Set CURRENCY_PROVIDER=mock or CURRENCY_PROVIDER=exchangeRate in .env`,
     );
   }
 }

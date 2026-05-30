@@ -4,20 +4,20 @@ import type { MarketQuote } from '../../../market/domain/interfaces/market-quote
 import { CurrencyDataProvider } from '../../domain/interfaces/currency-data-provider.interface';
 
 @Injectable()
-export class ExternalCurrencyDataProvider implements CurrencyDataProvider {
-  private readonly logger = new Logger(ExternalCurrencyDataProvider.name);
+export class ExchangeRateCurrencyDataProvider implements CurrencyDataProvider {
+  private readonly logger = new Logger(ExchangeRateCurrencyDataProvider.name);
 
   constructor(private readonly configService: ConfigService) {}
 
   getName(): string {
-    return 'external';
+    return 'exchangeRate';
   }
 
   async getQuote(symbol: string): Promise<MarketQuote> {
-    const apiKey = this.configService.get<string>('CURRENCY_API_KEY');
+    const apiKey = this.configService.get<string>('EXCHANGE_RATE_API_KEY');
 
     if (!apiKey) {
-      throw new Error('CURRENCY_API_KEY is not configured');
+      throw new Error('EXCHANGE_RATE_API_KEY is not configured');
     }
 
     const normalizedSymbol = symbol.trim().toUpperCase();
@@ -27,7 +27,7 @@ export class ExternalCurrencyDataProvider implements CurrencyDataProvider {
       return quote;
     } catch (error) {
       throw new Error(
-        `External provider failed for ${normalizedSymbol}: ${describeError(error)}`,
+        `External provider ${this.getName()} failed for ${normalizedSymbol}: ${describeError(error)}`,
       );
     }
   }
@@ -35,8 +35,9 @@ export class ExternalCurrencyDataProvider implements CurrencyDataProvider {
   private async fetchFromExternalApi(symbol: string, apiKey: string): Promise<MarketQuote> {
     const baseCurrency = symbol.slice(0, 3);
     const quoteCurrency = symbol.slice(3);
+    const baseUrl = this.configService.get<string>('EXCHANGE_RATE_BASE_URL');
 
-    const url = `https://api.exchangerate-api.com/v4/latest/${baseCurrency}`;
+    const url = `${baseUrl}/latest/${baseCurrency}`;
 
     const response = await fetch(url, {
       headers: { 'Authorization': `Bearer ${apiKey}` },
@@ -66,7 +67,7 @@ export class ExternalCurrencyDataProvider implements CurrencyDataProvider {
       close: price,
       currency: quoteCurrency,
       timestamp: new Date(data.updated * 1000),
-      exchange: 'EXTERNAL',
+      exchange: 'exchangeRate',
     };
   }
 }

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { CommonStrategiesModule } from '../common/common-strategies.module';
 import { CurrencyAnchorService } from './application/services/currency-anchor.service';
 import { CurrencyTickService } from './application/services/currency-tick.service';
-import { ExternalCurrencyDataProvider } from './infrastructure/providers/external-currency-data.provider';
+import { ExchangeRateCurrencyDataProvider } from './infrastructure/providers/exchangeRate-currency-data.provider';
 import { MockCurrencyDataProvider } from './infrastructure/providers/mock-currency-data.provider';
 import { NoneCurrencyDataProvider } from './infrastructure/providers/none-currency-data.provider';
 import { ProviderFactory } from './infrastructure/providers/provider.factory';
@@ -18,19 +18,19 @@ import { StrategyFactory } from '../common/strategies/strategy.factory';
     CurrencyAnchorService,
     CurrencyTickService,
     MockCurrencyDataProvider,
-    ExternalCurrencyDataProvider,
+    ExchangeRateCurrencyDataProvider,
     NoneCurrencyDataProvider,
     {
       provide: 'CURRENCY_DATA_PROVIDER',
       inject: [
         MockCurrencyDataProvider,
-        ExternalCurrencyDataProvider,
+        ExchangeRateCurrencyDataProvider,
         NoneCurrencyDataProvider,
         ConfigService,
       ],
       useFactory: (
         mockProvider: MockCurrencyDataProvider,
-        externalProvider: ExternalCurrencyDataProvider,
+        exchangeRateProvider: ExchangeRateCurrencyDataProvider,
         noneProvider: NoneCurrencyDataProvider,
         configService: ConfigService,
       ) => {
@@ -38,7 +38,7 @@ import { StrategyFactory } from '../common/strategies/strategy.factory';
         return ProviderFactory.createProvider(
           providerName,
           mockProvider,
-          externalProvider,
+          exchangeRateProvider,
           noneProvider,
         );
       },
