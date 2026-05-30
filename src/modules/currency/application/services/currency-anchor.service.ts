@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CacheService } from '../../../system/application/services/cache.service';
-import { CurrencyDataProvider } from '../../domain/interfaces/currency-data-provider.interface';
+import type { CurrencyDataProvider } from '../../domain/interfaces/currency-data-provider.interface';
 
 const BASE_PRICE_KEY = (symbol: string) => `forex:${symbol}:base_price`;
 const LIVE_PRICE_KEY = (symbol: string) => `forex:${symbol}:live_price`;
