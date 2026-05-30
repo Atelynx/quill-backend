@@ -81,6 +81,13 @@ EXCHANGERATE_REFRESH_CRON=*/10 * * * * *
 - `src/modules/currency/README.md` — module-level docs (Spanish) covering Two-Tick flow, Strategy Pattern, Redis keys, providers, and env vars.
 - `docs/backend/modules.md` — added Currency section.
 
+### New REST Endpoint
+
+- **`GET /currency/rates`** — returns all tracked forex pairs with their latest live price, base price, and day change percentage.
+- **`GET /currency/rates/:symbol`** — returns a single forex pair rate (e.g., `GET /currency/rates/USDCLP`).
+- Powered by `CurrencyRateService` which reads directly from Redis (`forex:{symbol}:live_price` and `forex:{symbol}:base_price`).
+- Registered via `CurrencyController` at the `currency` route prefix.
+
 ### Bug Fixes
 
 - `ExchangeRateCurrencyDataProvider` aligned with exchangerate-api v6 response format:
