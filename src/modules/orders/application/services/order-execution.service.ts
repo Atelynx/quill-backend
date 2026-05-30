@@ -1,6 +1,8 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -12,6 +14,7 @@ import {
   Position,
   PositionDocument,
 } from '../../../portfolio/infrastructure/schemas/position.schema';
+import { CacheService } from '../../../system/application/services/cache.service';
 import {
   Trade,
   TradeDocument,
@@ -44,6 +47,7 @@ export class OrderExecutionService {
     @InjectModel(Trade.name)
     private readonly tradeModel: Model<TradeDocument>,
     private readonly commissionService: CommissionService,
+    private readonly cacheService: CacheService,
   ) { }
 
   @Cron(CronExpression.EVERY_10_SECONDS)
@@ -89,6 +93,7 @@ export class OrderExecutionService {
   }
 
   private shouldExecute(order: OrderDocument, marketPrice: number): boolean {
+    if (order.limitPrice === undefined) return false;
     return order.side === 'BUY'
       ? marketPrice <= order.limitPrice
       : marketPrice >= order.limitPrice;
@@ -239,6 +244,177 @@ export class OrderExecutionService {
       await position.deleteOne({ session });
     } else {
       await position.save({ session });
+    }
+  }
+
+  async executeMarketOrder(
+    userId: string,
+    symbol: string,
+    side: 'BUY' | 'SELL',
+    quantity: number,
+  ): Promise<OrderDocument> {
+    const livePrice = await this.cacheService.get<number>(
+      `stock:${symbol}:live_price`,
+    );
+
+    if (livePrice === undefined || livePrice === null) {
+      throw new NotFoundException(
+        `No hay precio disponible para ${symbol}. Intente con una orden LIMIT.`,
+      );
+    }
+
+    const session = await this.connection.startSession();
+    try {
+      const [executedOrder] = await session.withTransaction(async () => {
+        const user = await this.userModel
+          .findById(userId)
+          .session(session)
+          .exec();
+
+        if (!user) {
+          throw new NotFoundException('Usuario no encontrado.');
+        }
+
+        const grossAmount = new Decimal(quantity)
+          .times(livePrice)
+          .toDecimalPlaces(2)
+          .toNumber();
+
+        const commissionAmount = this.commissionService.calculate(grossAmount);
+        const executedAt = new Date();
+
+        if (side === 'BUY') {
+          const totalCost = new Decimal(grossAmount)
+            .plus(commissionAmount)
+            .toDecimalPlaces(2)
+            .toNumber();
+
+          if (new Decimal(user.availableBalance).lessThan(totalCost)) {
+            throw new BadRequestException(
+              'Saldo insuficiente para ejecutar la orden.',
+            );
+          }
+
+          user.availableBalance = new Decimal(user.availableBalance)
+            .minus(totalCost)
+            .toDecimalPlaces(2)
+            .toNumber();
+
+          const existingPosition = await this.positionModel
+            .findOne({
+              userId: new Types.ObjectId(user.id),
+              symbol,
+            })
+            .session(session)
+            .exec();
+
+          if (existingPosition) {
+            const currentTotalCost = new Decimal(existingPosition.quantity)
+              .times(existingPosition.averageCost);
+            const newTotalCost = currentTotalCost.plus(grossAmount);
+            const newQuantity = existingPosition.quantity + quantity;
+
+            existingPosition.quantity = newQuantity;
+            existingPosition.averageCost = newTotalCost
+              .dividedBy(newQuantity)
+              .toDecimalPlaces(2)
+              .toNumber();
+
+            await existingPosition.save({ session });
+          } else {
+            await this.positionModel.create(
+              [{
+                userId: new Types.ObjectId(user.id),
+                symbol,
+                quantity,
+                reservedQuantity: 0,
+                averageCost: livePrice,
+              }],
+              { session },
+            );
+          }
+        }
+
+        if (side === 'SELL') {
+          const position = await this.positionModel
+            .findOne({
+              userId: new Types.ObjectId(user.id),
+              symbol,
+            })
+            .session(session)
+            .exec();
+
+          if (!position || position.quantity < quantity) {
+            throw new BadRequestException(
+              'No tienes suficientes acciones para vender.',
+            );
+          }
+
+          position.quantity -= quantity;
+
+          user.availableBalance = new Decimal(user.availableBalance)
+            .plus(grossAmount)
+            .minus(commissionAmount)
+            .toDecimalPlaces(2)
+            .toNumber();
+
+          if (position.quantity <= 0) {
+            await position.deleteOne({ session });
+          } else {
+            await position.save({ session });
+          }
+        }
+
+        const netAmount = side === 'BUY'
+          ? new Decimal(grossAmount).plus(commissionAmount).toDecimalPlaces(2).toNumber()
+          : new Decimal(grossAmount).minus(commissionAmount).toDecimalPlaces(2).toNumber();
+
+        const [order] = await this.orderModel.create(
+          [{
+            userId: new Types.ObjectId(user.id),
+            symbol,
+            side,
+            quantity,
+            type: 'MARKET' as const,
+            status: 'EXECUTED' as const,
+            reservedAmount: 0,
+            executionPrice: livePrice,
+            commissionAmount,
+            executedAt,
+          }],
+          { session },
+        );
+
+        await this.tradeModel.create(
+          [{
+            userId: new Types.ObjectId(user.id),
+            orderId: new Types.ObjectId(order.id),
+            symbol,
+            side,
+            quantity,
+            executionPrice: livePrice,
+            grossAmount,
+            commissionAmount,
+            netAmount,
+            executedAt,
+          }],
+          { session },
+        );
+
+        await user.save({ session });
+
+        return [order];
+      });
+
+      return executedOrder;
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(`Failed to execute market order for ${symbol}`, error);
+      throw error;
+    } finally {
+      await session.endSession();
     }
   }
 

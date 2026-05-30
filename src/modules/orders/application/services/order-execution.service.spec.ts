@@ -30,6 +30,7 @@ describe('OrderExecutionService', () => {
       positionModel,
       tradeModel,
       commissionService,
+      { get: jest.fn() } as never,
     );
     jest.spyOn(service.logger, 'error').mockImplementation(jest.fn());
   });

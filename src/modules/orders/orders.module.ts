@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MarketModule } from '../market/market.module';
+import { SystemModule } from '../system/system.module';
 import {
   Stock,
   StockSchema,
@@ -23,6 +24,7 @@ import { OrdersController } from './presentation/controllers/orders.controller';
 @Module({
   imports: [
     MarketModule,
+    SystemModule,
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
       { name: User.name, schema: UserSchema },

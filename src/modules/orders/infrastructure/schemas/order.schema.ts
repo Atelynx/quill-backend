@@ -17,8 +17,15 @@ export class Order {
   @Prop({ required: true })
   quantity!: number;
 
-  @Prop({ required: true })
-  limitPrice!: number;
+  @Prop({
+    required: true,
+    enum: ['LIMIT', 'MARKET'],
+    default: 'LIMIT',
+  })
+  type!: 'LIMIT' | 'MARKET';
+
+  @Prop({ required: false })
+  limitPrice?: number;
 
   @Prop({
     required: true,

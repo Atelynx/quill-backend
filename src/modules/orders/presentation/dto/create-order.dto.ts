@@ -1,6 +1,7 @@
 import {
   IsEnum,
   IsNumber,
+  IsOptional,
   IsPositive,
   IsString,
   Length,
@@ -19,7 +20,12 @@ export class CreateOrderDto {
   @IsPositive()
   quantity!: number;
 
+  @IsOptional()
+  @IsEnum(['LIMIT', 'MARKET'])
+  type?: 'LIMIT' | 'MARKET';
+
+  @IsOptional()
   @IsNumber()
   @Min(0.01)
-  limitPrice!: number;
+  limitPrice?: number;
 }
