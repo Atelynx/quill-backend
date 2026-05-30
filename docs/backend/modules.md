@@ -137,6 +137,29 @@ Detalles:
 - informa estado de MongoDB
 - informa si Redis esta operativo o en fallback
 
+## Currency
+
+Responsabilidad:
+
+- generar datos sintéticos de tipo de cambio para pares forex
+- minimizar consumo de APIs externas via arquitectura Anchor + Noise
+- almacenar precios en Redis y emitir eventos internos
+
+Archivos clave:
+
+- `src/modules/currency/application/services/currency-anchor.service.ts`
+- `src/modules/currency/application/services/currency-tick.service.ts`
+- `src/modules/currency/infrastructure/providers/mock-currency-data.provider.ts`
+- `src/modules/currency/domain/interfaces/currency-data-provider.interface.ts`
+
+Detalles:
+
+- dos ticks sincronizados: `CURRENCY_API_REQ_TICK` (hourly cron) y `CURRENCY_RT_TICK` (setInterval cada 5s)
+- reusa las mismas estrategias de simulacion del modulo de acciones via `CommonStrategiesModule`
+- precios almacenados en Redis como `forex:{symbol}:base_price` y `forex:{symbol}:live_price`
+- emite `internal.currency.update` via EventEmitter, escuchado por RealtimeGateway y reenviado a sala `forex:{symbol}`
+- no usa MongoDB, no importa WebSocketGateway directamente
+
 ## Realtime
 
 Responsabilidad:
