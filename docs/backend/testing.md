@@ -16,6 +16,7 @@ Servicios con pruebas unitarias:
 
 - `AuthService`
 - `CommissionService`
+- `OrderExecutionService`
 - `OrdersService`
 - `PortfolioService`
 - `UsersService`
@@ -52,7 +53,7 @@ Esto es importante porque la ejecucion de ordenes usa transacciones y necesita r
 ## Escenarios financieros criticos
 
 La suite `test/order-financial.e2e-spec.ts` usa simbolos locales y
-deterministas como `SELL.SN`, `BUY.SN` y `ROLLBACK.SN`. No consume EODHD ni
+deterministas como `SELL.SN`, `BUY.SN` y `RBACK.SN`. No consume EODHD ni
 proveedores externos.
 
 Escenarios cubiertos:
@@ -69,7 +70,27 @@ Escenarios cubiertos:
 Comandos utiles:
 
 - `npm test -- --runInBand --runTestsByPath src/modules/orders/application/services/orders.service.spec.ts`
+- `npm test -- order-execution orders-service-edges --runInBand`
 - `npm run test:e2e -- --runTestsByPath test/order-financial.e2e-spec.ts`
+
+## Salida de cobertura financiera
+
+Ultima ejecucion local:
+
+- comando: `npm run test:cov -- --runInBand`
+- resultado: 17 suites y 59 tests pasados
+- cobertura total: 54.50% statements, 51.43% branches, 45.62% functions y
+  55.27% lines
+- `src/modules/orders/application/services`: 100% statements, 84.15% branches,
+  100% functions y 100% lines
+- `commission.service.ts`: 100% statements, 75% branches, 100% functions y
+  100% lines
+- `order-execution.service.ts`: 100% statements, 84.74% branches, 100%
+  functions y 100% lines
+- `orders.service.ts`: 100% statements, 84.21% branches, 100% functions y
+  100% lines
+
+La carpeta `coverage/` se genera localmente y esta ignorada por Git.
 
 ## Areas que todavia merecen mas cobertura
 

@@ -2,14 +2,21 @@ import { ProviderFactory } from './provider.factory';
 import { EodhdMarketDataProvider } from './eodhd-market-data.provider';
 import { MockMarketDataProvider } from './mock-market-data.provider';
 import { NoneMarketDataProvider } from './none-market-data.provider';
+import { ConfigService } from '@nestjs/config';
 
 describe('ProviderFactory', () => {
   let mockProvider: MockMarketDataProvider;
   let eodhdProvider: EodhdMarketDataProvider;
   let noneProvider: NoneMarketDataProvider;
+  let configService: ConfigService;
 
   beforeEach(() => {
-    mockProvider = new MockMarketDataProvider();
+    configService = ({
+      get: jest.fn(),
+    } as unknown) as ConfigService;
+
+    mockProvider = new MockMarketDataProvider(configService);
+
     eodhdProvider = { getName: () => 'EODHD' } as EodhdMarketDataProvider;
     noneProvider = new NoneMarketDataProvider();
   });

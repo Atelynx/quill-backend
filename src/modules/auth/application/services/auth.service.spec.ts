@@ -42,7 +42,8 @@ describe('AuthService', () => {
   });
 
   it('registra un usuario y devuelve el mensaje esperado', async () => {
-    jest.mocked(bcrypt.hash).mockResolvedValue('hashed-password');
+    
+    (bcrypt.hash as jest.Mock).mockResolvedValue("hashed-password");
     usersService.createUser.mockResolvedValue({
       email: 'ana@quill.dev',
     });
@@ -80,7 +81,9 @@ describe('AuthService', () => {
       reservedBalance: 0,
     });
     jwtService.sign.mockReturnValue('signed-token');
-    jest.mocked(bcrypt.compare).mockResolvedValue(true);
+
+    
+     (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
     const result = await service.login({
       email: 'ana@quill.dev',
@@ -121,7 +124,7 @@ describe('AuthService', () => {
       email: 'ana@quill.dev',
       passwordHash: 'stored-hash',
     });
-    jest.mocked(bcrypt.compare).mockResolvedValue(false);
+     (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
     await expect(
       service.login({

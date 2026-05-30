@@ -1,10 +1,20 @@
+import { ConfigService } from '@nestjs/config';
 import { MockMarketDataProvider } from './mock-market-data.provider';
+import { config } from 'process';
 
 describe('MockMarketDataProvider', () => {
   let provider: MockMarketDataProvider;
+    let configService: ConfigService;
 
   beforeEach(() => {
-    provider = new MockMarketDataProvider();
+
+    configService = ({
+      get: jest.fn(),
+    } as unknown) as ConfigService;
+  })
+
+  beforeEach(() => {
+    provider = new MockMarketDataProvider(configService);
   });
 
   describe('getQuote()', () => {
