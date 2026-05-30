@@ -17,7 +17,9 @@ export class ExchangeRateCurrencyDataProvider implements CurrencyDataProvider {
     const apiKey = this.configService.get<string>('EXCHANGE_RATE_API_KEY');
 
     if (!apiKey) {
-      throw new Error('EXCHANGE_RATE_API_KEY is not configured');
+      throw new Error(
+        'EXCHANGE_RATE_API_KEY is not configured. Get a free key at https://www.exchangerate-api.com/',
+      );
     }
 
     const normalizedSymbol = symbol.trim().toUpperCase();
@@ -35,12 +37,14 @@ export class ExchangeRateCurrencyDataProvider implements CurrencyDataProvider {
   private async fetchFromExternalApi(symbol: string, apiKey: string): Promise<MarketQuote> {
     const baseCurrency = symbol.slice(0, 3);
     const quoteCurrency = symbol.slice(3);
-    const baseUrl = this.configService.get<string>('EXCHANGE_RATE_BASE_URL');
+    const baseUrl = this.configService.get<string>(
+      'EXCHANGE_RATE_BASE_URL',
+      'https://v6.exchangerate-api.com/v6',
+    );
 
-    const url = `${baseUrl}/latest/${baseCurrency}`;
+    const url = `${baseUrl}/${apiKey}/latest/${baseCurrency}`;
 
     const response = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(10000),
     });
 
@@ -49,11 +53,16 @@ export class ExchangeRateCurrencyDataProvider implements CurrencyDataProvider {
     }
 
     const data = await response.json() as {
-      rates: Record<string, number>;
-      updated: number;
+      result: string;
+      conversion_rates: Record<string, number>;
+      time_last_update_unix: number;
     };
 
-    const rate = data.rates[quoteCurrency];
+    if (data.result !== 'success') {
+      throw new Error(`API returned result: "${data.result}"`);
+    }
+
+    const rate = data.conversion_rates[quoteCurrency];
 
     if (rate == null) {
       throw new Error(`Rate for ${quoteCurrency} not found in response`);
@@ -66,7 +75,7 @@ export class ExchangeRateCurrencyDataProvider implements CurrencyDataProvider {
       price,
       close: price,
       currency: quoteCurrency,
-      timestamp: new Date(data.updated * 1000),
+      timestamp: new Date(data.time_last_update_unix * 1000),
       exchange: 'exchangeRate',
     };
   }
