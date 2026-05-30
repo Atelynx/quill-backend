@@ -7,6 +7,7 @@ import { resolveEnvFilePaths } from './config/env-file-paths';
 import { normalizeMongoDbUri } from './config/normalize-mongodb-uri';
 import { envValidationSchema } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
+import { CurrencyModule } from './modules/currency/currency.module';
 import { MarketModule } from './modules/market/market.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
@@ -38,6 +39,7 @@ import { UsersModule } from './modules/users/users.module';
     SystemModule,
     UsersModule,
     AuthModule,
+    CurrencyModule,
     MarketModule,
     PortfolioModule,
     RealtimeModule,
