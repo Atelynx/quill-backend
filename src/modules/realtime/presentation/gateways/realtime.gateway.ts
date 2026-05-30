@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
 import { PRICE_UPDATE_EVENT } from '../../../market/domain/constants/events';
+import { CURRENCY_UPDATE_EVENT } from '../../../currency/domain/constants/events';
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -44,15 +45,17 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   @SubscribeMessage('subscribe')
-  handleSubscribe(client: Socket, data: { topic: string }): void {
-    const room = `stock:${data.topic}`;
+  handleSubscribe(client: Socket, data: { topic: string; type?: 'stock' | 'forex' }): void {
+    const prefix = data.type === 'forex' ? 'forex' : 'stock';
+    const room = `${prefix}:${data.topic}`;
     client.join(room);
     this.logger.debug(`Client ${client.id} subscribed to ${room}`);
   }
 
   @SubscribeMessage('unsubscribe')
-  handleUnsubscribe(client: Socket, data: { topic: string }): void {
-    const room = `stock:${data.topic}`;
+  handleUnsubscribe(client: Socket, data: { topic: string; type?: 'stock' | 'forex' }): void {
+    const prefix = data.type === 'forex' ? 'forex' : 'stock';
+    const room = `${prefix}:${data.topic}`;
     client.leave(room);
     this.logger.debug(`Client ${client.id} unsubscribed from ${room}`);
   }
@@ -62,6 +65,20 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     for (const quote of quotes) {
       this.server
         .to(`stock:${quote.symbol}`)
+        .emit('price_update', {
+          symbol: quote.symbol,
+          price: quote.close,
+          dayChangePercentage: quote.dayChangePercentage,
+          timestamp: new Date(),
+        });
+    }
+  }
+
+  @OnEvent(CURRENCY_UPDATE_EVENT)
+  handleCurrencyUpdate(quotes: Array<{ symbol: string; close: number; dayChangePercentage?: number }>): void {
+    for (const quote of quotes) {
+      this.server
+        .to(`forex:${quote.symbol}`)
         .emit('price_update', {
           symbol: quote.symbol,
           price: quote.close,
