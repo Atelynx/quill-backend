@@ -26,4 +26,18 @@ export const envValidationSchema = Joi.object({
   EODHD_DAILY_REFRESH_ENABLED: Joi.boolean().default(true),
   EODHD_DAILY_REFRESH_CRON: Joi.string().default('0 30 18 * * 1-5'),
   EODHD_CACHE_TTL_SECONDS: Joi.number().positive().default(86400),
+  
+  CURRENCY_PROVIDER: Joi.string().valid('mock', 'exchangeRate').optional(),
+  CURRENCY_SIMULATION_STRATEGY: Joi.string().valid('flat', 'gbm', 'nw').default('flat'),
+  CURRENCY_RT_TICK_INTERVAL_SECONDS: Joi.number().min(0).default(5),
+  CURRENCY_ANCHOR_VOLATILITY: Joi.number().min(0).default(0.005),
+  CURRENCY_ANCHOR_DRIFT: Joi.number().default(0),
+
+  MOCK_CURRENCY_SYMBOLS: Joi.string().default('USDCLP'),
+  EXCHANGERATE_SYMBOLS: Joi.string().default('USDCLP'),
+  EXCHANGERATE_API_KEY: Joi.string().allow('').optional(),
+  EXCHANGERATE_BASE_URL: Joi.string().uri().default('https://v6.exchangerate-api.com/v6'),
+  EXCHANGERATE_REFRESH_CRON: Joi.string().default('0 0 * * * *'),
+
+  CURRENCY_SUFFIX_MAP: Joi.string().default('.SN=CLP,.US=USD'),
 });

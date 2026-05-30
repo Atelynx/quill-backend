@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import Decimal from 'decimal.js';
-import type { IMarketSimulationStrategy } from '../../domain/interfaces/market-simulation-strategy.interface';
+import type { IMarketSimulationStrategy } from './market-simulation-strategy.interface';
 
 @Injectable()
 export class GBMMarketSimulationStrategy implements IMarketSimulationStrategy {

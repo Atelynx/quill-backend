@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { StockDocument } from '../schemas/stock.schema';
 import { MarketQuote } from '../../domain/interfaces/market-quote.interface';
 import { seedStocks } from '../../domain/constants/seed-stocks';
+import { getCurrencyFromSymbol } from '../../../../common/utils/currency-mapper';
 import { MarketDataProvider, ProviderRefreshSchedule, StockSeed } from './market-data-provider.interface';
 import { ConfigService } from '@nestjs/config';
 
@@ -15,7 +16,7 @@ export class MockMarketDataProvider implements MarketDataProvider {
   private readonly momentumBySymbol = new Map<string, number>();
   private readonly mockStocks = new Map<
     string,
-    { price: number; previousClose: number }
+    { price: number; previousClose: number; currency: string }
   >();
   constructor(
     private readonly configService: ConfigService
@@ -33,9 +34,11 @@ export class MockMarketDataProvider implements MarketDataProvider {
 
     // Initialize mock stock data on first request
     if (!this.mockStocks.has(upperSymbol)) {
+      const seed = seedStocks.find((s) => s.symbol === upperSymbol);
       this.mockStocks.set(upperSymbol, {
-        price: 100,
-        previousClose: 100,
+        price: seed?.close ?? 100,
+        previousClose: seed?.close ?? 100,
+        currency: seed?.currency ?? getCurrencyFromSymbol(upperSymbol),
       });
     }
 
@@ -58,7 +61,7 @@ export class MockMarketDataProvider implements MarketDataProvider {
       symbol: upperSymbol,
       price: nextPrice,
       close: nextPrice,
-      currency: 'USD',
+      currency: stock.currency,
       timestamp: new Date(),
       exchange: 'MOCK',
       previousClose: stock.previousClose,

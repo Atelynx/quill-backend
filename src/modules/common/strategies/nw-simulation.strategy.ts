@@ -1,7 +1,6 @@
-import { Injectable } from "@nestjs/common";
-import { IMarketSimulationStrategy } from "../../domain/interfaces/market-simulation-strategy.interface";
-import Decimal from "decimal.js";
-
+import { Injectable } from '@nestjs/common';
+import { IMarketSimulationStrategy } from './market-simulation-strategy.interface';
+import Decimal from 'decimal.js';
 
 @Injectable()
 export class NoiseWaveSimulationStrategy implements IMarketSimulationStrategy {
