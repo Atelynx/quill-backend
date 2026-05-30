@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { StockDocument } from '../schemas/stock.schema';
 import { MarketQuote } from '../../domain/interfaces/market-quote.interface';
 import { seedStocks } from '../../domain/constants/seed-stocks';
+import { getCurrencyFromSymbol } from '../../../../common/utils/currency-mapper';
 import { MarketDataProvider, ProviderRefreshSchedule, StockSeed } from './market-data-provider.interface';
 import { ConfigService } from '@nestjs/config';
 
@@ -58,7 +59,7 @@ export class MockMarketDataProvider implements MarketDataProvider {
       symbol: upperSymbol,
       price: nextPrice,
       close: nextPrice,
-      currency: 'USD',
+      currency: getCurrencyFromSymbol(upperSymbol),
       timestamp: new Date(),
       exchange: 'MOCK',
       previousClose: stock.previousClose,

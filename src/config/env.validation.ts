@@ -26,4 +26,6 @@ export const envValidationSchema = Joi.object({
   EODHD_DAILY_REFRESH_ENABLED: Joi.boolean().default(true),
   EODHD_DAILY_REFRESH_CRON: Joi.string().default('0 30 18 * * 1-5'),
   EODHD_CACHE_TTL_SECONDS: Joi.number().positive().default(86400),
+
+  CURRENCY_SUFFIX_MAP: Joi.string().default('.SN=CLP,.US=USD'),
 });
