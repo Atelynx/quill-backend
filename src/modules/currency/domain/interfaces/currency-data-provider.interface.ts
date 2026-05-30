@@ -9,5 +9,7 @@ export interface CurrencyDataProvider {
 
   getName(): string;
 
+  getSymbols(): string[];
+
   getRefreshSchedule?(): ProviderRefreshSchedule | undefined;
 }

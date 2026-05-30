@@ -1,5 +1,4 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { CacheService } from '../../../system/application/services/cache.service';
@@ -11,38 +10,41 @@ const LIVE_PRICE_KEY = (symbol: string) => `forex:${symbol}:live_price`;
 @Injectable()
 export class CurrencyAnchorService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CurrencyAnchorService.name);
-  private readonly symbols: string[];
   private readonly jobName = 'currency-anchor';
 
   constructor(
     @Inject('CURRENCY_DATA_PROVIDER')
     private readonly provider: CurrencyDataProvider,
     private readonly cacheService: CacheService,
-    private readonly configService: ConfigService,
     private readonly schedulerRegistry: SchedulerRegistry,
-  ) {
-    const raw = this.configService.get<string>('CURRENCY_SYMBOLS', 'USDCLP');
-    this.symbols = raw.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
-  }
+  ) {}
 
   async onModuleInit(): Promise<void> {
-    if (!this.symbols.length) {
-      this.logger.warn('No CURRENCY_SYMBOLS configured. Skipping anchor init.');
+    const symbols = this.provider.getSymbols();
+
+    if (!symbols.length) {
+      this.logger.warn(`Provider "${this.provider.getName()}" has no symbols. Skipping anchor init.`);
       return;
     }
 
-    this.logger.log(`Seeding initial anchor prices for [${this.symbols.join(', ')}]`);
-    await this.fetchAndStoreAnchors();
+    this.logger.log(`Seeding initial anchor prices for [${symbols.join(', ')}]`);
+    await this.fetchAndStoreAnchors(symbols);
 
-    const cronExpression = this.configService.get<string>(
-      'CURRENCY_API_REQ_TICK',
-      '0 0 * * * *',
+    const schedule = this.provider.getRefreshSchedule?.();
+    if (!schedule) {
+      this.logger.log(`Provider "${this.provider.getName()}" does not declare a refresh schedule. No anchor cron registered.`);
+      return;
+    }
+
+    const job = new CronJob(schedule.cronExpression, () =>
+      void this.handleAnchorCron(),
     );
 
-    const job = new CronJob(cronExpression, () => void this.handleAnchorCron());
     this.schedulerRegistry.addCronJob(this.jobName, job);
     job.start();
-    this.logger.log(`Anchor cron scheduled (${cronExpression}).`);
+    this.logger.log(
+      `Anchor cron scheduled with provider "${this.provider.getName()}" (${schedule.cronExpression}).`,
+    );
   }
 
   onModuleDestroy(): void {
@@ -52,13 +54,14 @@ export class CurrencyAnchorService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async handleAnchorCron(): Promise<void> {
-    if (!this.symbols.length) return;
+    const symbols = this.provider.getSymbols();
+    if (!symbols.length) return;
     this.logger.log('Running scheduled anchor fetch...');
-    await this.fetchAndStoreAnchors();
+    await this.fetchAndStoreAnchors(symbols);
   }
 
-  private async fetchAndStoreAnchors(): Promise<void> {
-    for (const symbol of this.symbols) {
+  private async fetchAndStoreAnchors(symbols: string[]): Promise<void> {
+    for (const symbol of symbols) {
       try {
         const quote = await this.provider.getQuote(symbol);
         const anchorPrice = quote.close ?? quote.price;

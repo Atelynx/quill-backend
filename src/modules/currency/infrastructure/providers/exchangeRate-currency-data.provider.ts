@@ -1,24 +1,39 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { MarketQuote } from '../../../market/domain/interfaces/market-quote.interface';
-import { CurrencyDataProvider } from '../../domain/interfaces/currency-data-provider.interface';
+import { CurrencyDataProvider, ProviderRefreshSchedule } from '../../domain/interfaces/currency-data-provider.interface';
 
 @Injectable()
 export class ExchangeRateCurrencyDataProvider implements CurrencyDataProvider {
   private readonly logger = new Logger(ExchangeRateCurrencyDataProvider.name);
+  private readonly symbols: string[];
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {
+    this.symbols = this.readSymbols();
+  }
 
   getName(): string {
     return 'exchangeRate';
   }
 
+  getSymbols(): string[] {
+    return this.symbols;
+  }
+
+  getRefreshSchedule(): ProviderRefreshSchedule | undefined {
+    const cronExpression = this.configService.get<string>(
+      'EXCHANGERATE_REFRESH_CRON',
+      '0 0 * * * *',
+    );
+    return { cronExpression };
+  }
+
   async getQuote(symbol: string): Promise<MarketQuote> {
-    const apiKey = this.configService.get<string>('EXCHANGE_RATE_API_KEY');
+    const apiKey = this.configService.get<string>('EXCHANGERATE_API_KEY');
 
     if (!apiKey) {
       throw new Error(
-        'EXCHANGE_RATE_API_KEY is not configured. Get a free key at https://www.exchangerate-api.com/',
+        'EXCHANGERATE_API_KEY is not configured. Get a free key at https://www.exchangerate-api.com/',
       );
     }
 
@@ -38,7 +53,7 @@ export class ExchangeRateCurrencyDataProvider implements CurrencyDataProvider {
     const baseCurrency = symbol.slice(0, 3);
     const quoteCurrency = symbol.slice(3);
     const baseUrl = this.configService.get<string>(
-      'EXCHANGE_RATE_BASE_URL',
+      'EXCHANGERATE_BASE_URL',
       'https://v6.exchangerate-api.com/v6',
     );
 
@@ -78,6 +93,11 @@ export class ExchangeRateCurrencyDataProvider implements CurrencyDataProvider {
       timestamp: new Date(data.time_last_update_unix * 1000),
       exchange: 'exchangeRate',
     };
+  }
+
+  private readSymbols(): string[] {
+    const raw = this.configService.get<string>('EXCHANGERATE_SYMBOLS', 'USDCLP');
+    return raw.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
   }
 }
 
