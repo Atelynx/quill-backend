@@ -1,6 +1,7 @@
 import Decimal from 'decimal.js';
 import type { RealTimeQuote } from 'eodhd';
 import type { MarketQuote } from '../../domain/interfaces/market-quote.interface';
+import { getCurrencyFromSymbol } from '../../../../common/utils/currency-mapper';
 
 /**
  * Interface representing the EODHD API response.
@@ -33,7 +34,7 @@ export function normalizeEodhdQuote(
     name: response.name ?? symbol,
     price,
     close: price,
-    currency: 'CLP',
+    currency: getCurrencyFromSymbol(requestedSymbol),
     timestamp: resolveTimestamp(response),
     exchange: exchangeCode,
     source: 'eodhd',

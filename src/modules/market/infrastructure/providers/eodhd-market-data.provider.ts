@@ -16,6 +16,7 @@ import {
 import {
   normalizeEodhdQuote,
 } from './eodhd-quote.mapper';
+import { getCurrencyFromSymbol } from '../../../../common/utils/currency-mapper';
 import { MarketDataProvider, StockSeed } from './market-data-provider.interface';
 
 @Injectable()
@@ -124,7 +125,7 @@ export class EodhdMarketDataProvider implements MarketDataProvider {
     return symbols.map((symbol) => ({
       symbol,
       name: symbol,
-      currency: 'CLP',
+      currency: getCurrencyFromSymbol(symbol),
       close: 0,
       previousClose: 0,
       source: 'eodhd',

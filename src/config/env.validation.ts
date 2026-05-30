@@ -38,4 +38,6 @@ export const envValidationSchema = Joi.object({
   EXCHANGERATE_API_KEY: Joi.string().allow('').optional(),
   EXCHANGERATE_BASE_URL: Joi.string().uri().default('https://v6.exchangerate-api.com/v6'),
   EXCHANGERATE_REFRESH_CRON: Joi.string().default('0 0 * * * *'),
+
+  CURRENCY_SUFFIX_MAP: Joi.string().default('.SN=CLP,.US=USD'),
 });
