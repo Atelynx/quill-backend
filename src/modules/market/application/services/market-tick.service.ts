@@ -4,7 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import Decimal from 'decimal.js';
 import { Model } from 'mongoose';
 import { PRICE_UPDATE_EVENT } from '../../domain/constants/events';
-import type { IMarketSimulationStrategy } from '../../domain/interfaces/market-simulation-strategy.interface';
+import type { IMarketSimulationStrategy } from '../../../common/strategies/market-simulation-strategy.interface';
 import { Stock, StockDocument } from '../../infrastructure/schemas/stock.schema';
 import { CacheService } from '../../../system/application/services/cache.service';
 

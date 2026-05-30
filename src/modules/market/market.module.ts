@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
+import { CommonStrategiesModule } from '../common/common-strategies.module';
 import { MarketRefreshScheduler } from './application/services/market-refresh.scheduler';
 import { MarketRefreshService } from './application/services/market-refresh.service';
 import { MarketSeedService } from './application/services/market-seed.service';
@@ -17,11 +18,11 @@ import {
   PriceSnapshotSchema,
 } from './infrastructure/schemas/price-snapshot.schema';
 import { Stock, StockSchema } from './infrastructure/schemas/stock.schema';
-import { GBMMarketSimulationStrategy } from './infrastructure/strategies/gbm-market-simulation.strategy';
-import { FlatMarketSimulationStrategy } from './infrastructure/strategies/flat-market-simulation.strategy';
+import { GBMMarketSimulationStrategy } from '../common/strategies/gbm-market-simulation.strategy';
+import { FlatMarketSimulationStrategy } from '../common/strategies/flat-market-simulation.strategy';
 import { MarketController } from './presentation/controllers/market.controller';
-import { NoiseWaveSimulationStrategy } from './infrastructure/strategies/nw-simulation.strategy';
-import { StrategyFactory } from './infrastructure/strategies/strategy.factory';
+import { NoiseWaveSimulationStrategy } from '../common/strategies/nw-simulation.strategy';
+import { StrategyFactory } from '../common/strategies/strategy.factory';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { StrategyFactory } from './infrastructure/strategies/strategy.factory';
       { name: Stock.name, schema: StockSchema },
       { name: PriceSnapshot.name, schema: PriceSnapshotSchema },
     ]),
+    CommonStrategiesModule,
   ],
   controllers: [MarketController],
   providers: [
@@ -42,10 +44,6 @@ import { StrategyFactory } from './infrastructure/strategies/strategy.factory';
     MockMarketDataProvider,
     NoneMarketDataProvider,
     EodhdMarketDataProvider,
-    GBMMarketSimulationStrategy,
-    FlatMarketSimulationStrategy,
-    NoiseWaveSimulationStrategy,
-    NoiseWaveSimulationStrategy,
     {
       /**
        * Factory provider that selects the active MarketDataProvider
