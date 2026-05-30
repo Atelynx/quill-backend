@@ -24,6 +24,7 @@ import {
   OrderDocument,
 } from '../../infrastructure/schemas/order.schema';
 import { CommissionService } from './commission.service';
+import { OrderExecutionService } from './order-execution.service';
 
 @Injectable()
 export class OrdersService {
@@ -37,6 +38,7 @@ export class OrdersService {
     @InjectModel(Stock.name)
     private readonly stockModel: Model<StockDocument>,
     private readonly commissionService: CommissionService,
+    private readonly orderExecutionService: OrderExecutionService,
   ) {}
 
   async createOrder(userId: string, dto: CreateOrderDto) {
@@ -60,10 +62,22 @@ export class OrdersService {
       throw new BadRequestException('La cantidad debe ser un entero positivo.');
     }
 
+    const type = dto.type ?? 'LIMIT';
+
+    if (type === 'MARKET') {
+      dto.limitPrice = undefined;
+      return this.orderExecutionService.executeMarketOrder(
+        userId,
+        symbol,
+        dto.side,
+        normalizedQuantity,
+      );
+    }
+
     let reservedAmount = 0;
 
     if (dto.side === 'BUY') {
-      const grossAmount = new Decimal(normalizedQuantity).times(dto.limitPrice);
+      const grossAmount = new Decimal(normalizedQuantity).times(dto.limitPrice!);
       const estimatedCommission = this.commissionService.calculate(grossAmount.toNumber());
       
       const totalReserved = grossAmount
@@ -113,8 +127,9 @@ export class OrdersService {
       userId: new Types.ObjectId(userId),
       symbol,
       side: dto.side,
+      type: 'LIMIT',
       quantity: normalizedQuantity,
-      limitPrice: dto.limitPrice,
+      limitPrice: dto.limitPrice!,
       status: 'PENDING',
       reservedAmount,
     });

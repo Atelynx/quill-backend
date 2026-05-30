@@ -50,6 +50,7 @@ describe('OrdersService', () => {
       positionModel as never,
       stockModel as never,
       commissionService as never,
+      { executeMarketOrder: jest.fn() } as never,
     );
   });
 

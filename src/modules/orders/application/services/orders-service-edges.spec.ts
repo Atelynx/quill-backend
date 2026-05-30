@@ -23,6 +23,7 @@ describe('OrdersService edge cases', () => {
       { findOne: jest.fn() } as never,
       stockModel,
       { calculate: jest.fn() } as never,
+      { executeMarketOrder: jest.fn() } as never,
     );
   });
 
