@@ -59,16 +59,30 @@ The currency module registers its own `'CURRENCY_SIMULATION_STRATEGY'` DI token 
 
 ## Environment Variables
 
+### Module-level
+
 | Variable | Type | Default | Description |
 |---|---|---|---|
-| `CURRENCY_PROVIDER` | string | `mock` | Selects the active provider (`mock`, `external`, `none`) |
-| `CURRENCY_SYMBOLS` | string | `USDCLP` | Comma-separated list of forex pairs to track |
+| `CURRENCY_PROVIDER` | string | `mock` | Selects the active provider (`mock`, `exchangeRate`) |
 | `CURRENCY_SIMULATION_STRATEGY` | string | `flat` | Simulation strategy (`flat`, `gbm`, `nw`) |
-| `CURRENCY_API_REQ_TICK` | string | `0 0 * * * *` | Cron expression for the hourly anchor fetch |
 | `CURRENCY_RT_TICK_INTERVAL_SECONDS` | number | `5` | Interval in seconds between synthetic ticks |
-| `CURRENCY_API_KEY` | string | — | API key for the external exchange provider |
 | `CURRENCY_ANCHOR_VOLATILITY` | number | `0.005` | Base volatility for micro-movement simulation |
 | `CURRENCY_ANCHOR_DRIFT` | number | `0` | Base drift for micro-movement simulation |
+
+### Provider-specific — Mock
+
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `MOCK_CURRENCY_SYMBOLS` | string | `USDCLP` | Comma-separated forex pairs |
+
+### Provider-specific — ExchangeRate
+
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `EXCHANGERATE_API_KEY` | string | — | API key for exchangerate-api v6 |
+| `EXCHANGERATE_BASE_URL` | string | `https://v6.exchangerate-api.com/v6` | Base URL |
+| `EXCHANGERATE_SYMBOLS` | string | `USDCLP` | Comma-separated forex pairs |
+| `EXCHANGERATE_REFRESH_CRON` | string | `0 0 * * * *` | Cron expression for the anchor fetch |
 
 ## Implementation Rules & Patterns
 

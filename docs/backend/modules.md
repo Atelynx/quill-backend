@@ -154,8 +154,9 @@ Archivos clave:
 
 Detalles:
 
-- dos ticks sincronizados: `CURRENCY_API_REQ_TICK` (hourly cron) y `CURRENCY_RT_TICK` (setInterval cada 5s)
+- dos ticks sincronizados: anchor (CronJob via provider `REFRESH_CRON`) y heartbeat (setInterval cada `CURRENCY_RT_TICK_INTERVAL_SECONDS`)
 - reusa las mismas estrategias de simulacion del modulo de acciones via `CommonStrategiesModule`
+- los simbolos y el cron de refresh son específicos de cada provider (`MOCK_CURRENCY_SYMBOLS`, `EXCHANGERATE_SYMBOLS`, `EXCHANGERATE_REFRESH_CRON`)
 - precios almacenados en Redis como `forex:{symbol}:base_price` y `forex:{symbol}:live_price`
 - emite `internal.currency.update` via EventEmitter, escuchado por RealtimeGateway y reenviado a sala `forex:{symbol}`
 - no usa MongoDB, no importa WebSocketGateway directamente
@@ -178,7 +179,7 @@ Detalles:
 
 - opera en el namespace `/realtime`
 - clientes se autentican enviando JWT en `socket.handshake.auth.token`
-- suscripcion via mensaje `subscribe: { topic: string }`
-- canales con prefijo `stock:SYMBOL` y `user:USER_ID`
-- escucha `internal.price.update` y emite `price_update` a la sala correspondiente
+- suscripcion via mensaje `subscribe: { topic: string, type?: 'stock' | 'forex' }` (default type: `stock`)
+- canales con prefijo `stock:SYMBOL`, `forex:SYMBOL`, y `user:USER_ID`
+- escucha `internal.price.update` (stocks) y `internal.currency.update` (forex), emite `price_update` a la sala correspondiente
 - sigue la Megaphone Rule: sin cron jobs, sin API calls, sin logica de negocio
