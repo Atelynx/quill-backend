@@ -5,8 +5,12 @@ import { CURRENCY_UPDATE_EVENT } from '../../domain/constants/events';
 import { CurrencyTickService } from './currency-tick.service';
 import Decimal from 'decimal.js';
 
+jest.useFakeTimers();
+import { Logger } from '@nestjs/common';
+
 describe('CurrencyTickService', () => {
   let service: CurrencyTickService;
+  let setIntervalSpy: jest.SpyInstance;
   let provider: { getSymbols: jest.Mock };
   let strategy: { calculateNextTick: jest.Mock };
   let cacheService: { get: jest.Mock; set: jest.Mock };
@@ -19,6 +23,7 @@ describe('CurrencyTickService', () => {
   };
 
   beforeEach(() => {
+    jest.useFakeTimers();
     provider = { getSymbols: jest.fn() };
     strategy = { calculateNextTick: jest.fn() };
     cacheService = { get: jest.fn(), set: jest.fn() };
@@ -34,12 +39,29 @@ describe('CurrencyTickService', () => {
       provider as never,
       strategy as never,
       cacheService as never,
-      eventEmitter as EventEmitter2,
-      configService as ConfigService,
+      eventEmitter as unknown as EventEmitter2,
+      configService as unknown as ConfigService,
       schedulerRegistry as unknown as SchedulerRegistry,
     );
+    // Prevent real intervals from being created during tests
+    setIntervalSpy = jest.spyOn(global, 'setInterval').mockImplementation(((fn: any, ms?: number, ...args: any[]) => {
+      // return a dummy timer object that won't keep node alive
+      return ({ ref: () => {}, unref: () => {} } as unknown) as NodeJS.Timeout;
+    }) as any);
   });
+  beforeAll(() => {
+    Logger.overrideLogger(false);
 
+  })
+  afterEach(() => {
+
+    jest.runOnlyPendingTimers();
+    jest.clearAllTimers();
+    jest.useRealTimers();
+    service.onModuleDestroy?.();
+    setIntervalSpy?.mockRestore?.();
+
+  })
   describe('onModuleInit', () => {
     it('registers interval when interval > 0 and symbols exist', () => {
       provider.getSymbols.mockReturnValue(['EURUSD']);

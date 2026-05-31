@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { MarketSeedService } from './market-seed.service';
+import { Logger } from '@nestjs/common';
 
 describe('MarketSeedService', () => {
   let service: MarketSeedService;
@@ -26,9 +27,13 @@ describe('MarketSeedService', () => {
       stockModel as never,
       snapshotModel as never,
       provider as never,
-      configService as ConfigService,
+      configService as unknown as ConfigService,
     );
   });
+  beforeAll(() => {
+    Logger.overrideLogger(false);
+  })
+
 
   describe('seedInitialStocks', () => {
     it('returns early when no seed data resolved', async () => {

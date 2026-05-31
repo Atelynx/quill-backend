@@ -19,6 +19,7 @@ jest.mock('ioredis', () => jest.fn(() => mockRedisInstance));
 
 import Redis from 'ioredis';
 import { CacheService } from './cache.service';
+import { Logger } from '@nestjs/common';
 
 describe('CacheService', () => {
   let service: CacheService;
@@ -28,6 +29,9 @@ describe('CacheService', () => {
     jest.clearAllMocks();
     mockRedisInstance.status = 'ready';
   });
+  beforeAll(() => {
+    Logger.overrideLogger(false);
+  })
 
   describe('initialization', () => {
     it('skips Redis when REDIS_URL is not set', async () => {

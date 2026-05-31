@@ -1,5 +1,13 @@
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { MarketRefreshScheduler } from './market-refresh.scheduler';
+import { Logger } from '@nestjs/common';
+
+jest.mock('cron', () => ({
+  CronJob: jest.fn().mockImplementation(() => ({
+    start: jest.fn(),
+    stop: jest.fn(),
+  })),
+}));
 
 describe('MarketRefreshScheduler', () => {
   let scheduler: MarketRefreshScheduler;
@@ -12,6 +20,7 @@ describe('MarketRefreshScheduler', () => {
   };
 
   beforeEach(() => {
+
     provider = {
       getName: jest.fn().mockReturnValue('TestProvider'),
       getRefreshSchedule: jest.fn(),
@@ -29,6 +38,12 @@ describe('MarketRefreshScheduler', () => {
       schedulerRegistry as unknown as SchedulerRegistry,
     );
   });
+  beforeAll(()=>{
+    Logger.overrideLogger(false);
+  })
+  afterEach(() => {
+    scheduler.onModuleDestroy();
+  })
 
   describe('onModuleInit', () => {
     it('registers cron job when provider declares a schedule', () => {

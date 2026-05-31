@@ -8,7 +8,7 @@ describe('NoiseWaveSimulationStrategy', () => {
     strategy = new NoiseWaveSimulationStrategy();
   });
 
-  it('returns a Decimal rounded to 2 decimal places', () => {
+  it('returns a Decimal with at most 2 decimal places', () => {
     const result = strategy.calculateNextTick(
       new Decimal(100),
       new Decimal(100),
@@ -17,7 +17,7 @@ describe('NoiseWaveSimulationStrategy', () => {
     );
 
     expect(result).toBeInstanceOf(Decimal);
-    expect(result.decimalPlaces()).toBe(2);
+    expect(result.decimalPlaces()).toBeLessThanOrEqual(2);
   });
 
   it('returns prices >= 5 (floor protection)', () => {

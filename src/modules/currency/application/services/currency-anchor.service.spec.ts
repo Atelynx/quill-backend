@@ -1,6 +1,14 @@
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CurrencyAnchorService } from './currency-anchor.service';
 
+jest.mock('cron', () => ({
+  CronJob: jest.fn().mockImplementation(() => ({
+    start: jest.fn(),
+    stop: jest.fn(),
+  })),
+}));
+import { Logger } from '@nestjs/common';
+
 describe('CurrencyAnchorService', () => {
   let service: CurrencyAnchorService;
   let provider: {
@@ -35,6 +43,9 @@ describe('CurrencyAnchorService', () => {
       schedulerRegistry as unknown as SchedulerRegistry,
     );
   });
+  beforeAll(()=>{
+    Logger.overrideLogger(false);
+  })
 
   describe('onModuleInit', () => {
     it('warns and returns when provider has no symbols', async () => {

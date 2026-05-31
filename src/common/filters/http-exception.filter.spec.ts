@@ -3,6 +3,7 @@ import {
   BadRequestException,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { HttpExceptionFilter } from './http-exception.filter';
 
@@ -25,6 +26,10 @@ describe('HttpExceptionFilter', () => {
         getRequest: jest.fn().mockReturnValue(mockRequest),
       }),
     } as unknown as ArgumentsHost;
+  });
+
+  beforeAll(() => {
+    Logger.overrideLogger(false); // disable all logging
   });
 
   it('returns 500 for non-HttpException errors', () => {
