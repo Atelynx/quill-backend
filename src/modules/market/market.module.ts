@@ -12,7 +12,7 @@ import { MarketUpdateWriterService } from './application/services/market-update-
 import { EodhdMarketDataProvider } from './infrastructure/providers/eodhd-market-data.provider';
 import { MockMarketDataProvider } from './infrastructure/providers/mock-market-data.provider';
 import { NoneMarketDataProvider } from './infrastructure/providers/none-market-data.provider';
-import { ProviderFactory } from './infrastructure/providers/provider.factory';
+import { MarketDataProviderFactory } from './infrastructure/providers/market-data-provider.factory';
 import {
   PriceSnapshot,
   PriceSnapshotSchema,
@@ -23,6 +23,7 @@ import { FlatMarketSimulationStrategy } from '../common/strategies/flat-market-s
 import { MarketController } from './presentation/controllers/market.controller';
 import { NoiseWaveSimulationStrategy } from '../common/strategies/nw-simulation.strategy';
 import { StrategyFactory } from '../common/strategies/strategy.factory';
+import { StrategyType } from '../common/strategies/strategy.types';
 
 @Module({
   imports: [
@@ -63,7 +64,7 @@ import { StrategyFactory } from '../common/strategies/strategy.factory';
         configService: ConfigService,
       ) => {
         const providerName = configService.get<string>('MARKET_PROVIDER');
-        return ProviderFactory.createProvider(
+        return MarketDataProviderFactory.createProvider(
           providerName,
           mockProvider,
           eodhdProvider,
@@ -81,7 +82,7 @@ import { StrategyFactory } from '../common/strategies/strategy.factory';
         nw: NoiseWaveSimulationStrategy,
       ) => {
         const strategyName = configService.get<string>('SIMULATION_STRATEGY', 'flat');
-        return StrategyFactory.createStrategy(strategyName, gbm, flat, nw);
+        return StrategyFactory.createStrategy(strategyName as StrategyType, gbm, flat, nw);
       },
     },
   ],

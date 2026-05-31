@@ -3,7 +3,7 @@ import { ExchangeRateCurrencyDataProvider } from './exchangeRate-currency-data.p
 import { MockCurrencyDataProvider } from './mock-currency-data.provider';
 import { NoneCurrencyDataProvider } from './none-currency-data.provider';
 
-export class ProviderFactory {
+export class CurrencyProviderFactory {
   static createProvider(
     providerName: string | undefined,
     mockProvider: MockCurrencyDataProvider,
