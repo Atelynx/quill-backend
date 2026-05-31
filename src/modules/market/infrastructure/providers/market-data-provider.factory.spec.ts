@@ -1,4 +1,4 @@
-import { ProviderFactory } from './provider.factory';
+import { MarketDataProviderFactory } from './market-data-provider.factory';
 import { EodhdMarketDataProvider } from './eodhd-market-data.provider';
 import { MockMarketDataProvider } from './mock-market-data.provider';
 import { NoneMarketDataProvider } from './none-market-data.provider';
@@ -22,7 +22,7 @@ describe('ProviderFactory', () => {
   });
 
   it('should create MockMarketDataProvider when "mock" is requested', () => {
-    const provider = ProviderFactory.createProvider(
+    const provider = MarketDataProviderFactory.createProvider(
       'mock',
       mockProvider,
       eodhdProvider,
@@ -34,7 +34,7 @@ describe('ProviderFactory', () => {
   });
 
   it('should create NoneMarketDataProvider when provider is empty', () => {
-    const provider = ProviderFactory.createProvider(
+    const provider = MarketDataProviderFactory.createProvider(
       '',
       mockProvider,
       eodhdProvider,
@@ -46,7 +46,7 @@ describe('ProviderFactory', () => {
   });
 
   it('should create NoneMarketDataProvider when provider is undefined', () => {
-    const provider = ProviderFactory.createProvider(
+    const provider = MarketDataProviderFactory.createProvider(
       undefined,
       mockProvider,
       eodhdProvider,
@@ -59,12 +59,12 @@ describe('ProviderFactory', () => {
 
   it('should throw error for invalid provider name', () => {
     expect(() =>
-      ProviderFactory.createProvider('invalid', mockProvider, eodhdProvider, noneProvider),
+      MarketDataProviderFactory.createProvider('invalid', mockProvider, eodhdProvider, noneProvider),
     ).toThrow('Unknown market provider');
   });
 
   it('should create EodhdMarketDataProvider when "eodhd" is requested', () => {
-    const provider = ProviderFactory.createProvider(
+    const provider = MarketDataProviderFactory.createProvider(
       'eodhd',
       mockProvider,
       eodhdProvider,
@@ -76,13 +76,13 @@ describe('ProviderFactory', () => {
   });
 
   it('should be case-insensitive for provider names', () => {
-    const provider1 = ProviderFactory.createProvider(
+    const provider1 = MarketDataProviderFactory.createProvider(
       'MOCK',
       mockProvider,
       eodhdProvider,
       noneProvider,
     );
-    const provider2 = ProviderFactory.createProvider(
+    const provider2 = MarketDataProviderFactory.createProvider(
       'MoCk',
       mockProvider,
       eodhdProvider,

@@ -6,17 +6,9 @@ describe('MarketService', () => {
   let stockModel: {
     find: jest.Mock;
     findOne: jest.Mock;
-    estimatedDocumentCount: jest.Mock;
-    insertMany: jest.Mock;
-    bulkWrite: jest.Mock;
   };
   let snapshotModel: {
     find: jest.Mock;
-    insertMany: jest.Mock;
-  };
-  let provider: {
-    getQuote: jest.Mock;
-    generateNextPrice?: jest.Mock;
   };
   let configService: {
     get: jest.Mock;
@@ -32,15 +24,10 @@ describe('MarketService', () => {
     stockModel = {
       find: jest.fn(),
       findOne: jest.fn(),
-      estimatedDocumentCount: jest.fn(),
-      insertMany: jest.fn(),
-      bulkWrite: jest.fn(),
     };
     snapshotModel = {
       find: jest.fn(),
-      insertMany: jest.fn(),
     };
-    provider = { getQuote: jest.fn() };
     configService = { get: jest.fn() };
     marketRefreshService = { refreshMarket: jest.fn() };
     marketSeedService = { seedInitialStocks: jest.fn() };
@@ -52,6 +39,26 @@ describe('MarketService', () => {
       marketRefreshService as never,
       marketSeedService as never,
     );
+  });
+
+  describe('onModuleInit', () => {
+    it('seeds and refreshes when MARKET_FETCH_ON_STARTUP is true', async () => {
+      configService.get.mockReturnValue(true);
+
+      await service.onModuleInit();
+
+      expect(marketSeedService.seedInitialStocks).toHaveBeenCalled();
+      expect(marketRefreshService.refreshMarket).toHaveBeenCalled();
+    });
+
+    it('seeds but does not refresh when MARKET_FETCH_ON_STARTUP is false', async () => {
+      configService.get.mockReturnValue(false);
+
+      await service.onModuleInit();
+
+      expect(marketSeedService.seedInitialStocks).toHaveBeenCalled();
+      expect(marketRefreshService.refreshMarket).not.toHaveBeenCalled();
+    });
   });
 
   it('lista cotizaciones ordenadas por simbolo', async () => {
@@ -101,6 +108,25 @@ describe('MarketService', () => {
     await expect(service.getQuote('missing')).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  describe('getTopMovers', () => {
+    it('returns stocks sorted by dayChangePercentage with limit', async () => {
+      const exec = jest.fn().mockResolvedValue([
+        { symbol: 'AAPL', dayChangePercentage: 5 },
+        { symbol: 'MSFT', dayChangePercentage: 3 },
+      ]);
+      const lean = jest.fn().mockReturnValue({ exec });
+      const limit = jest.fn().mockReturnValue({ lean });
+      const sort = jest.fn().mockReturnValue({ limit });
+      stockModel.find.mockReturnValue({ sort });
+
+      const result = await service.getTopMovers(2);
+
+      expect(sort).toHaveBeenCalledWith({ dayChangePercentage: -1 });
+      expect(limit).toHaveBeenCalledWith(2);
+      expect(result).toHaveLength(2);
+    });
   });
 
   it('delega el refresh de mercado al servicio especializado', async () => {

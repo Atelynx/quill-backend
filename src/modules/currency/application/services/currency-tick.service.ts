@@ -4,7 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import Decimal from 'decimal.js';
 import type { IMarketSimulationStrategy } from '../../../common/strategies/market-simulation-strategy.interface';
-import { CacheService } from '../../../system/application/services/cache.service';
+import { CacheService } from '../../../system/application/services/cache/cache.service';
 import { CURRENCY_UPDATE_EVENT } from '../../domain/constants/events';
 import type { CurrencyDataProvider } from '../../domain/interfaces/currency-data-provider.interface';
 

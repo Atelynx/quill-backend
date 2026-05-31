@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection, ConnectionStates } from 'mongoose';
-import { CacheService } from './cache.service';
+import { CacheService } from '../cache/cache.service';
 
 @Injectable()
 export class HealthService {

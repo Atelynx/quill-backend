@@ -2,10 +2,11 @@ import { IMarketSimulationStrategy } from './market-simulation-strategy.interfac
 import { FlatMarketSimulationStrategy } from './flat-market-simulation.strategy';
 import { GBMMarketSimulationStrategy } from './gbm-market-simulation.strategy';
 import { NoiseWaveSimulationStrategy } from './nw-simulation.strategy';
+import { StrategyType } from './strategy.types';
 
 export class StrategyFactory {
     static createStrategy(
-        strategyName: string | undefined,
+        strategyName: StrategyType | undefined,
         gbm: GBMMarketSimulationStrategy,
         flat: FlatMarketSimulationStrategy,
         noiseWave: NoiseWaveSimulationStrategy,

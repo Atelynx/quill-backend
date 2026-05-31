@@ -8,11 +8,12 @@ import { CurrencyController } from './presentation/controllers/currency.controll
 import { ExchangeRateCurrencyDataProvider } from './infrastructure/providers/exchangeRate-currency-data.provider';
 import { MockCurrencyDataProvider } from './infrastructure/providers/mock-currency-data.provider';
 import { NoneCurrencyDataProvider } from './infrastructure/providers/none-currency-data.provider';
-import { ProviderFactory } from './infrastructure/providers/provider.factory';
+import { CurrencyProviderFactory } from './infrastructure/providers/currency-provider.factory';
 import { GBMMarketSimulationStrategy } from '../common/strategies/gbm-market-simulation.strategy';
 import { FlatMarketSimulationStrategy } from '../common/strategies/flat-market-simulation.strategy';
 import { NoiseWaveSimulationStrategy } from '../common/strategies/nw-simulation.strategy';
 import { StrategyFactory } from '../common/strategies/strategy.factory';
+import { StrategyType } from '../common/strategies/strategy.types';
 
 @Module({
   imports: [CommonStrategiesModule],
@@ -39,7 +40,7 @@ import { StrategyFactory } from '../common/strategies/strategy.factory';
         configService: ConfigService,
       ) => {
         const providerName = configService.get<string>('CURRENCY_PROVIDER');
-        return ProviderFactory.createProvider(
+        return CurrencyProviderFactory.createProvider(
           providerName,
           mockProvider,
           exchangeRateProvider,
@@ -57,7 +58,7 @@ import { StrategyFactory } from '../common/strategies/strategy.factory';
         nw: NoiseWaveSimulationStrategy,
       ) => {
         const strategyName = configService.get<string>('CURRENCY_SIMULATION_STRATEGY', 'flat');
-        return StrategyFactory.createStrategy(strategyName, gbm, flat, nw);
+        return StrategyFactory.createStrategy(strategyName as StrategyType, gbm, flat, nw);
       },
     },
   ],

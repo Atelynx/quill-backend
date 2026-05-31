@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { HealthService } from '../../application/services/health.service';
+import { HealthService } from '../../application/services/health/health.service';
 
 @Controller('system')
 export class SystemController {

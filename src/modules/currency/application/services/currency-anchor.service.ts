@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
-import { CacheService } from '../../../system/application/services/cache.service';
+import { CacheService } from '../../../system/application/services/cache/cache.service';
 import type { CurrencyDataProvider } from '../../domain/interfaces/currency-data-provider.interface';
 
 const BASE_PRICE_KEY = (symbol: string) => `forex:${symbol}:base_price`;

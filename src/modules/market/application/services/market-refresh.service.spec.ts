@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { PRICE_UPDATE_EVENT } from '../../domain/constants/events';
 import { MarketRefreshService } from './market-refresh.service';
 
@@ -33,6 +34,9 @@ describe('MarketRefreshService', () => {
       eventEmitter,
     );
   });
+  beforeAll(() => {
+    Logger.overrideLogger(false);
+  })
 
   it('calls provider.getQuotes() and persists results', async () => {
     mockStocks();
@@ -97,6 +101,30 @@ describe('MarketRefreshService', () => {
     await service.refreshMarket();
 
     expect(eventEmitter.emit).toHaveBeenCalledWith(PRICE_UPDATE_EVENT, expect.any(Array));
+  });
+
+  describe('fallback per-symbol fetch (getQuote fallback path)', () => {
+    it('logs per-symbol errors without breaking the batch', async () => {
+      mockStocks();
+      provider.getQuotes = undefined;
+      provider.getQuote
+        .mockRejectedValueOnce(new Error('rate limit'))
+        .mockResolvedValueOnce(quote(115, 'mock'));
+
+      const errorSpy = jest.spyOn((service as any).logger, 'error');
+
+      const results = await service.refreshMarket();
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Could not update COPEC.SN'),
+      );
+      expect(results).toHaveLength(1);
+    });
+
+    it('errorMessage returns "unknown error" for non-Error input', () => {
+      const result = (service as any).errorMessage('string error');
+      expect(result).toBe('unknown error');
+    });
   });
 
   function mockStocks() {

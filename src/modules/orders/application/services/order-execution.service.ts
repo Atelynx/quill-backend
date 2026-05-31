@@ -14,7 +14,7 @@ import {
   Position,
   PositionDocument,
 } from '../../../portfolio/infrastructure/schemas/position.schema';
-import { CacheService } from '../../../system/application/services/cache.service';
+import { CacheService } from '../../../system/application/services/cache/cache.service';
 import {
   Trade,
   TradeDocument,

@@ -7,7 +7,7 @@ import { NoneMarketDataProvider } from './none-market-data.provider';
  * Factory for creating provider instances based on configuration.
  * Supports dynamic provider selection at runtime.
  */
-export class ProviderFactory {
+export class MarketDataProviderFactory {
   /**
    * Create a provider instance based on provider name.
    *

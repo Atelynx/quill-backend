@@ -14,6 +14,7 @@
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
+    "test:handles": "jest --detectOpenHandles",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
@@ -94,7 +95,18 @@
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s",
-      "!**/*.spec.ts"
+      "!**/*.spec.ts",
+      "!**/*.controller.ts",
+      "!**/*events.ts",
+      "!**/*.module.ts",
+      "!main.ts",
+      "!**/*env-file-paths.ts",
+      "!**/*normalize-mongodb-uri.ts",
+      "!**/*current-user.decorator.ts",
+      "!**/*jwt-auth.guard.ts"
+
+
+
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"

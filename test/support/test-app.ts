@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import type { Connection } from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
-import { CacheService } from '../../src/modules/system/application/services/cache.service';
+import { CacheService } from '../../src/modules/system/application/services/cache/cache.service';
 import { HttpExceptionFilter } from '../../src/common/filters/http-exception.filter';
 
 export interface TestAppContext {

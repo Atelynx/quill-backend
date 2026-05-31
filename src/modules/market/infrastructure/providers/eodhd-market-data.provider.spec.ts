@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { EODHDClient } from 'eodhd';
 import { EodhdMarketDataProvider } from './eodhd-market-data.provider';
+import { Logger } from '@nestjs/common';
 
 jest.mock('eodhd');
 
@@ -42,6 +43,7 @@ describe('EodhdMarketDataProvider', () => {
       })),
     };
 
+
     snapshotModelMock = {
       findOne: jest.fn(() => ({
         sort: jest.fn(() => ({
@@ -59,6 +61,9 @@ describe('EodhdMarketDataProvider', () => {
       snapshotModelMock,
     );
   });
+  beforeAll(() => {
+    Logger.overrideLogger(false);
+  })
 
   it('inicializa el cliente SDK correctamente', async () => {
     mockRealTime.mockResolvedValue({
@@ -149,5 +154,145 @@ describe('EodhdMarketDataProvider', () => {
     const schedule = provider.getRefreshSchedule();
     expect(schedule).toBeDefined();
     expect(schedule!.cronExpression).toBe('0 30 18 * * 1-5');
+  });
+
+  it('uses config-based cron for refresh schedule', () => {
+    configMock.get = jest.fn((key: string, fallback?: unknown) => {
+      if (key === 'EODHD_DAILY_REFRESH_CRON') return '0 0 * * *';
+      if (key === 'EODHD_EXCHANGE_CODE') return 'SN';
+      if (key === 'EODHD_SYMBOLS') return 'AAPL,MSFT';
+      return fallback;
+    });
+    provider = new EodhdMarketDataProvider(
+      configMock as ConfigService,
+      stockModelMock,
+      snapshotModelMock,
+    );
+
+    const schedule = provider.getRefreshSchedule();
+
+    expect(schedule!.cronExpression).toBe('0 0 * * *');
+  });
+
+  it('getName returns EODHD', () => {
+    expect(provider.getName()).toBe('EODHD');
+  });
+
+  describe('getSeedData', () => {
+    it('returns seed data from EODHD_SYMBOLS', () => {
+      configMock.get = jest.fn((key: string, fallback?: unknown) => {
+        if (key === 'EODHD_SYMBOLS') return 'AAPL,MSFT';
+        if (key === 'EODHD_EXCHANGE_CODE') return 'US';
+        return fallback;
+      });
+      configMock.getOrThrow = jest.fn(() => 'test-token');
+      provider = new EodhdMarketDataProvider(
+        configMock as ConfigService,
+        stockModelMock,
+        snapshotModelMock,
+      );
+
+      const seeds = provider.getSeedData();
+
+      expect(seeds).toHaveLength(2);
+      expect(seeds[0]).toMatchObject({ symbol: 'AAPL', close: 0, source: 'eodhd' });
+      expect(seeds[1]).toMatchObject({ symbol: 'MSFT', close: 0, source: 'eodhd' });
+    });
+
+    it('returns empty array when no symbols configured', () => {
+      configMock.get = jest.fn((key: string, fallback?: unknown) => {
+        if (key === 'EODHD_SYMBOLS') return '';
+        if (key === 'EODHD_EXCHANGE_CODE') return 'US';
+        return fallback;
+      });
+      configMock.getOrThrow = jest.fn(() => 'test-token');
+      provider = new EodhdMarketDataProvider(
+        configMock as ConfigService,
+        stockModelMock,
+        snapshotModelMock,
+      );
+
+      expect(provider.getSeedData()).toEqual([]);
+    });
+  });
+
+  describe('cache-hit path', () => {
+    it('returns cached snapshot when today snapshot exists', async () => {
+      snapshotModelMock.findOne = jest.fn(() => ({
+        sort: jest.fn(() => ({
+          lean: jest.fn(() => ({
+            exec: jest.fn().mockResolvedValue({
+              symbol: 'SQM-B.SN',
+              price: 105,
+              source: 'eodhd',
+              createdAt: new Date(),
+            }),
+          })),
+        })),
+      }));
+
+      const quote = await provider.getQuote('SQM-B.SN');
+
+      expect(quote.price).toBe(105);
+      expect(mockRealTime).not.toHaveBeenCalled();
+    });
+
+    it('returns null from getTodaySnapshot when no stock found', async () => {
+      snapshotModelMock.findOne = jest.fn(() => ({
+        sort: jest.fn(() => ({
+          lean: jest.fn(() => ({
+            exec: jest.fn().mockResolvedValue({
+              symbol: 'MISSING.SN',
+              price: 100,
+              source: 'eodhd',
+              createdAt: new Date(),
+            }),
+          })),
+        })),
+      }));
+      stockModelMock.findOne = jest.fn(() => ({
+        lean: jest.fn(() => ({
+          exec: jest.fn().mockResolvedValue(null),
+        })),
+      }));
+
+      mockRealTime.mockResolvedValue({
+        code: 'MISSING.SN',
+        close: 110,
+        timestamp: 1710000000,
+      });
+
+      const quote = await provider.getQuote('MISSING.SN');
+
+      expect(quote.price).toBe(110);
+      expect(mockRealTime).toHaveBeenCalled();
+    });
+  });
+
+  it('propaga error cuando EODHD no retorna precio', async () => {
+    mockRealTime.mockResolvedValue({
+      code: 'NOPRICE.SN',
+      timestamp: 1710000000,
+    });
+
+    await expect(provider.getQuote('NOPRICE.SN')).rejects.toThrow(
+      'EODHD no pudo obtener NOPRICE.SN',
+    );
+  });
+
+  it('persists snapshot after successful API fetch', async () => {
+    mockRealTime.mockResolvedValue({
+      code: 'COPEC.SN',
+      close: 7200,
+      timestamp: 1710000000,
+    });
+
+    await provider.getQuote('COPEC.SN');
+
+    expect(snapshotModelMock.create).toHaveBeenCalledWith({
+      symbol: 'COPEC.SN',
+      price: 7200,
+      source: 'eodhd',
+    });
   });
 });

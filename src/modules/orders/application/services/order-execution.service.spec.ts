@@ -1,3 +1,4 @@
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { OrderExecutionService } from './order-execution.service';
 
@@ -146,5 +147,189 @@ describe('OrderExecutionService', () => {
     await service.handleMarketTick();
     expect(marketService.listQuotes).toHaveBeenCalledTimes(2);
     expect(service.logger.error).toHaveBeenCalled();
+  });
+});
+
+describe('executeMarketOrder', () => {
+  let service: any;
+  let cacheService: { get: jest.Mock };
+  let session: { withTransaction: jest.Mock; endSession: jest.Mock };
+  let orderModel: { find: jest.Mock; findById: jest.Mock; create: jest.Mock };
+  let userModel: { findById: jest.Mock };
+  let positionModel: { findOne: jest.Mock; create: jest.Mock };
+  let tradeModel: { create: jest.Mock };
+  let commissionService: { calculate: jest.Mock };
+
+  const orderId = new Types.ObjectId().toString();
+  const userId = new Types.ObjectId().toString();
+  const baseUser = () => ({
+    id: userId,
+    availableBalance: 1000,
+    reservedBalance: 0,
+    save: jest.fn(),
+  });
+
+  beforeEach(() => {
+    session = {
+      withTransaction: jest.fn(async (callback: () => any) => callback()),
+      endSession: jest.fn().mockResolvedValue(undefined),
+    };
+    orderModel = {
+      find: jest.fn(),
+      findById: jest.fn(),
+      create: jest.fn().mockResolvedValue([{ id: orderId }]),
+    };
+    userModel = { findById: jest.fn() };
+    positionModel = { findOne: jest.fn(), create: jest.fn() };
+    tradeModel = { create: jest.fn().mockResolvedValue(undefined) };
+    commissionService = { calculate: jest.fn().mockReturnValue(1) };
+    cacheService = { get: jest.fn() };
+
+    service = new OrderExecutionService(
+      {} as never,
+      { listQuotes: jest.fn() },
+      { startSession: jest.fn().mockResolvedValue(session) } as never,
+      orderModel,
+      userModel,
+      positionModel,
+      tradeModel,
+      commissionService,
+      cacheService as never,
+    );
+    jest.spyOn(service.logger, 'error').mockImplementation(jest.fn());
+  });
+
+  it('lanza NotFoundException cuando no hay precio en vivo', async () => {
+    cacheService.get.mockResolvedValue(undefined);
+
+    await expect(
+      service.executeMarketOrder(userId, 'AAPL', 'BUY', 10),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(cacheService.get).toHaveBeenCalledWith('stock:AAPL:live_price');
+  });
+
+  it('lanza NotFoundException cuando el usuario no existe', async () => {
+    cacheService.get.mockResolvedValue(150);
+    userModel.findById.mockReturnValue(query(null));
+
+    await expect(
+      service.executeMarketOrder(userId, 'AAPL', 'BUY', 10),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('lanza BadRequestException para BUY cuando no hay saldo suficiente', async () => {
+    cacheService.get.mockResolvedValue(150);
+    const user = baseUser();
+    user.availableBalance = 10;
+    userModel.findById.mockReturnValue(query(user));
+
+    await expect(
+      service.executeMarketOrder(userId, 'AAPL', 'BUY', 10),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('BUY crea una nueva posicion cuando no existe previamente', async () => {
+    cacheService.get.mockResolvedValue(100);
+    const user = baseUser();
+    userModel.findById.mockReturnValue(query(user));
+    positionModel.findOne.mockReturnValue(query(null));
+
+    const result = await service.executeMarketOrder(userId, 'NEW', 'BUY', 5);
+
+    expect(user.availableBalance).toBe(499);
+    expect(user.save).toHaveBeenCalled();
+    expect(positionModel.create).toHaveBeenCalledWith(
+      [{
+        userId: new Types.ObjectId(userId),
+        symbol: 'NEW',
+        quantity: 5,
+        reservedQuantity: 0,
+        averageCost: 100,
+      }],
+      { session },
+    );
+    expect(result).toBeDefined();
+    expect(tradeModel.create).toHaveBeenCalled();
+  });
+
+  it('BUY actualiza una posicion existente con nuevo costo promedio', async () => {
+    cacheService.get.mockResolvedValue(100);
+    const user = baseUser();
+    userModel.findById.mockReturnValue(query(user));
+    const existingPosition = { quantity: 3, averageCost: 80, save: jest.fn() };
+    positionModel.findOne.mockReturnValue(query(existingPosition));
+
+    await service.executeMarketOrder(userId, 'AAPL', 'BUY', 5);
+
+    expect(existingPosition.quantity).toBe(8);
+    expect(existingPosition.averageCost).toBe(92.5);
+    expect(existingPosition.save).toHaveBeenCalledWith({ session });
+    expect(user.availableBalance).toBe(499);
+  });
+
+  it('lanza BadRequestException para SELL cuando no hay posicion', async () => {
+    cacheService.get.mockResolvedValue(100);
+    userModel.findById.mockReturnValue(query(baseUser()));
+    positionModel.findOne.mockReturnValue(query(null));
+
+    await expect(
+      service.executeMarketOrder(userId, 'MISS', 'SELL', 5),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('lanza BadRequestException para SELL cuando la cantidad es insuficiente', async () => {
+    cacheService.get.mockResolvedValue(100);
+    userModel.findById.mockReturnValue(query(baseUser()));
+    positionModel.findOne.mockReturnValue(query({ quantity: 2 }));
+
+    await expect(
+      service.executeMarketOrder(userId, 'AAPL', 'SELL', 5),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('SELL parcial mantiene la posicion si aun quedan acciones', async () => {
+    cacheService.get.mockResolvedValue(100);
+    const user = baseUser();
+    userModel.findById.mockReturnValue(query(user));
+    const position = { quantity: 5, save: jest.fn(), deleteOne: jest.fn() };
+    positionModel.findOne.mockReturnValue(query(position));
+
+    await service.executeMarketOrder(userId, 'AAPL', 'SELL', 3);
+
+    expect(position.quantity).toBe(2);
+    expect(position.save).toHaveBeenCalledWith({ session });
+    expect(position.deleteOne).not.toHaveBeenCalled();
+    expect(user.availableBalance).toBe(1299);
+  });
+
+  it('registra y re-lanza errores inesperados de sesion', async () => {
+    cacheService.get.mockResolvedValue(100);
+    const unexpectedError = new Error('DB timeout');
+    session.withTransaction.mockRejectedValue(unexpectedError);
+
+    await expect(
+      service.executeMarketOrder(userId, 'AAPL', 'BUY', 5),
+    ).rejects.toThrow('DB timeout');
+
+    expect(service.logger.error).toHaveBeenCalledWith(
+      'Failed to execute market order for AAPL',
+      unexpectedError,
+    );
+    expect(session.endSession).toHaveBeenCalled();
+  });
+
+  it('SELL total elimina la posicion si quantity llega a 0', async () => {
+    cacheService.get.mockResolvedValue(100);
+    const user = baseUser();
+    userModel.findById.mockReturnValue(query(user));
+    const position = { quantity: 5, save: jest.fn(), deleteOne: jest.fn() };
+    positionModel.findOne.mockReturnValue(query(position));
+
+    await service.executeMarketOrder(userId, 'AAPL', 'SELL', 5);
+
+    expect(position.deleteOne).toHaveBeenCalledWith({ session });
+    expect(position.save).not.toHaveBeenCalled();
+    expect(user.availableBalance).toBe(1499);
   });
 });
