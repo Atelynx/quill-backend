@@ -6,7 +6,7 @@ import { Model } from 'mongoose';
 import { PRICE_UPDATE_EVENT } from '../../domain/constants/events';
 import type { IMarketSimulationStrategy } from '../../../common/strategies/market-simulation-strategy.interface';
 import { Stock, StockDocument } from '../../infrastructure/schemas/stock.schema';
-import { CacheService } from '../../../system/application/services/cache.service';
+import { CacheService } from '../../../system/application/services/cache/cache.service';
 
 const BASE_PRICE_CACHE_PREFIX = 'stock:';
 const BASE_PRICE_CACHE_SUFFIX = ':base_price';
