@@ -1,17 +1,15 @@
 import { ConfigService } from '@nestjs/config';
 import { MockMarketDataProvider } from './mock-market-data.provider';
-import { config } from 'process';
 
 describe('MockMarketDataProvider', () => {
   let provider: MockMarketDataProvider;
-    let configService: ConfigService;
+  let configService: ConfigService;
 
   beforeEach(() => {
-
     configService = ({
-      get: jest.fn(),
+      get: jest.fn((_key: string, fallback?: unknown) => fallback),
     } as unknown) as ConfigService;
-  })
+  });
 
   beforeEach(() => {
     provider = new MockMarketDataProvider(configService);
@@ -29,13 +27,11 @@ describe('MockMarketDataProvider', () => {
       expect(quote.exchange).toBe('MOCK');
     });
 
-    it('should generate consistent prices for same symbol (momentum)', async () => {
+    it('should generate different prices for same symbol (momentum)', async () => {
       const quote1 = await provider.getQuote('COPEC');
       const quote2 = await provider.getQuote('COPEC');
 
-      // Prices should be different (due to momentum)
       expect(quote1.price).not.toBe(quote2.price);
-      // But both should be valid numbers
       expect(typeof quote1.price).toBe('number');
       expect(typeof quote2.price).toBe('number');
     });
@@ -44,7 +40,6 @@ describe('MockMarketDataProvider', () => {
       const quote1 = await provider.getQuote('aapl');
       const quote2 = await provider.getQuote('AAPL');
 
-      // Should normalize to uppercase
       expect(quote1.symbol).toBe('AAPL');
       expect(quote2.symbol).toBe('AAPL');
     });
@@ -53,6 +48,47 @@ describe('MockMarketDataProvider', () => {
   describe('getName()', () => {
     it('should return "Mock"', () => {
       expect(provider.getName()).toBe('Mock');
+    });
+  });
+
+  describe('getSeedData()', () => {
+    it('returns seed stocks with correct shape', () => {
+      const seeds = provider.getSeedData();
+
+      expect(Array.isArray(seeds)).toBe(true);
+      expect(seeds.length).toBeGreaterThan(0);
+      expect(seeds[0]).toMatchObject({
+        symbol: expect.any(String),
+        name: expect.any(String),
+        currency: expect.any(String),
+        close: expect.any(Number),
+        previousClose: expect.any(Number),
+        dayChangePercentage: 1.5,
+        source: 'mock',
+      });
+    });
+  });
+
+  describe('getRefreshSchedule()', () => {
+    it('returns cron from config with default fallback', () => {
+      const schedule = provider.getRefreshSchedule();
+
+      expect(schedule).toBeDefined();
+      expect(schedule!.cronExpression).toBe('0 30 18 * * 1-5');
+    });
+
+    it('uses config value when provided', () => {
+      configService = ({
+        get: jest.fn((key: string) => {
+          if (key === 'MOCK_DAILY_REFRESH_CRON') return '0 0 * * *';
+          return undefined;
+        }),
+      } as unknown) as ConfigService;
+      provider = new MockMarketDataProvider(configService);
+
+      const schedule = provider.getRefreshSchedule();
+
+      expect(schedule!.cronExpression).toBe('0 0 * * *');
     });
   });
 });
