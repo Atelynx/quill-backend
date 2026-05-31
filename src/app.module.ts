@@ -46,5 +46,6 @@ import { UsersModule } from './modules/users/users.module';
     TradesModule,
     OrdersModule,
   ],
+  providers: [],
 })
 export class AppModule {}
