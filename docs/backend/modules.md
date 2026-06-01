@@ -58,6 +58,7 @@ Archivos clave:
 Detalles:
 
 - siembra acciones iniciales al arrancar si la coleccion esta vacia
+- el seed inicial mantiene simbolos unicos y nombres consistentes para respetar el indice unico de `stocks.symbol`
 - calcula variacion diaria respecto a `previousClose`
 - guarda snapshots en cada refresh
 - emite `internal.price.update` via EventEmitter al refrescar cotizaciones
@@ -101,6 +102,7 @@ Detalles:
 
 - mezcla posiciones persistidas con cotizaciones actuales
 - filtra posiciones con cantidad efectiva igual a cero
+- convierte totales a CLP cuando existe tasa `*CLP`; si una tasa falta, mantiene un fallback nativo explicito para no bloquear el resumen y no cachea tasas ausentes
 
 ## Trades
 

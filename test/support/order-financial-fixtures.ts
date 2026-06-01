@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
-import type { Model } from 'mongoose';
+import type { Model, Types } from 'mongoose';
 import request from 'supertest';
 import { Order } from '../../src/modules/orders/infrastructure/schemas/order.schema';
 import { Stock } from '../../src/modules/market/infrastructure/schemas/stock.schema';
@@ -80,7 +80,7 @@ export async function createStock(
 
 export async function createPosition(
   app: INestApplication,
-  userId: unknown,
+  userId: Types.ObjectId,
   symbol: string,
   quantity: number,
   reservedQuantity = 0,

@@ -6,6 +6,13 @@ import { RealtimeGateway } from './realtime.gateway';
 describe('RealtimeGateway', () => {
   let gateway: RealtimeGateway;
   let jwtService: { verifyAsync: jest.Mock };
+  type TestSocket = Partial<Socket> & {
+    handshake: Socket['handshake'];
+    data: Record<string, unknown>;
+    disconnect: jest.Mock;
+    join: jest.Mock;
+    id: string;
+  };
 
   const mockServer = {
     to: jest.fn().mockReturnThis(),
@@ -27,11 +34,14 @@ describe('RealtimeGateway', () => {
   });
 
   describe('handleConnection', () => {
-    let socket: Partial<Socket>;
+    let socket: TestSocket;
 
     beforeEach(() => {
       socket = {
-        handshake: { auth: {}, query: {} },
+        handshake: {
+          auth: {},
+          query: {},
+        } as Socket['handshake'],
         data: {},
         disconnect: jest.fn(),
         join: jest.fn(),
@@ -40,7 +50,7 @@ describe('RealtimeGateway', () => {
     });
 
     it('disconnects when no token provided', async () => {
-      await gateway.handleConnection(socket as Socket);
+      await gateway.handleConnection(socket as unknown as Socket);
       expect(socket.disconnect).toHaveBeenCalled();
     });
 
@@ -48,7 +58,7 @@ describe('RealtimeGateway', () => {
       socket.handshake.auth = { token: 'bad-token' };
       jwtService.verifyAsync.mockRejectedValue(new Error('invalid'));
 
-      await gateway.handleConnection(socket as Socket);
+      await gateway.handleConnection(socket as unknown as Socket);
 
       expect(jwtService.verifyAsync).toHaveBeenCalledWith('bad-token');
       expect(socket.disconnect).toHaveBeenCalled();
@@ -58,7 +68,7 @@ describe('RealtimeGateway', () => {
       socket.handshake.auth = { token: 'valid-token' };
       jwtService.verifyAsync.mockResolvedValue({ sub: 'user-123' });
 
-      await gateway.handleConnection(socket as Socket);
+      await gateway.handleConnection(socket as unknown as Socket);
 
       expect(socket.data.user).toEqual({ sub: 'user-123' });
       expect(socket.join).toHaveBeenCalledWith('user:user-123');
@@ -69,7 +79,7 @@ describe('RealtimeGateway', () => {
       socket.handshake.query = { token: 'query-token' };
       jwtService.verifyAsync.mockResolvedValue({ sub: 'user-456' });
 
-      await gateway.handleConnection(socket as Socket);
+      await gateway.handleConnection(socket as unknown as Socket);
 
       expect(jwtService.verifyAsync).toHaveBeenCalledWith('query-token');
       expect(socket.join).toHaveBeenCalledWith('user:user-456');

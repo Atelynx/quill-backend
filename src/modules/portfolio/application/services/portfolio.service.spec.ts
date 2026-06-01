@@ -237,6 +237,12 @@ describe('PortfolioService', () => {
             reservedQuantity: 0,
             averageCost: 150,
           },
+          {
+            symbol: 'MSFT',
+            quantity: 5,
+            reservedQuantity: 0,
+            averageCost: 50,
+          },
         ]),
       ),
     };
@@ -246,6 +252,11 @@ describe('PortfolioService', () => {
           {
             symbol: 'AAPL',
             close: 200,
+            currency: 'USD',
+          },
+          {
+            symbol: 'MSFT',
+            close: 100,
             currency: 'USD',
           },
         ]),
@@ -270,9 +281,10 @@ describe('PortfolioService', () => {
 
     const summary = await service.getSummary(new Types.ObjectId().toString());
 
-    // If rate is unavailable, fall back to native values without crashing
-    expect(summary.investedValue).toBe(2000);
+    // Si la tasa no existe, usa fallback nativo y no cachea la ausencia.
+    expect(summary.investedValue).toBe(2500);
     expect(summary.positions[0].marketValue).toBe(2000);
+    expect(currencyRateService.getRate).toHaveBeenCalledTimes(2);
     expect(currencyRateService.getRate).toHaveBeenCalledWith('USDCLP');
   });
 });

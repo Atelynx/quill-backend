@@ -35,6 +35,7 @@ interface LoginResponse {
 interface StockQuoteResponse {
   symbol: string;
   close: number;
+  currency?: string;
 }
 
 interface OrderResponse {
@@ -192,7 +193,9 @@ describe('Quill API (e2e)', () => {
       .get('/api/market/stocks')
       .expect(200);
     const quotes = quotesResponse.body as StockQuoteResponse[];
-    const targetQuote = quotes[0];
+    const targetQuote = quotes.find(
+      (quote) => quote.currency === 'CLP' && quote.close * 2 < loginBody.user.availableBalance,
+    ) ?? quotes[0];
 
     const orderResponse = await request(httpServer)
       .post('/api/orders')

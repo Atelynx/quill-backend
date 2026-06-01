@@ -123,7 +123,9 @@ export class PortfolioService {
     }
     const rate = await this.currencyRateService.getRate(`${currency}CLP`);
     const result = rate?.rate ?? null;
-    this.rateCache.set(currency, result);
+    if (result !== null) {
+      this.rateCache.set(currency, result);
+    }
     return result;
   }
 }
