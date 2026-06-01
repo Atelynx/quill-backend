@@ -196,14 +196,14 @@ describe('executeMarketOrder', () => {
 
     service = new OrderExecutionService(
       {} as never,
-      { listQuotes: jest.fn() },
+      { listQuotes: jest.fn() } as never,
       { startSession: jest.fn().mockResolvedValue(session) } as never,
-      orderModel,
-      userModel,
-      positionModel,
+      orderModel as never,
+      userModel as never,
+      positionModel as never,
       stockModel as never,
-      tradeModel,
-      commissionService,
+      tradeModel as never,
+      commissionService as never,
       cacheService as never,
       currencyRateService as never,
     );

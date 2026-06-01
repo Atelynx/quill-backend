@@ -31,7 +31,7 @@ describe('RealtimeGateway', () => {
 
     beforeEach(() => {
       socket = {
-        handshake: { auth: {}, query: {} },
+        handshake: { auth: {}, query: {} } as never,
         data: {},
         disconnect: jest.fn(),
         join: jest.fn(),
@@ -45,7 +45,10 @@ describe('RealtimeGateway', () => {
     });
 
     it('disconnects on invalid JWT', async () => {
-      socket.handshake.auth = { token: 'bad-token' };
+      if (socket.handshake) {
+        socket.handshake.auth = { token: 'bad-token' };
+
+      }
       jwtService.verifyAsync.mockRejectedValue(new Error('invalid'));
 
       await gateway.handleConnection(socket as Socket);
@@ -55,7 +58,9 @@ describe('RealtimeGateway', () => {
     });
 
     it('authenticates and joins user room on valid token', async () => {
-      socket.handshake.auth = { token: 'valid-token' };
+      if (socket.handshake) {
+        socket.handshake.auth = { token: 'valid-token' };
+      }
       jwtService.verifyAsync.mockResolvedValue({ sub: 'user-123' });
 
       await gateway.handleConnection(socket as Socket);
@@ -66,7 +71,9 @@ describe('RealtimeGateway', () => {
     });
 
     it('reads token from query if not in auth', async () => {
-      socket.handshake.query = { token: 'query-token' };
+      if (socket.handshake) {
+        socket.handshake.query = { token: 'query-token' };
+      }  
       jwtService.verifyAsync.mockResolvedValue({ sub: 'user-456' });
 
       await gateway.handleConnection(socket as Socket);

@@ -30,7 +30,7 @@ describe('MarketTickService', () => {
       stockModel as never,
       strategy as never,
       cacheService as never,
-      eventEmitter as EventEmitter2,
+      eventEmitter as never as EventEmitter2,
     );
   });
 

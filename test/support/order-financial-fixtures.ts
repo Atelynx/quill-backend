@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
-import type { Model } from 'mongoose';
+import type { Model, Types } from 'mongoose';
 import request from 'supertest';
 import { Order } from '../../src/modules/orders/infrastructure/schemas/order.schema';
 import { Stock } from '../../src/modules/market/infrastructure/schemas/stock.schema';
@@ -88,7 +88,7 @@ export async function createPosition(
   const { positionModel } = getFinancialModels(app);
 
   return positionModel.create({
-    userId,
+    userId: userId as Types.ObjectId,
     symbol,
     quantity,
     reservedQuantity,
