@@ -1,6 +1,6 @@
 export const seedStocks = [
   {
-    symbol: 'AMZN',
+    symbol: 'APPL',
     name: 'Apple',
     sector: 'Tecnología',
     currency: 'USD',

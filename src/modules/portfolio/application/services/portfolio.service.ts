@@ -15,7 +15,7 @@ import { UsersService } from '../../../users/application/services/users.service'
 
 @Injectable()
 export class PortfolioService {
-  private readonly rateCache = new Map<string, number>();
+  private readonly rateCache = new Map<string, number | null>();
 
   constructor(
     @InjectModel(Position.name)
