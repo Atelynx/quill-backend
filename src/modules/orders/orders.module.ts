@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { CurrencyModule } from '../currency/currency.module';
 import { MarketModule } from '../market/market.module';
 import { SystemModule } from '../system/system.module';
 import {
@@ -25,6 +26,7 @@ import { OrdersController } from './presentation/controllers/orders.controller';
   imports: [
     MarketModule,
     SystemModule,
+    CurrencyModule,
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
       { name: User.name, schema: UserSchema },

@@ -4,6 +4,7 @@ import {
   Stock,
   StockSchema,
 } from '../market/infrastructure/schemas/stock.schema';
+import { CurrencyModule } from '../currency/currency.module';
 import { UsersModule } from '../users/users.module';
 import { PortfolioService } from './application/services/portfolio.service';
 import {
@@ -15,6 +16,7 @@ import { PortfolioController } from './presentation/controllers/portfolio.contro
 @Module({
   imports: [
     UsersModule,
+    CurrencyModule,
     MongooseModule.forFeature([
       { name: Position.name, schema: PositionSchema },
       { name: Stock.name, schema: StockSchema },

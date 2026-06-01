@@ -9,7 +9,12 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
 import Decimal from 'decimal.js';
+import { CurrencyRateService } from '../../../currency/application/services/currency-rate.service';
 import { MarketService } from '../../../market/application/services/market.service';
+import {
+  Stock,
+  StockDocument,
+} from '../../../market/infrastructure/schemas/stock.schema';
 import {
   Position,
   PositionDocument,
@@ -44,10 +49,13 @@ export class OrderExecutionService {
     private readonly userModel: Model<UserDocument>,
     @InjectModel(Position.name)
     private readonly positionModel: Model<PositionDocument>,
+    @InjectModel(Stock.name)
+    private readonly stockModel: Model<StockDocument>,
     @InjectModel(Trade.name)
     private readonly tradeModel: Model<TradeDocument>,
     private readonly commissionService: CommissionService,
     private readonly cacheService: CacheService,
+    private readonly currencyRateService: CurrencyRateService,
   ) { }
 
   @Cron(CronExpression.EVERY_10_SECONDS)
@@ -74,10 +82,10 @@ export class OrderExecutionService {
   }
 
   private async processPendingOrders(
-    quotes: Array<{ symbol: string; close: number }>,
+    quotes: Array<{ symbol: string; close: number; currency?: string }>,
   ): Promise<void> {
     const quoteMap = new Map(
-      quotes.map((quote) => [quote.symbol, quote.close]),
+      quotes.map((quote) => [quote.symbol, { price: quote.close, currency: quote.currency }]),
     );
 
     const pendingOrders = await this.orderModel
@@ -85,9 +93,9 @@ export class OrderExecutionService {
       .exec();
 
     for (const order of pendingOrders) {
-      const marketPrice = quoteMap.get(order.symbol);
-      if (marketPrice && this.shouldExecute(order, marketPrice)) {
-        await this.executeOrder(order, marketPrice);
+      const quote = quoteMap.get(order.symbol);
+      if (quote && this.shouldExecute(order, quote.price)) {
+        await this.executeOrder(order, quote.price, quote.currency);
       }
     }
   }
@@ -102,6 +110,7 @@ export class OrderExecutionService {
   private async executeOrder(
     order: OrderDocument,
     marketPrice: number,
+    currency?: string,
   ): Promise<void> {
     const session = await this.connection.startSession();
     try {
@@ -115,12 +124,31 @@ export class OrderExecutionService {
           return;
         }
 
-        const grossAmount = new Decimal(liveOrder.quantity)
+        const grossAmountNative = new Decimal(liveOrder.quantity)
           .times(marketPrice)
           .toDecimalPlaces(2)
           .toNumber();
-        
-        const commissionAmount = this.commissionService.calculate(grossAmount);
+
+        const commissionNative = this.commissionService.calculate(grossAmountNative);
+
+        let grossAmountCLP = grossAmountNative;
+        let commissionCLP = commissionNative;
+
+        if (currency && currency !== 'CLP') {
+          const rate = await this.currencyRateService.getRate(`${currency}CLP`);
+          if (rate) {
+            const marketPriceCLP = new Decimal(marketPrice)
+              .times(rate.rate)
+              .toDecimalPlaces(2)
+              .toNumber();
+            grossAmountCLP = new Decimal(liveOrder.quantity)
+              .times(marketPriceCLP)
+              .toDecimalPlaces(2)
+              .toNumber();
+            commissionCLP = this.commissionService.calculate(grossAmountCLP);
+          }
+        }
+
         const executedAt = new Date();
 
         if (liveOrder.side === 'BUY') {
@@ -128,8 +156,9 @@ export class OrderExecutionService {
             session,
             user,
             liveOrder,
-            grossAmount,
-            commissionAmount,
+            grossAmountCLP,
+            commissionCLP,
+            grossAmountNative,
             marketPrice,
           );
         } else {
@@ -137,8 +166,8 @@ export class OrderExecutionService {
             session,
             user,
             liveOrder,
-            grossAmount,
-            commissionAmount,
+            grossAmountCLP,
+            commissionCLP,
           );
         }
 
@@ -147,8 +176,8 @@ export class OrderExecutionService {
           user,
           liveOrder,
           marketPrice,
-          grossAmount,
-          commissionAmount,
+          grossAmountNative,
+          commissionNative,
           executedAt,
         );
       });
@@ -163,9 +192,10 @@ export class OrderExecutionService {
     session: any,
     user: UserDocument,
     order: OrderDocument,
-    grossAmount: number,
-    commissionAmount: number,
-    marketPrice: number,
+    grossAmountCLP: number,
+    commissionAmountCLP: number,
+    grossAmountNative: number,
+    marketPriceNative: number,
   ): Promise<void> {
     user.reservedBalance = new Decimal(user.reservedBalance)
       .minus(order.reservedAmount)
@@ -174,8 +204,8 @@ export class OrderExecutionService {
 
     user.availableBalance = new Decimal(user.availableBalance)
       .plus(order.reservedAmount)
-      .minus(grossAmount)
-      .minus(commissionAmount)
+      .minus(grossAmountCLP)
+      .minus(commissionAmountCLP)
       .toDecimalPlaces(2)
       .toNumber();
 
@@ -189,7 +219,7 @@ export class OrderExecutionService {
 
     if (existingPosition) {
       const currentTotalCost = new Decimal(existingPosition.quantity).times(existingPosition.averageCost);
-      const newTotalCost = currentTotalCost.plus(grossAmount);
+      const newTotalCost = currentTotalCost.plus(grossAmountNative);
       const newQuantity = existingPosition.quantity + order.quantity;
       
       existingPosition.quantity = newQuantity;
@@ -204,7 +234,7 @@ export class OrderExecutionService {
             symbol: order.symbol,
             quantity: order.quantity,
             reservedQuantity: 0,
-            averageCost: marketPrice,
+            averageCost: marketPriceNative,
           },
         ],
         { session },
@@ -216,8 +246,8 @@ export class OrderExecutionService {
     session: any,
     user: UserDocument,
     order: OrderDocument,
-    grossAmount: number,
-    commissionAmount: number,
+    grossAmountCLP: number,
+    commissionAmountCLP: number,
   ): Promise<void> {
     const position = await this.positionModel
       .findOne({
@@ -235,8 +265,8 @@ export class OrderExecutionService {
     position.reservedQuantity -= order.quantity;
     
     user.availableBalance = new Decimal(user.availableBalance)
-      .plus(grossAmount)
-      .minus(commissionAmount)
+      .plus(grossAmountCLP)
+      .minus(commissionAmountCLP)
       .toDecimalPlaces(2)
       .toNumber();
 
@@ -263,6 +293,38 @@ export class OrderExecutionService {
       );
     }
 
+    const stock = await this.stockModel.findOne({ symbol }).lean().exec();
+
+    if (!stock) {
+      throw new NotFoundException('La acción solicitada no existe.');
+    }
+
+    const grossAmountNative = new Decimal(quantity)
+      .times(livePrice)
+      .toDecimalPlaces(2)
+      .toNumber();
+
+    const commissionNative = this.commissionService.calculate(grossAmountNative);
+
+    let grossAmountCLP = grossAmountNative;
+    let commissionCLP = commissionNative;
+
+    const stockCurrency = stock.currency ?? 'CLP';
+    if (stockCurrency !== 'CLP') {
+      const rate = await this.currencyRateService.getRate(`${stockCurrency}CLP`);
+      if (rate) {
+        const livePriceCLP = new Decimal(livePrice)
+          .times(rate.rate)
+          .toDecimalPlaces(2)
+          .toNumber();
+        grossAmountCLP = new Decimal(quantity)
+          .times(livePriceCLP)
+          .toDecimalPlaces(2)
+          .toNumber();
+        commissionCLP = this.commissionService.calculate(grossAmountCLP);
+      }
+    }
+
     const session = await this.connection.startSession();
     try {
       const [executedOrder] = await session.withTransaction(async () => {
@@ -275,28 +337,22 @@ export class OrderExecutionService {
           throw new NotFoundException('Usuario no encontrado.');
         }
 
-        const grossAmount = new Decimal(quantity)
-          .times(livePrice)
-          .toDecimalPlaces(2)
-          .toNumber();
-
-        const commissionAmount = this.commissionService.calculate(grossAmount);
         const executedAt = new Date();
 
         if (side === 'BUY') {
-          const totalCost = new Decimal(grossAmount)
-            .plus(commissionAmount)
+          const totalCostCLP = new Decimal(grossAmountCLP)
+            .plus(commissionCLP)
             .toDecimalPlaces(2)
             .toNumber();
 
-          if (new Decimal(user.availableBalance).lessThan(totalCost)) {
+          if (new Decimal(user.availableBalance).lessThan(totalCostCLP)) {
             throw new BadRequestException(
               'Saldo insuficiente para ejecutar la orden.',
             );
           }
 
           user.availableBalance = new Decimal(user.availableBalance)
-            .minus(totalCost)
+            .minus(totalCostCLP)
             .toDecimalPlaces(2)
             .toNumber();
 
@@ -311,7 +367,7 @@ export class OrderExecutionService {
           if (existingPosition) {
             const currentTotalCost = new Decimal(existingPosition.quantity)
               .times(existingPosition.averageCost);
-            const newTotalCost = currentTotalCost.plus(grossAmount);
+            const newTotalCost = currentTotalCost.plus(grossAmountNative);
             const newQuantity = existingPosition.quantity + quantity;
 
             existingPosition.quantity = newQuantity;
@@ -353,8 +409,8 @@ export class OrderExecutionService {
           position.quantity -= quantity;
 
           user.availableBalance = new Decimal(user.availableBalance)
-            .plus(grossAmount)
-            .minus(commissionAmount)
+            .plus(grossAmountCLP)
+            .minus(commissionCLP)
             .toDecimalPlaces(2)
             .toNumber();
 
@@ -365,9 +421,9 @@ export class OrderExecutionService {
           }
         }
 
-        const netAmount = side === 'BUY'
-          ? new Decimal(grossAmount).plus(commissionAmount).toDecimalPlaces(2).toNumber()
-          : new Decimal(grossAmount).minus(commissionAmount).toDecimalPlaces(2).toNumber();
+        const netAmountNative = side === 'BUY'
+          ? new Decimal(grossAmountNative).plus(commissionNative).toDecimalPlaces(2).toNumber()
+          : new Decimal(grossAmountNative).minus(commissionNative).toDecimalPlaces(2).toNumber();
 
         const [order] = await this.orderModel.create(
           [{
@@ -379,7 +435,7 @@ export class OrderExecutionService {
             status: 'EXECUTED' as const,
             reservedAmount: 0,
             executionPrice: livePrice,
-            commissionAmount,
+            commissionAmount: commissionNative,
             executedAt,
           }],
           { session },
@@ -393,9 +449,9 @@ export class OrderExecutionService {
             side,
             quantity,
             executionPrice: livePrice,
-            grossAmount,
-            commissionAmount,
-            netAmount,
+            grossAmount: grossAmountNative,
+            commissionAmount: commissionNative,
+            netAmount: netAmountNative,
             executedAt,
           }],
           { session },

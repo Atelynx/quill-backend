@@ -26,6 +26,9 @@ describe('OrdersService', () => {
   let commissionService: {
     calculate: jest.Mock;
   };
+  let currencyRateService: {
+    getRate: jest.Mock;
+  };
 
   beforeEach(() => {
     orderModel = {
@@ -43,6 +46,9 @@ describe('OrdersService', () => {
     commissionService = {
       calculate: jest.fn(),
     };
+    currencyRateService = {
+      getRate: jest.fn(),
+    };
 
     service = new OrdersService(
       orderModel as never,
@@ -51,6 +57,7 @@ describe('OrdersService', () => {
       stockModel as never,
       commissionService as never,
       { executeMarketOrder: jest.fn() } as never,
+      currencyRateService as never,
     );
   });
 

@@ -30,9 +30,11 @@ describe('OrderExecutionService error paths', () => {
       orderModel,
       userModel,
       positionModel,
+      { findOne: jest.fn() } as never,
       { create: jest.fn() } as never,
       { calculate: jest.fn().mockReturnValue(1) } as never,
       { get: jest.fn() } as never,
+      { getRate: jest.fn() } as never,
     );
     jest.spyOn(service.logger, 'error').mockImplementation(jest.fn());
   });

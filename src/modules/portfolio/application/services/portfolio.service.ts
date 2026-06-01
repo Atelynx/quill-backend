@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import Decimal from 'decimal.js';
-import { UsersService } from '../../../users/application/services/users.service';
+import { CurrencyRateService } from '../../../currency/application/services/currency-rate.service';
 import {
   Stock,
   StockDocument,
@@ -11,15 +11,19 @@ import {
   Position,
   PositionDocument,
 } from '../../infrastructure/schemas/position.schema';
+import { UsersService } from '../../../users/application/services/users.service';
 
 @Injectable()
 export class PortfolioService {
+  private readonly rateCache = new Map<string, number>();
+
   constructor(
     @InjectModel(Position.name)
     private readonly positionModel: Model<PositionDocument>,
     @InjectModel(Stock.name)
     private readonly stockModel: Model<StockDocument>,
     private readonly usersService: UsersService,
+    private readonly currencyRateService: CurrencyRateService,
   ) {}
 
   async getSummary(userId: string) {
@@ -32,60 +36,94 @@ export class PortfolioService {
       this.stockModel.find().lean().exec(),
     ]);
 
+    this.rateCache.clear();
     const quoteMap = new Map(quotes.map((quote) => [quote.symbol, quote]));
 
-    const enrichedPositions = positions
-      .filter((position) => position.quantity > 0)
-      .map((position) => {
-        const quote = quoteMap.get(position.symbol);
-        const marketPrice = quote?.close ?? 0;
-        
-        const marketValue = new Decimal(position.quantity)
-          .times(marketPrice)
-          .toDecimalPlaces(2)
-          .toNumber();
-          
-        const costBasis = new Decimal(position.quantity)
-          .times(position.averageCost)
-          .toDecimalPlaces(2)
-          .toNumber();
-          
-        const unrealizedProfitLoss = new Decimal(marketValue)
-          .minus(costBasis)
-          .toDecimalPlaces(2)
-          .toNumber();
+    let investedValueCLP = new Decimal(0);
+    let unrealizedProfitLossTotalCLP = new Decimal(0);
+    const enrichedPositions: Array<{
+      symbol: string;
+      quantity: number;
+      reservedQuantity: number;
+      averageCost: number;
+      marketPrice: number;
+      marketValue: number;
+      unrealizedProfitLoss: number;
+    }> = [];
 
-        return {
-          symbol: position.symbol,
-          quantity: position.quantity,
-          reservedQuantity: position.reservedQuantity,
-          averageCost: position.averageCost,
-          marketPrice,
-          marketValue,
-          unrealizedProfitLoss,
-        };
+    for (const position of positions) {
+      if (position.quantity <= 0) continue;
+
+      const quote = quoteMap.get(position.symbol);
+      const marketPrice = quote?.close ?? 0;
+      const currency = quote?.currency ?? 'CLP';
+
+      const marketValueNative = new Decimal(position.quantity)
+        .times(marketPrice)
+        .toDecimalPlaces(2)
+        .toNumber();
+
+      const costBasis = new Decimal(position.quantity)
+        .times(position.averageCost)
+        .toDecimalPlaces(2)
+        .toNumber();
+
+      const unrealizedPnlNative = new Decimal(marketValueNative)
+        .minus(costBasis)
+        .toDecimalPlaces(2)
+        .toNumber();
+
+      let marketValueCLP = marketValueNative;
+      let unrealizedPnlCLP = unrealizedPnlNative;
+
+      if (currency !== 'CLP') {
+        const rate = await this.getRate(currency);
+        if (rate !== null) {
+          marketValueCLP = new Decimal(marketValueNative)
+            .times(rate)
+            .toDecimalPlaces(2)
+            .toNumber();
+          unrealizedPnlCLP = new Decimal(unrealizedPnlNative)
+            .times(rate)
+            .toDecimalPlaces(2)
+            .toNumber();
+        }
+      }
+
+      investedValueCLP = investedValueCLP.plus(marketValueCLP);
+      unrealizedProfitLossTotalCLP = unrealizedProfitLossTotalCLP.plus(unrealizedPnlCLP);
+
+      enrichedPositions.push({
+        symbol: position.symbol,
+        quantity: position.quantity,
+        reservedQuantity: position.reservedQuantity,
+        averageCost: position.averageCost,
+        marketPrice,
+        marketValue: marketValueNative,
+        unrealizedProfitLoss: unrealizedPnlNative,
       });
-
-    const investedValue = enrichedPositions
-      .reduce((acc, pos) => acc.plus(pos.marketValue), new Decimal(0))
-      .toDecimalPlaces(2)
-      .toNumber();
-      
-    const unrealizedProfitLossTotal = enrichedPositions
-      .reduce((acc, pos) => acc.plus(pos.unrealizedProfitLoss), new Decimal(0))
-      .toDecimalPlaces(2)
-      .toNumber();
+    }
 
     return {
       availableBalance: user.availableBalance,
       reservedBalance: user.reservedBalance,
-      investedValue,
+      investedValue: investedValueCLP.toDecimalPlaces(2).toNumber(),
       totalEquity: new Decimal(user.availableBalance)
-        .plus(investedValue)
+        .plus(investedValueCLP)
         .toDecimalPlaces(2)
         .toNumber(),
-      unrealizedProfitLoss: unrealizedProfitLossTotal,
+      unrealizedProfitLoss: unrealizedProfitLossTotalCLP.toDecimalPlaces(2).toNumber(),
       positions: enrichedPositions,
     };
+  }
+
+  private async getRate(currency: string): Promise<number | null> {
+    if (this.rateCache.has(currency)) {
+      return this.rateCache.get(currency)!;
+    }
+    const rate = await this.currencyRateService.getRate(`${currency}CLP`);
+    const result = rate?.rate ?? null;
+    this.rateCache.set(currency, result);
+    return result;
   }
 }
