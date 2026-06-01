@@ -6,6 +6,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import Decimal from 'decimal.js';
+import { CurrencyRateService } from '../../../currency/application/services/currency-rate.service';
 import {
   Stock,
   StockDocument,
@@ -39,6 +40,7 @@ export class OrdersService {
     private readonly stockModel: Model<StockDocument>,
     private readonly commissionService: CommissionService,
     private readonly orderExecutionService: OrderExecutionService,
+    private readonly currencyRateService: CurrencyRateService,
   ) {}
 
   async createOrder(userId: string, dto: CreateOrderDto) {
@@ -77,7 +79,25 @@ export class OrdersService {
     let reservedAmount = 0;
 
     if (dto.side === 'BUY') {
-      const grossAmount = new Decimal(normalizedQuantity).times(dto.limitPrice!);
+      let limitPriceCLP = dto.limitPrice!;
+
+      const stockCurrency = stock.currency ?? 'CLP';
+      if (stockCurrency !== 'CLP') {
+        const rate = await this.currencyRateService.getRate(
+          `${stockCurrency}CLP`,
+        );
+        if (!rate) {
+          throw new BadRequestException(
+            `Tipo de cambio no disponible para ${stockCurrency}.`,
+          );
+        }
+        limitPriceCLP = new Decimal(dto.limitPrice!)
+          .times(rate.rate)
+          .toDecimalPlaces(2)
+          .toNumber();
+      }
+
+      const grossAmount = new Decimal(normalizedQuantity).times(limitPriceCLP);
       const estimatedCommission = this.commissionService.calculate(grossAmount.toNumber());
       
       const totalReserved = grossAmount

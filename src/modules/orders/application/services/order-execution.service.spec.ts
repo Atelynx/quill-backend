@@ -29,9 +29,11 @@ describe('OrderExecutionService', () => {
       orderModel,
       userModel,
       positionModel,
+      { findOne: jest.fn() } as never,
       tradeModel,
       commissionService,
       { get: jest.fn() } as never,
+      { getRate: jest.fn() } as never,
     );
     jest.spyOn(service.logger, 'error').mockImplementation(jest.fn());
   });
@@ -153,12 +155,14 @@ describe('OrderExecutionService', () => {
 describe('executeMarketOrder', () => {
   let service: any;
   let cacheService: { get: jest.Mock };
+  let stockModel: { findOne: jest.Mock };
   let session: { withTransaction: jest.Mock; endSession: jest.Mock };
   let orderModel: { find: jest.Mock; findById: jest.Mock; create: jest.Mock };
   let userModel: { findById: jest.Mock };
   let positionModel: { findOne: jest.Mock; create: jest.Mock };
   let tradeModel: { create: jest.Mock };
   let commissionService: { calculate: jest.Mock };
+  let currencyRateService: { getRate: jest.Mock };
 
   const orderId = new Types.ObjectId().toString();
   const userId = new Types.ObjectId().toString();
@@ -174,6 +178,7 @@ describe('executeMarketOrder', () => {
       withTransaction: jest.fn(async (callback: () => any) => callback()),
       endSession: jest.fn().mockResolvedValue(undefined),
     };
+    stockModel = { findOne: jest.fn() };
     orderModel = {
       find: jest.fn(),
       findById: jest.fn(),
@@ -184,6 +189,10 @@ describe('executeMarketOrder', () => {
     tradeModel = { create: jest.fn().mockResolvedValue(undefined) };
     commissionService = { calculate: jest.fn().mockReturnValue(1) };
     cacheService = { get: jest.fn() };
+    currencyRateService = { getRate: jest.fn() };
+
+    const leanExec = (value: any) => ({ lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(value) }) });
+    stockModel.findOne.mockReturnValue(leanExec({ symbol: 'AAPL', currency: 'CLP' }));
 
     service = new OrderExecutionService(
       {} as never,
@@ -192,9 +201,11 @@ describe('executeMarketOrder', () => {
       orderModel,
       userModel,
       positionModel,
+      stockModel as never,
       tradeModel,
       commissionService,
       cacheService as never,
+      currencyRateService as never,
     );
     jest.spyOn(service.logger, 'error').mockImplementation(jest.fn());
   });

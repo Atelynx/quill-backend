@@ -18,6 +18,7 @@ import { StrategyType } from '../common/strategies/strategy.types';
 @Module({
   imports: [CommonStrategiesModule],
   controllers: [CurrencyController],
+  exports: [CurrencyRateService],
   providers: [
     CurrencyAnchorService,
     CurrencyRateService,
