@@ -20,7 +20,7 @@ npm run dev                   # Backend :3000, Frontend :5173
 
 | Comando | Descripción |
 |---------|-------------|
-| `npm run dev` | Desarrollo |
+| `npm run start:dev` | Desarrollo |
 | `npm run build` | Build |
 | `npm test` | Tests unitarios |
 | `npm run test:e2e` | Tests e2e |
