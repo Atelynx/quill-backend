@@ -1,8 +1,18 @@
 import { FallbackMarketDataProvider } from './fallback-market-data.provider';
 import type { MarketDataProvider } from './market-data-provider.interface';
 
+type MockedMarketDataProvider = Omit<
+  jest.Mocked<MarketDataProvider>,
+  'getSeedData' | 'getRefreshSchedule'
+> & {
+  getSeedData: jest.MockedFunction<NonNullable<MarketDataProvider['getSeedData']>>;
+  getRefreshSchedule: jest.MockedFunction<
+    NonNullable<MarketDataProvider['getRefreshSchedule']>
+  >;
+};
+
 describe('FallbackMarketDataProvider', () => {
-  let primary: jest.Mocked<MarketDataProvider>;
+  let primary: MockedMarketDataProvider;
   let fallback: jest.Mocked<MarketDataProvider>;
   let provider: FallbackMarketDataProvider;
 
@@ -13,7 +23,7 @@ describe('FallbackMarketDataProvider', () => {
       getName: jest.fn().mockReturnValue('EODHD'),
       getSeedData: jest.fn(),
       getRefreshSchedule: jest.fn(),
-    } as unknown as jest.Mocked<MarketDataProvider>;
+    } as MockedMarketDataProvider;
 
     fallback = {
       getQuote: jest.fn(),

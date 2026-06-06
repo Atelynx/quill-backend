@@ -1,8 +1,17 @@
 import { FallbackCurrencyDataProvider } from './fallback-currency-data.provider';
 import type { CurrencyDataProvider } from '../../domain/interfaces/currency-data-provider.interface';
 
+type MockedCurrencyDataProvider = Omit<
+  jest.Mocked<CurrencyDataProvider>,
+  'getRefreshSchedule'
+> & {
+  getRefreshSchedule: jest.MockedFunction<
+    NonNullable<CurrencyDataProvider['getRefreshSchedule']>
+  >;
+};
+
 describe('FallbackCurrencyDataProvider', () => {
-  let primary: jest.Mocked<CurrencyDataProvider>;
+  let primary: MockedCurrencyDataProvider;
   let fallback: jest.Mocked<CurrencyDataProvider>;
   let provider: FallbackCurrencyDataProvider;
 
@@ -12,7 +21,7 @@ describe('FallbackCurrencyDataProvider', () => {
       getName: jest.fn().mockReturnValue('exchangeRate'),
       getSymbols: jest.fn().mockReturnValue(['USDCLP', 'EURUSD']),
       getRefreshSchedule: jest.fn(),
-    } as unknown as jest.Mocked<CurrencyDataProvider>;
+    } as MockedCurrencyDataProvider;
 
     fallback = {
       getQuote: jest.fn(),
