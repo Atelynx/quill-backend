@@ -12,6 +12,7 @@ import { MarketUpdateWriterService } from './application/services/market-update-
 import { EodhdMarketDataProvider } from './infrastructure/providers/eodhd-market-data.provider';
 import { MockMarketDataProvider } from './infrastructure/providers/mock-market-data.provider';
 import { NoneMarketDataProvider } from './infrastructure/providers/none-market-data.provider';
+import { FallbackMarketDataProvider } from './infrastructure/providers/fallback-market-data.provider';
 import { MarketDataProviderFactory } from './infrastructure/providers/market-data-provider.factory';
 import {
   PriceSnapshot,
@@ -45,10 +46,13 @@ import { StrategyType } from '../common/strategies/strategy.types';
     MockMarketDataProvider,
     NoneMarketDataProvider,
     EodhdMarketDataProvider,
+    FallbackMarketDataProvider,
     {
       /**
        * Factory provider that selects the active MarketDataProvider
        * based on the MARKET_PROVIDER environment variable.
+       * When using EODHD, wraps it in a FallbackMarketDataProvider
+       * with Mock as fallback for per-symbol resilience.
        */
       provide: 'MARKET_DATA_PROVIDER',
       inject: [
@@ -64,6 +68,11 @@ import { StrategyType } from '../common/strategies/strategy.types';
         configService: ConfigService,
       ) => {
         const providerName = configService.get<string>('MARKET_PROVIDER');
+
+        if (providerName === 'eodhd') {
+          return new FallbackMarketDataProvider(eodhdProvider, mockProvider);
+        }
+
         return MarketDataProviderFactory.createProvider(
           providerName,
           mockProvider,

@@ -1,18 +1,29 @@
 import { ConfigService } from '@nestjs/config';
 import { MockMarketDataProvider } from './mock-market-data.provider';
 
+function createLeanQuery<T>(value: T) {
+  return { lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(value) }) };
+}
+
 describe('MockMarketDataProvider', () => {
   let provider: MockMarketDataProvider;
   let configService: ConfigService;
+  let stockModel: { find: jest.Mock };
 
   beforeEach(() => {
     configService = {
       get: jest.fn((_key: string, fallback?: unknown) => fallback),
     } as unknown as ConfigService;
+    stockModel = {
+      find: jest.fn(),
+    };
   });
 
   beforeEach(() => {
-    provider = new MockMarketDataProvider(configService);
+    provider = new MockMarketDataProvider(
+      configService,
+      stockModel as never,
+    );
   });
 
   describe('getQuote()', () => {
@@ -42,6 +53,51 @@ describe('MockMarketDataProvider', () => {
 
       expect(quote1.symbol).toBe('AAPL');
       expect(quote2.symbol).toBe('AAPL');
+    });
+  });
+
+  describe('DB seeding', () => {
+    it('seeds from database when stocks exist', async () => {
+      const dbStocks = [
+        { symbol: 'DBSTOCK', close: 250, previousClose: 245, currency: 'USD' },
+      ];
+      stockModel.find.mockReturnValue(createLeanQuery(dbStocks));
+
+      const quote = await provider.getQuote('DBSTOCK');
+
+      expect(quote.price).toBeGreaterThan(0);
+      expect(quote.currency).toBe('USD');
+    });
+
+    it('falls back to hardcoded seeds when DB is empty', async () => {
+      stockModel.find.mockReturnValue(createLeanQuery([]));
+
+      const quote = await provider.getQuote('AAPL');
+
+      expect(quote.symbol).toBe('AAPL');
+      expect(quote.price).toBeGreaterThan(0);
+    });
+
+    it('falls back to hardcoded seeds when DB query fails', async () => {
+      stockModel.find.mockReturnValue({
+        lean: jest.fn(() => ({
+          exec: jest.fn().mockRejectedValue(new Error('DB error')),
+        })),
+      });
+
+      const quote = await provider.getQuote('GOOG');
+
+      expect(quote.symbol).toBe('GOOG');
+      expect(quote.price).toBeGreaterThan(0);
+    });
+
+    it('only queries the database once', async () => {
+      stockModel.find.mockReturnValue(createLeanQuery([]));
+
+      await provider.getQuote('AAPL');
+      await provider.getQuote('MSFT');
+
+      expect(stockModel.find).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -84,7 +140,10 @@ describe('MockMarketDataProvider', () => {
           return undefined;
         }),
       } as unknown as ConfigService;
-      provider = new MockMarketDataProvider(configService);
+      provider = new MockMarketDataProvider(
+        configService,
+        stockModel as never,
+      );
 
       const schedule = provider.getRefreshSchedule();
 

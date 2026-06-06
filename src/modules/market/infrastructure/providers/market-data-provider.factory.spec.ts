@@ -9,13 +9,18 @@ describe('ProviderFactory', () => {
   let eodhdProvider: EodhdMarketDataProvider;
   let noneProvider: NoneMarketDataProvider;
   let configService: ConfigService;
+  let stockModel: { find: jest.Mock };
 
   beforeEach(() => {
     configService = {
       get: jest.fn(),
     } as unknown as ConfigService;
+    stockModel = { find: jest.fn() };
 
-    mockProvider = new MockMarketDataProvider(configService);
+    mockProvider = new MockMarketDataProvider(
+      configService,
+      stockModel as never,
+    );
 
     eodhdProvider = { getName: () => 'EODHD' } as EodhdMarketDataProvider;
     noneProvider = new NoneMarketDataProvider();
