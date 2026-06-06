@@ -27,7 +27,6 @@ import { StrategyType } from '../common/strategies/strategy.types';
     MockCurrencyDataProvider,
     ExchangeRateCurrencyDataProvider,
     NoneCurrencyDataProvider,
-    FallbackCurrencyDataProvider,
     {
       provide: 'CURRENCY_DATA_PROVIDER',
       inject: [

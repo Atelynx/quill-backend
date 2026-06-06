@@ -46,7 +46,6 @@ import { StrategyType } from '../common/strategies/strategy.types';
     MockMarketDataProvider,
     NoneMarketDataProvider,
     EodhdMarketDataProvider,
-    FallbackMarketDataProvider,
     {
       /**
        * Factory provider that selects the active MarketDataProvider
