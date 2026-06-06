@@ -158,6 +158,11 @@ socket = io("wss://<host>/realtime", {
 | `forex:USDCLP` | Forex rate updates | `{ topic: "USDCLP", type: "forex" }` |
 | `user:{userId}` | Auto-joined on auth | (automatic) |
 
+### Infrastructure
+
+- **Provider fallback**: When `MARKET_PROVIDER=eodhd` or `CURRENCY_PROVIDER=exchangeRate`, the system now wraps the primary provider in a fallback wrapper. If a quote request fails for a specific symbol, it automatically retries with the Mock provider. This keeps the platform running even when external APIs are unreachable.
+- **Mock seeds from DB**: `MockMarketDataProvider` now reads existing stocks from the database on first use, instead of relying solely on the hardcoded `seedStocks.ts` constant. It falls back to the hardcoded data only when the DB is empty.
+
 ### Environment variables
 
 New env vars for the frontend to be aware of:
