@@ -8,6 +8,7 @@ import { CurrencyController } from './presentation/controllers/currency.controll
 import { ExchangeRateCurrencyDataProvider } from './infrastructure/providers/exchangeRate-currency-data.provider';
 import { MockCurrencyDataProvider } from './infrastructure/providers/mock-currency-data.provider';
 import { NoneCurrencyDataProvider } from './infrastructure/providers/none-currency-data.provider';
+import { FallbackCurrencyDataProvider } from './infrastructure/providers/fallback-currency-data.provider';
 import { CurrencyProviderFactory } from './infrastructure/providers/currency-provider.factory';
 import { GBMMarketSimulationStrategy } from '../common/strategies/gbm-market-simulation.strategy';
 import { FlatMarketSimulationStrategy } from '../common/strategies/flat-market-simulation.strategy';
@@ -26,6 +27,7 @@ import { StrategyType } from '../common/strategies/strategy.types';
     MockCurrencyDataProvider,
     ExchangeRateCurrencyDataProvider,
     NoneCurrencyDataProvider,
+    FallbackCurrencyDataProvider,
     {
       provide: 'CURRENCY_DATA_PROVIDER',
       inject: [
@@ -41,6 +43,14 @@ import { StrategyType } from '../common/strategies/strategy.types';
         configService: ConfigService,
       ) => {
         const providerName = configService.get<string>('CURRENCY_PROVIDER');
+
+        if (providerName === 'exchangeRate') {
+          return new FallbackCurrencyDataProvider(
+            exchangeRateProvider,
+            mockProvider,
+          );
+        }
+
         return CurrencyProviderFactory.createProvider(
           providerName,
           mockProvider,
