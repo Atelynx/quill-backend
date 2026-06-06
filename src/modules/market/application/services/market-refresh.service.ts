@@ -4,7 +4,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { PRICE_UPDATE_EVENT } from '../../domain/constants/events';
 import type { MarketDataProvider } from '../../infrastructure/providers/market-data-provider.interface';
-import { Stock, StockDocument } from '../../infrastructure/schemas/stock.schema';
+import {
+  Stock,
+  StockDocument,
+} from '../../infrastructure/schemas/stock.schema';
 import { MarketUpdateWriterService } from './market-update-writer.service';
 
 /**
@@ -19,7 +22,8 @@ export class MarketRefreshService {
 
   constructor(
     @InjectModel(Stock.name) private readonly stockModel: Model<StockDocument>,
-    @Inject('MARKET_DATA_PROVIDER') private readonly provider: MarketDataProvider,
+    @Inject('MARKET_DATA_PROVIDER')
+    private readonly provider: MarketDataProvider,
     private readonly updateWriter: MarketUpdateWriterService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
@@ -42,7 +46,9 @@ export class MarketRefreshService {
       const providerName = this.provider.getName().toLowerCase();
 
       if (!stocks.length) {
-        this.logger.warn('No stocks in database. Verify MARKET_PROVIDER is configured.');
+        this.logger.warn(
+          'No stocks in database. Verify MARKET_PROVIDER is configured.',
+        );
         return [];
       }
 
@@ -55,19 +61,25 @@ export class MarketRefreshService {
       const quotes = await this.fetchQuotes(this.provider, symbols, stocks);
 
       // Build updates for persistence
-      const updates = quotes.map((quote) => {
-        const matchingStock = stocks.find((s) => s.symbol === quote.symbol);
-        return matchingStock
-          ? { stock: matchingStock, quote, save: true }
-          : null;
-      }).filter((u): u is NonNullable<typeof u> => u !== null);
+      const updates = quotes
+        .map((quote) => {
+          const matchingStock = stocks.find((s) => s.symbol === quote.symbol);
+          return matchingStock
+            ? { stock: matchingStock, quote, save: true }
+            : null;
+        })
+        .filter((u): u is NonNullable<typeof u> => u !== null);
 
       this.logger.log(
         `Refresh completed: ${updates.length}/${stocks.length} valid updates to persist`,
       );
 
       await this.updateWriter.persist(updates, providerName);
-      const refreshedQuotes = await this.stockModel.find().sort({ symbol: 1 }).lean().exec();
+      const refreshedQuotes = await this.stockModel
+        .find()
+        .sort({ symbol: 1 })
+        .lean()
+        .exec();
       this.eventEmitter.emit(PRICE_UPDATE_EVENT, refreshedQuotes);
       this.logger.log(`${refreshedQuotes.length} quotes emitted via event bus`);
       return refreshedQuotes;
@@ -90,7 +102,19 @@ export class MarketRefreshService {
     }
 
     // Fallback for providers that only implement getQuote()
-    const results: Array<{ symbol: string; price: number; close?: number; currency: string; timestamp: Date; exchange: string; source?: string; name?: string; previousClose?: number; dayChangePercentage?: number; volume?: number }> = [];
+    const results: Array<{
+      symbol: string;
+      price: number;
+      close?: number;
+      currency: string;
+      timestamp: Date;
+      exchange: string;
+      source?: string;
+      name?: string;
+      previousClose?: number;
+      dayChangePercentage?: number;
+      volume?: number;
+    }> = [];
     for (const symbol of symbols) {
       try {
         const quote = await provider.getQuote(symbol);

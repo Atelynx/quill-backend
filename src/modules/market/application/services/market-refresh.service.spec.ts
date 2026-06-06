@@ -36,7 +36,7 @@ describe('MarketRefreshService', () => {
   });
   beforeAll(() => {
     Logger.overrideLogger(false);
-  })
+  });
 
   it('calls provider.getQuotes() and persists results', async () => {
     mockStocks();
@@ -47,7 +47,12 @@ describe('MarketRefreshService', () => {
 
     expect(provider.getQuotes).toHaveBeenCalledWith(['COPEC.SN']);
     expect(updateWriter.persist).toHaveBeenCalledWith(
-      [expect.objectContaining({ quote: expect.objectContaining({ price: 120 }), save: true })],
+      [
+        expect.objectContaining({
+          quote: expect.objectContaining({ price: 120 }),
+          save: true,
+        }),
+      ],
       'mock',
     );
   });
@@ -64,7 +69,9 @@ describe('MarketRefreshService', () => {
   });
 
   it('returns empty array if no stocks in database', async () => {
-    stockModel.find.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue([]) });
+    stockModel.find.mockReturnValueOnce({
+      exec: jest.fn().mockResolvedValue([]),
+    });
 
     const result = await service.refreshMarket();
 
@@ -77,7 +84,10 @@ describe('MarketRefreshService', () => {
     mockStocks();
     // Make the provider call slow enough that the second call overlaps
     provider.getQuotes.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve([quote(120, 'mock')]), 100)),
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve([quote(120, 'mock')]), 100),
+        ),
     );
 
     const warnSpy = jest.spyOn((service as any).logger, 'warn');
@@ -88,7 +98,9 @@ describe('MarketRefreshService', () => {
     const result2 = await service.refreshMarket();
 
     expect(result2).toEqual([]);
-    expect(warnSpy).toHaveBeenCalledWith('Refresh already in progress, skipping.');
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Refresh already in progress, skipping.',
+    );
 
     // Await the first call to clean up
     await promise1;
@@ -100,7 +112,10 @@ describe('MarketRefreshService', () => {
 
     await service.refreshMarket();
 
-    expect(eventEmitter.emit).toHaveBeenCalledWith(PRICE_UPDATE_EVENT, expect.any(Array));
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      PRICE_UPDATE_EVENT,
+      expect.any(Array),
+    );
   });
 
   describe('fallback per-symbol fetch (getQuote fallback path)', () => {

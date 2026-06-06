@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Inject } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
@@ -35,8 +40,9 @@ export class MarketRefreshScheduler implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const job = new CronJob(schedule.cronExpression, () =>
-      void this.runRefresh(),
+    const job = new CronJob(
+      schedule.cronExpression,
+      () => void this.runRefresh(),
     );
 
     this.schedulerRegistry.addCronJob(this.jobName, job);

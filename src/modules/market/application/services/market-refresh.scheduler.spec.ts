@@ -20,12 +20,13 @@ describe('MarketRefreshScheduler', () => {
   };
 
   beforeEach(() => {
-
     provider = {
       getName: jest.fn().mockReturnValue('TestProvider'),
       getRefreshSchedule: jest.fn(),
     };
-    marketRefreshService = { refreshMarket: jest.fn().mockResolvedValue(undefined) };
+    marketRefreshService = {
+      refreshMarket: jest.fn().mockResolvedValue(undefined),
+    };
     schedulerRegistry = {
       addCronJob: jest.fn(),
       deleteCronJob: jest.fn(),
@@ -38,16 +39,18 @@ describe('MarketRefreshScheduler', () => {
       schedulerRegistry as unknown as SchedulerRegistry,
     );
   });
-  beforeAll(()=>{
+  beforeAll(() => {
     Logger.overrideLogger(false);
-  })
+  });
   afterEach(() => {
     scheduler.onModuleDestroy();
-  })
+  });
 
   describe('onModuleInit', () => {
     it('registers cron job when provider declares a schedule', () => {
-      provider.getRefreshSchedule.mockReturnValue({ cronExpression: '0 0 * * *' });
+      provider.getRefreshSchedule.mockReturnValue({
+        cronExpression: '0 0 * * *',
+      });
 
       scheduler.onModuleInit();
 
@@ -70,7 +73,9 @@ describe('MarketRefreshScheduler', () => {
     it('deletes the cron job if it exists', () => {
       schedulerRegistry.doesExist.mockReturnValue(true);
       scheduler.onModuleDestroy();
-      expect(schedulerRegistry.deleteCronJob).toHaveBeenCalledWith('market-refresh');
+      expect(schedulerRegistry.deleteCronJob).toHaveBeenCalledWith(
+        'market-refresh',
+      );
     });
 
     it('does nothing if cron job does not exist', () => {
@@ -87,7 +92,9 @@ describe('MarketRefreshScheduler', () => {
     });
 
     it('logs error when refreshMarket throws', async () => {
-      marketRefreshService.refreshMarket.mockRejectedValue(new Error('network error'));
+      marketRefreshService.refreshMarket.mockRejectedValue(
+        new Error('network error'),
+      );
       const errorSpy = jest.spyOn((scheduler as any).logger, 'error');
 
       await (scheduler as any).runRefresh();

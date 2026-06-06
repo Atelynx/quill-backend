@@ -98,12 +98,14 @@ export class OrdersService {
       }
 
       const grossAmount = new Decimal(normalizedQuantity).times(limitPriceCLP);
-      const estimatedCommission = this.commissionService.calculate(grossAmount.toNumber());
-      
+      const estimatedCommission = this.commissionService.calculate(
+        grossAmount.toNumber(),
+      );
+
       const totalReserved = grossAmount
         .plus(estimatedCommission)
         .toDecimalPlaces(2);
-      
+
       reservedAmount = totalReserved.toNumber();
 
       if (new Decimal(user.availableBalance).lessThan(reservedAmount)) {
@@ -116,12 +118,12 @@ export class OrdersService {
         .minus(reservedAmount)
         .toDecimalPlaces(2)
         .toNumber();
-        
+
       user.reservedBalance = new Decimal(user.reservedBalance)
         .plus(reservedAmount)
         .toDecimalPlaces(2)
         .toNumber();
-        
+
       await user.save();
     }
 

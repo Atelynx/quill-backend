@@ -51,15 +51,28 @@ import { StrategyType } from '../common/strategies/strategy.types';
     },
     {
       provide: 'CURRENCY_SIMULATION_STRATEGY',
-      inject: [ConfigService, GBMMarketSimulationStrategy, FlatMarketSimulationStrategy, NoiseWaveSimulationStrategy],
+      inject: [
+        ConfigService,
+        GBMMarketSimulationStrategy,
+        FlatMarketSimulationStrategy,
+        NoiseWaveSimulationStrategy,
+      ],
       useFactory: (
         configService: ConfigService,
         gbm: GBMMarketSimulationStrategy,
         flat: FlatMarketSimulationStrategy,
         nw: NoiseWaveSimulationStrategy,
       ) => {
-        const strategyName = configService.get<string>('CURRENCY_SIMULATION_STRATEGY', 'flat');
-        return StrategyFactory.createStrategy(strategyName as StrategyType, gbm, flat, nw);
+        const strategyName = configService.get<string>(
+          'CURRENCY_SIMULATION_STRATEGY',
+          'flat',
+        );
+        return StrategyFactory.createStrategy(
+          strategyName as StrategyType,
+          gbm,
+          flat,
+          nw,
+        );
       },
     },
   ],

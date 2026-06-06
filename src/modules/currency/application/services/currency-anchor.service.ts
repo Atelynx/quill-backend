@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { CacheService } from '../../../system/application/services/cache/cache.service';
@@ -23,21 +29,28 @@ export class CurrencyAnchorService implements OnModuleInit, OnModuleDestroy {
     const symbols = this.provider.getSymbols();
 
     if (!symbols.length) {
-      this.logger.warn(`Provider "${this.provider.getName()}" has no symbols. Skipping anchor init.`);
+      this.logger.warn(
+        `Provider "${this.provider.getName()}" has no symbols. Skipping anchor init.`,
+      );
       return;
     }
 
-    this.logger.log(`Seeding initial anchor prices for [${symbols.join(', ')}]`);
+    this.logger.log(
+      `Seeding initial anchor prices for [${symbols.join(', ')}]`,
+    );
     await this.fetchAndStoreAnchors(symbols);
 
     const schedule = this.provider.getRefreshSchedule?.();
     if (!schedule) {
-      this.logger.log(`Provider "${this.provider.getName()}" does not declare a refresh schedule. No anchor cron registered.`);
+      this.logger.log(
+        `Provider "${this.provider.getName()}" does not declare a refresh schedule. No anchor cron registered.`,
+      );
       return;
     }
 
-    const job = new CronJob(schedule.cronExpression, () =>
-      void this.handleAnchorCron(),
+    const job = new CronJob(
+      schedule.cronExpression,
+      () => void this.handleAnchorCron(),
     );
 
     this.schedulerRegistry.addCronJob(this.jobName, job);
@@ -68,14 +81,18 @@ export class CurrencyAnchorService implements OnModuleInit, OnModuleDestroy {
 
         await this.cacheService.set(BASE_PRICE_KEY(symbol), anchorPrice);
 
-        const existingLive = await this.cacheService.get<number>(LIVE_PRICE_KEY(symbol));
+        const existingLive = await this.cacheService.get<number>(
+          LIVE_PRICE_KEY(symbol),
+        );
         if (existingLive == null) {
           await this.cacheService.set(LIVE_PRICE_KEY(symbol), anchorPrice);
         }
 
         this.logger.debug(`Anchor updated for ${symbol}: ${anchorPrice}`);
       } catch (error) {
-        this.logger.error(`Failed to fetch anchor for ${symbol}: ${describeError(error)}`);
+        this.logger.error(
+          `Failed to fetch anchor for ${symbol}: ${describeError(error)}`,
+        );
       }
     }
   }

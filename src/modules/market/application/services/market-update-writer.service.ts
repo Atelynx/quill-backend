@@ -7,7 +7,10 @@ import {
   PriceSnapshot,
   PriceSnapshotDocument,
 } from '../../infrastructure/schemas/price-snapshot.schema';
-import { Stock, StockDocument } from '../../infrastructure/schemas/stock.schema';
+import {
+  Stock,
+  StockDocument,
+} from '../../infrastructure/schemas/stock.schema';
 import { CacheService } from '../../../system/application/services/cache/cache.service';
 import type { MarketRefreshUpdate } from './market-refresh.types';
 
@@ -23,7 +26,8 @@ export class MarketUpdateWriterService {
 
   async persist(updates: MarketRefreshUpdate[], providerName: string) {
     const stockOperations: AnyBulkWriteOperation[] = [];
-    const snapshots: Array<{ symbol: string; price: number; source: string }> = [];
+    const snapshots: Array<{ symbol: string; price: number; source: string }> =
+      [];
 
     for (const update of updates) {
       stockOperations.push(this.buildStockOperation(update, providerName));
@@ -52,7 +56,8 @@ export class MarketUpdateWriterService {
     update: MarketRefreshUpdate,
     providerName: string,
   ) {
-    const previousClose = update.quote.previousClose ?? update.stock.previousClose;
+    const previousClose =
+      update.quote.previousClose ?? update.stock.previousClose;
     const dayChangePercentage =
       update.quote.dayChangePercentage ??
       this.percent(update.quote.price, previousClose);
@@ -112,6 +117,8 @@ export class MarketUpdateWriterService {
   }
 
   private cacheTtlMs(): number {
-    return this.configService.get<number>('EODHD_CACHE_TTL_SECONDS', 86400) * 1000;
+    return (
+      this.configService.get<number>('EODHD_CACHE_TTL_SECONDS', 86400) * 1000
+    );
   }
 }

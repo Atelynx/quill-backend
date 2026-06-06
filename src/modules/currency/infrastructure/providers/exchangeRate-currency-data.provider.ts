@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { MarketQuote } from '../../../market/domain/interfaces/market-quote.interface';
-import { CurrencyDataProvider, ProviderRefreshSchedule } from '../../domain/interfaces/currency-data-provider.interface';
+import {
+  CurrencyDataProvider,
+  ProviderRefreshSchedule,
+} from '../../domain/interfaces/currency-data-provider.interface';
 
 @Injectable()
 export class ExchangeRateCurrencyDataProvider implements CurrencyDataProvider {
@@ -49,7 +52,10 @@ export class ExchangeRateCurrencyDataProvider implements CurrencyDataProvider {
     }
   }
 
-  private async fetchFromExternalApi(symbol: string, apiKey: string): Promise<MarketQuote> {
+  private async fetchFromExternalApi(
+    symbol: string,
+    apiKey: string,
+  ): Promise<MarketQuote> {
     const baseCurrency = symbol.slice(0, 3);
     const quoteCurrency = symbol.slice(3);
     const baseUrl = this.configService.get<string>(
@@ -67,7 +73,7 @@ export class ExchangeRateCurrencyDataProvider implements CurrencyDataProvider {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result: string;
       conversion_rates: Record<string, number>;
       time_last_update_unix: number;
@@ -96,8 +102,14 @@ export class ExchangeRateCurrencyDataProvider implements CurrencyDataProvider {
   }
 
   private readSymbols(): string[] {
-    const raw = this.configService.get<string>('EXCHANGERATE_SYMBOLS', 'USDCLP');
-    return raw.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+    const raw = this.configService.get<string>(
+      'EXCHANGERATE_SYMBOLS',
+      'USDCLP',
+    );
+    return raw
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
   }
 }
 

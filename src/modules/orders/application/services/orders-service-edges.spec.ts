@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { OrdersService } from './orders.service';
 
@@ -30,7 +27,12 @@ describe('OrdersService edge cases', () => {
 
   it('rechaza ordenes sin usuario, sin accion o sin cantidad entera positiva', async () => {
     const userId = new Types.ObjectId().toString();
-    const dto = { symbol: 'AAPL', side: 'BUY' as const, quantity: 1, limitPrice: 10 };
+    const dto = {
+      symbol: 'AAPL',
+      side: 'BUY' as const,
+      quantity: 1,
+      limitPrice: 10,
+    };
     userModel.findById.mockReturnValueOnce(query(null));
     stockModel.findOne.mockReturnValueOnce(query({ symbol: 'AAPL' }));
 

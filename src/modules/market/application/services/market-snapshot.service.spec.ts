@@ -17,9 +17,24 @@ describe('MarketSnapshotService', () => {
   describe('getLatestMap', () => {
     it('returns map of latest snapshot per symbol', async () => {
       const snapshots = [
-        { symbol: 'AAPL', price: 150, source: 'eodhd', createdAt: new Date('2026-01-02') },
-        { symbol: 'AAPL', price: 149, source: 'eodhd', createdAt: new Date('2026-01-01') },
-        { symbol: 'GOOGL', price: 2800, source: 'eodhd', createdAt: new Date('2026-01-02') },
+        {
+          symbol: 'AAPL',
+          price: 150,
+          source: 'eodhd',
+          createdAt: new Date('2026-01-02'),
+        },
+        {
+          symbol: 'AAPL',
+          price: 149,
+          source: 'eodhd',
+          createdAt: new Date('2026-01-01'),
+        },
+        {
+          symbol: 'GOOGL',
+          price: 2800,
+          source: 'eodhd',
+          createdAt: new Date('2026-01-02'),
+        },
       ];
       snapshotModel.find.mockReturnValue({
         sort: jest.fn().mockReturnValue({
@@ -108,7 +123,12 @@ describe('MarketSnapshotService', () => {
     });
 
     it('computes dayChangePercentage from previous close', () => {
-      const stock = { symbol: 'X', name: 'X', currency: 'USD', previousClose: 200 } as never;
+      const stock = {
+        symbol: 'X',
+        name: 'X',
+        currency: 'USD',
+        previousClose: 200,
+      } as never;
       const snapshot = {
         price: 210,
         source: 'test',
@@ -121,7 +141,12 @@ describe('MarketSnapshotService', () => {
     });
 
     it('handles negative day change', () => {
-      const stock = { symbol: 'X', name: 'X', currency: 'USD', previousClose: 100 } as never;
+      const stock = {
+        symbol: 'X',
+        name: 'X',
+        currency: 'USD',
+        previousClose: 100,
+      } as never;
       const snapshot = {
         price: 80,
         source: 'test',
@@ -134,7 +159,12 @@ describe('MarketSnapshotService', () => {
     });
 
     it('uses snapshot as fallback source', () => {
-      const stock = { symbol: 'X', name: 'X', currency: 'USD', previousClose: 100 } as never;
+      const stock = {
+        symbol: 'X',
+        name: 'X',
+        currency: 'USD',
+        previousClose: 100,
+      } as never;
       const snapshot = {
         price: 100,
         createdAt: new Date(),

@@ -6,7 +6,10 @@ import {
   PriceSnapshot,
   PriceSnapshotDocument,
 } from '../../infrastructure/schemas/price-snapshot.schema';
-import { Stock, StockDocument } from '../../infrastructure/schemas/stock.schema';
+import {
+  Stock,
+  StockDocument,
+} from '../../infrastructure/schemas/stock.schema';
 import { MarketRefreshService } from './market-refresh.service';
 import { MarketSeedService } from './market-seed.service';
 

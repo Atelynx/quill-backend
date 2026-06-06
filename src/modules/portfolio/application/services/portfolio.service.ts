@@ -91,7 +91,8 @@ export class PortfolioService {
       }
 
       investedValueCLP = investedValueCLP.plus(marketValueCLP);
-      unrealizedProfitLossTotalCLP = unrealizedProfitLossTotalCLP.plus(unrealizedPnlCLP);
+      unrealizedProfitLossTotalCLP =
+        unrealizedProfitLossTotalCLP.plus(unrealizedPnlCLP);
 
       enrichedPositions.push({
         symbol: position.symbol,
@@ -112,7 +113,9 @@ export class PortfolioService {
         .plus(investedValueCLP)
         .toDecimalPlaces(2)
         .toNumber(),
-      unrealizedProfitLoss: unrealizedProfitLossTotalCLP.toDecimalPlaces(2).toNumber(),
+      unrealizedProfitLoss: unrealizedProfitLossTotalCLP
+        .toDecimalPlaces(2)
+        .toNumber(),
       positions: enrichedPositions,
     };
   }

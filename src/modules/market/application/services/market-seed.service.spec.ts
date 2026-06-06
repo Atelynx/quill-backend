@@ -32,8 +32,7 @@ describe('MarketSeedService', () => {
   });
   beforeAll(() => {
     Logger.overrideLogger(false);
-  })
-
+  });
 
   describe('seedInitialStocks', () => {
     it('returns early when no seed data resolved', async () => {
@@ -97,7 +96,7 @@ describe('MarketSeedService', () => {
       await service.seedInitialStocks();
 
       expect(snapshotModel.insertMany).toHaveBeenCalled();
-      const snapshots = (snapshotModel.insertMany as jest.Mock).mock.calls[0][0];
+      const snapshots = snapshotModel.insertMany.mock.calls[0][0];
       expect(snapshots).toHaveLength(24);
       expect(snapshots[0]).toMatchObject({
         symbol: 'AAPL',

@@ -9,7 +9,10 @@ import {
   PriceSnapshot,
   PriceSnapshotDocument,
 } from '../../infrastructure/schemas/price-snapshot.schema';
-import { Stock, StockDocument } from '../../infrastructure/schemas/stock.schema';
+import {
+  Stock,
+  StockDocument,
+} from '../../infrastructure/schemas/stock.schema';
 
 /**
  * Seeds initial stock records on application startup.
@@ -63,7 +66,9 @@ export class MarketSeedService {
       await this.snapshotModel.insertMany(this.buildMockSnapshots(stocks, now));
       this.logger.log('Initial market seeded with example data.');
     } else {
-      this.logger.log('Placeholder records created. Initial capture will run on next refresh.');
+      this.logger.log(
+        'Placeholder records created. Initial capture will run on next refresh.',
+      );
     }
   }
 
@@ -93,15 +98,17 @@ export class MarketSeedService {
   /**
    * Prepares stock documents for insertion, normalizing defaults.
    */
-  private prepareSeedDocuments(seedData: Array<{
-    symbol: string;
-    name: string;
-    currency: string;
-    close: number;
-    previousClose?: number;
-    dayChangePercentage?: number;
-    source?: string;
-  }>) {
+  private prepareSeedDocuments(
+    seedData: Array<{
+      symbol: string;
+      name: string;
+      currency: string;
+      close: number;
+      previousClose?: number;
+      dayChangePercentage?: number;
+      source?: string;
+    }>,
+  ) {
     const providerName = this.provider.getName().toLowerCase();
 
     return seedData.map((stock) => ({
@@ -122,7 +129,9 @@ export class MarketSeedService {
   ) {
     return stocks.flatMap((stock) =>
       Array.from({ length: 24 }, (_, index) => {
-        const factor = new Decimal(1).plus(new Decimal(index - 12).times(0.0015));
+        const factor = new Decimal(1).plus(
+          new Decimal(index - 12).times(0.0015),
+        );
 
         return {
           symbol: stock.symbol,

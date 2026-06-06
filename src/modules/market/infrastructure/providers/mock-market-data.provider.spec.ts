@@ -6,9 +6,9 @@ describe('MockMarketDataProvider', () => {
   let configService: ConfigService;
 
   beforeEach(() => {
-    configService = ({
+    configService = {
       get: jest.fn((_key: string, fallback?: unknown) => fallback),
-    } as unknown) as ConfigService;
+    } as unknown as ConfigService;
   });
 
   beforeEach(() => {
@@ -78,12 +78,12 @@ describe('MockMarketDataProvider', () => {
     });
 
     it('uses config value when provided', () => {
-      configService = ({
+      configService = {
         get: jest.fn((key: string) => {
           if (key === 'MOCK_DAILY_REFRESH_CRON') return '0 0 * * *';
           return undefined;
         }),
-      } as unknown) as ConfigService;
+      } as unknown as ConfigService;
       provider = new MockMarketDataProvider(configService);
 
       const schedule = provider.getRefreshSchedule();

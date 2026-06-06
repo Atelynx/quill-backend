@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { MarketTickService } from './market-tick.service';
@@ -15,16 +20,26 @@ export class MarketTickScheduler implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
-    const intervalSeconds = this.configService.get<number>('MARKET_TICK_INTERVAL_SECONDS', 0);
+    const intervalSeconds = this.configService.get<number>(
+      'MARKET_TICK_INTERVAL_SECONDS',
+      0,
+    );
 
     if (intervalSeconds <= 0) {
-      this.logger.log('Market tick simulation is disabled (MARKET_TICK_INTERVAL_SECONDS <= 0).');
+      this.logger.log(
+        'Market tick simulation is disabled (MARKET_TICK_INTERVAL_SECONDS <= 0).',
+      );
       return;
     }
 
-    const interval = setInterval(() => void this.runTick(), intervalSeconds * 1000);
+    const interval = setInterval(
+      () => void this.runTick(),
+      intervalSeconds * 1000,
+    );
     this.schedulerRegistry.addInterval(this.jobName, interval);
-    this.logger.log(`Market tick simulation scheduled every ${intervalSeconds} seconds.`);
+    this.logger.log(
+      `Market tick simulation scheduled every ${intervalSeconds} seconds.`,
+    );
   }
 
   onModuleDestroy(): void {

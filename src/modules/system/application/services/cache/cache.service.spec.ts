@@ -31,7 +31,7 @@ describe('CacheService', () => {
   });
   beforeAll(() => {
     Logger.overrideLogger(false);
-  })
+  });
 
   describe('initialization', () => {
     it('skips Redis when REDIS_URL is not set', async () => {
@@ -45,14 +45,19 @@ describe('CacheService', () => {
       config = { get: jest.fn().mockReturnValue('redis://localhost:6379') };
       service = new CacheService(config as ConfigService);
       await service.onModuleInit();
-      expect(Redis).toHaveBeenCalledWith('redis://localhost:6379', expect.any(Object));
+      expect(Redis).toHaveBeenCalledWith(
+        'redis://localhost:6379',
+        expect.any(Object),
+      );
       expect(mockRedisInstance.connect).toHaveBeenCalled();
       expect(mockRedisInstance.ping).toHaveBeenCalled();
       expect(service.isConnected()).toBe(true);
     });
 
     it('falls back to in-memory store when Redis fails to connect', async () => {
-      mockRedisInstance.connect.mockRejectedValueOnce(new Error('connect fail'));
+      mockRedisInstance.connect.mockRejectedValueOnce(
+        new Error('connect fail'),
+      );
 
       config = { get: jest.fn().mockReturnValue('redis://localhost:6379') };
       service = new CacheService(config as ConfigService);
@@ -261,15 +266,17 @@ describe('CacheService', () => {
   describe('Redis error fallback during operations', () => {
     it('activates fallback when redis emits error event', async () => {
       let errorHandler: (err: Error) => void;
-      mockRedisInstance.on.mockImplementation((_event: string, handler: (err: Error) => void) => {
-        errorHandler = handler;
-      });
+      mockRedisInstance.on.mockImplementation(
+        (_event: string, handler: (err: Error) => void) => {
+          errorHandler = handler;
+        },
+      );
 
       config = { get: jest.fn().mockReturnValue('redis://localhost:6379') };
       service = new CacheService(config as ConfigService);
       await service.onModuleInit();
 
-      (errorHandler!)(new Error('ECONNREFUSED'));
+      errorHandler!(new Error('ECONNREFUSED'));
       expect(service.isConnected()).toBe(false);
     });
   });

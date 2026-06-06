@@ -1,10 +1,17 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CacheManagerStore } from 'cache-manager';
 import Redis from 'ioredis';
 
 @Injectable()
-export class CacheService implements OnModuleInit, OnModuleDestroy, CacheManagerStore {
+export class CacheService
+  implements OnModuleInit, OnModuleDestroy, CacheManagerStore
+{
   private readonly logger = new Logger(CacheService.name);
   private readonly fallbackStore = new Map<string, string>();
   private redis: Redis | null = null;
@@ -36,7 +43,9 @@ export class CacheService implements OnModuleInit, OnModuleDestroy, CacheManager
       await this.redis.ping();
       this.connected = true;
     } catch {
-      this.activateFallback('Redis no pudo inicializarse. Se usara cache en memoria.');
+      this.activateFallback(
+        'Redis no pudo inicializarse. Se usara cache en memoria.',
+      );
     }
   }
 
@@ -51,7 +60,8 @@ export class CacheService implements OnModuleInit, OnModuleDestroy, CacheManager
   }
 
   async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-    const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+    const stringValue =
+      typeof value === 'string' ? value : JSON.stringify(value);
 
     if (this.connected && this.redis) {
       if (ttl) {
@@ -104,7 +114,9 @@ export class CacheService implements OnModuleInit, OnModuleDestroy, CacheManager
     this.fallbackStore.clear();
   }
 
-  async clear(): Promise<void> { return this.reset(); }
+  async clear(): Promise<void> {
+    return this.reset();
+  }
 
   async ttl(key: string): Promise<number> {
     return this.connected && this.redis ? this.redis.pttl(key) : -1;

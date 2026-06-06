@@ -61,7 +61,12 @@ describe('MarketTickService', () => {
         lean: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue([
             { ...mockStock, symbol: 'AAPL' },
-            { ...mockStock, symbol: 'GOOGL', baseVolatility: 0.02, baseDrift: 0.001 },
+            {
+              ...mockStock,
+              symbol: 'GOOGL',
+              baseVolatility: 0.02,
+              baseDrift: 0.001,
+            },
           ]),
         }),
       });
@@ -87,7 +92,9 @@ describe('MarketTickService', () => {
     it('skips stocks with missing cache data', async () => {
       stockModel.find.mockReturnValue({
         lean: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue([mockStock, { ...mockStock, symbol: 'GOOGL' }]),
+          exec: jest
+            .fn()
+            .mockResolvedValue([mockStock, { ...mockStock, symbol: 'GOOGL' }]),
         }),
       });
       cacheService.get
@@ -105,24 +112,24 @@ describe('MarketTickService', () => {
     it('uses default volatility and drift when stock values are missing', async () => {
       stockModel.find.mockReturnValue({
         lean: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue([{
-            symbol: 'TEST',
-            name: 'Test',
-            currency: 'USD',
-            previousClose: 100,
-            close: 100,
-          }]),
+          exec: jest.fn().mockResolvedValue([
+            {
+              symbol: 'TEST',
+              name: 'Test',
+              currency: 'USD',
+              previousClose: 100,
+              close: 100,
+            },
+          ]),
         }),
       });
-      cacheService.get
-        .mockResolvedValueOnce(100)
-        .mockResolvedValueOnce(102);
+      cacheService.get.mockResolvedValueOnce(100).mockResolvedValueOnce(102);
       strategy.calculateNextTick.mockReturnValue(new Decimal(104));
 
       await service.processTick();
 
-      const volatilityArg = (strategy.calculateNextTick as jest.Mock).mock.calls[0][2];
-      const driftArg = (strategy.calculateNextTick as jest.Mock).mock.calls[0][3];
+      const volatilityArg = strategy.calculateNextTick.mock.calls[0][2];
+      const driftArg = strategy.calculateNextTick.mock.calls[0][3];
       expect(volatilityArg.toNumber()).toBe(0.015);
       expect(driftArg.toNumber()).toBe(0);
     });
@@ -145,9 +152,7 @@ describe('MarketTickService', () => {
           exec: jest.fn().mockResolvedValue([mockStock]),
         }),
       });
-      cacheService.get
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null);
+      cacheService.get.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
 
       await service.processTick();
 

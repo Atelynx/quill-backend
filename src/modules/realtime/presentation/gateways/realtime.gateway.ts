@@ -17,7 +17,9 @@ import { Server, Socket } from 'socket.io';
   namespace: '/realtime',
   cors: { origin: '*' },
 })
-export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class RealtimeGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   private readonly logger = new Logger(RealtimeGateway.name);
 
   @WebSocketServer()
@@ -45,7 +47,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   @SubscribeMessage('subscribe')
-  handleSubscribe(client: Socket, data: { topic: string; type?: 'stock' | 'forex' }): void {
+  handleSubscribe(
+    client: Socket,
+    data: { topic: string; type?: 'stock' | 'forex' },
+  ): void {
     const prefix = data.type === 'forex' ? 'forex' : 'stock';
     const room = `${prefix}:${data.topic}`;
     client.join(room);
@@ -53,7 +58,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   @SubscribeMessage('unsubscribe')
-  handleUnsubscribe(client: Socket, data: { topic: string; type?: 'stock' | 'forex' }): void {
+  handleUnsubscribe(
+    client: Socket,
+    data: { topic: string; type?: 'stock' | 'forex' },
+  ): void {
     const prefix = data.type === 'forex' ? 'forex' : 'stock';
     const room = `${prefix}:${data.topic}`;
     client.leave(room);
@@ -61,30 +69,38 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   @OnEvent(PRICE_UPDATE_EVENT)
-  handlePriceUpdate(quotes: Array<{ symbol: string; close: number; dayChangePercentage?: number }>): void {
+  handlePriceUpdate(
+    quotes: Array<{
+      symbol: string;
+      close: number;
+      dayChangePercentage?: number;
+    }>,
+  ): void {
     for (const quote of quotes) {
-      this.server
-        .to(`stock:${quote.symbol}`)
-        .emit('price_update', {
-          symbol: quote.symbol,
-          price: quote.close,
-          dayChangePercentage: quote.dayChangePercentage,
-          timestamp: new Date(),
-        });
+      this.server.to(`stock:${quote.symbol}`).emit('price_update', {
+        symbol: quote.symbol,
+        price: quote.close,
+        dayChangePercentage: quote.dayChangePercentage,
+        timestamp: new Date(),
+      });
     }
   }
 
   @OnEvent(CURRENCY_UPDATE_EVENT)
-  handleCurrencyUpdate(quotes: Array<{ symbol: string; close: number; dayChangePercentage?: number }>): void {
+  handleCurrencyUpdate(
+    quotes: Array<{
+      symbol: string;
+      close: number;
+      dayChangePercentage?: number;
+    }>,
+  ): void {
     for (const quote of quotes) {
-      this.server
-        .to(`forex:${quote.symbol}`)
-        .emit('price_update', {
-          symbol: quote.symbol,
-          price: quote.close,
-          dayChangePercentage: quote.dayChangePercentage,
-          timestamp: new Date(),
-        });
+      this.server.to(`forex:${quote.symbol}`).emit('price_update', {
+        symbol: quote.symbol,
+        price: quote.close,
+        dayChangePercentage: quote.dayChangePercentage,
+        timestamp: new Date(),
+      });
     }
   }
 }

@@ -1,11 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { MarketQuote } from '../../../market/domain/interfaces/market-quote.interface';
-import { CurrencyDataProvider, ProviderRefreshSchedule } from '../../domain/interfaces/currency-data-provider.interface';
+import {
+  CurrencyDataProvider,
+  ProviderRefreshSchedule,
+} from '../../domain/interfaces/currency-data-provider.interface';
 
 @Injectable()
 export class MockCurrencyDataProvider implements CurrencyDataProvider {
-  private readonly rates = new Map<string, { price: number; previousPrice: number }>();
+  private readonly rates = new Map<
+    string,
+    { price: number; previousPrice: number }
+  >();
   private readonly symbols: string[];
 
   constructor(private readonly configService: ConfigService) {
@@ -41,9 +47,15 @@ export class MockCurrencyDataProvider implements CurrencyDataProvider {
     rate.previousPrice = rate.price;
     rate.price = nextPrice;
 
-    const dayChangePercentage = rate.previousPrice > 0
-      ? Number((((nextPrice - rate.previousPrice) / rate.previousPrice) * 100).toFixed(2))
-      : 0;
+    const dayChangePercentage =
+      rate.previousPrice > 0
+        ? Number(
+            (
+              ((nextPrice - rate.previousPrice) / rate.previousPrice) *
+              100
+            ).toFixed(2),
+          )
+        : 0;
 
     return {
       symbol: upperSymbol,
@@ -58,7 +70,13 @@ export class MockCurrencyDataProvider implements CurrencyDataProvider {
   }
 
   private readSymbols(): string[] {
-    const raw = this.configService.get<string>('MOCK_CURRENCY_SYMBOLS', 'USDCLP');
-    return raw.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+    const raw = this.configService.get<string>(
+      'MOCK_CURRENCY_SYMBOLS',
+      'USDCLP',
+    );
+    return raw
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
   }
 }

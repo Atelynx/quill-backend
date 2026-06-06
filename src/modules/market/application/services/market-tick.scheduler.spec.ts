@@ -31,7 +31,6 @@ describe('MarketTickScheduler', () => {
       marketTickService as unknown as MarketTickService,
       schedulerRegistry as unknown as SchedulerRegistry,
     );
-
   });
 
   afterEach(() => {
@@ -64,7 +63,9 @@ describe('MarketTickScheduler', () => {
     it('deletes interval if it exists', () => {
       schedulerRegistry.doesExist.mockReturnValue(true);
       scheduler.onModuleDestroy();
-      expect(schedulerRegistry.deleteInterval).toHaveBeenCalledWith('market-tick');
+      expect(schedulerRegistry.deleteInterval).toHaveBeenCalledWith(
+        'market-tick',
+      );
     });
 
     it('does nothing if interval does not exist', () => {

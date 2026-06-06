@@ -11,9 +11,9 @@ describe('ProviderFactory', () => {
   let configService: ConfigService;
 
   beforeEach(() => {
-    configService = ({
+    configService = {
       get: jest.fn(),
-    } as unknown) as ConfigService;
+    } as unknown as ConfigService;
 
     mockProvider = new MockMarketDataProvider(configService);
 
@@ -59,7 +59,12 @@ describe('ProviderFactory', () => {
 
   it('should throw error for invalid provider name', () => {
     expect(() =>
-      MarketDataProviderFactory.createProvider('invalid', mockProvider, eodhdProvider, noneProvider),
+      MarketDataProviderFactory.createProvider(
+        'invalid',
+        mockProvider,
+        eodhdProvider,
+        noneProvider,
+      ),
     ).toThrow('Unknown market provider');
   });
 

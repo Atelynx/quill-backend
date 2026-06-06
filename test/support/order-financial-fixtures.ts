@@ -33,10 +33,7 @@ export function getFinancialModels(app: INestApplication): FinancialModels {
   };
 }
 
-export async function registerAndLogin(
-  app: INestApplication,
-  email: string,
-) {
+export async function registerAndLogin(app: INestApplication, email: string) {
   const server = app.getHttpServer() as Parameters<typeof request>[0];
   const credentials = {
     fullName: 'Usuario Financiero',
@@ -44,7 +41,10 @@ export async function registerAndLogin(
     password: 'Password123',
   };
 
-  await request(server).post('/api/auth/register').send(credentials).expect(201);
+  await request(server)
+    .post('/api/auth/register')
+    .send(credentials)
+    .expect(201);
   const loginResponse = await request(server)
     .post('/api/auth/login')
     .send({ email, password: credentials.password })

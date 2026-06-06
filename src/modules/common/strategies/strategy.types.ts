@@ -1,1 +1,1 @@
-export type StrategyType = "gbm" | "nw" | "flat"
+export type StrategyType = 'gbm' | 'nw' | 'flat';

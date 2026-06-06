@@ -47,7 +47,6 @@ describe('RealtimeGateway', () => {
     it('disconnects on invalid JWT', async () => {
       if (socket.handshake) {
         socket.handshake.auth = { token: 'bad-token' };
-
       }
       jwtService.verifyAsync.mockRejectedValue(new Error('invalid'));
 
@@ -73,7 +72,7 @@ describe('RealtimeGateway', () => {
     it('reads token from query if not in auth', async () => {
       if (socket.handshake) {
         socket.handshake.query = { token: 'query-token' };
-      }  
+      }
       jwtService.verifyAsync.mockResolvedValue({ sub: 'user-456' });
 
       await gateway.handleConnection(socket as Socket);

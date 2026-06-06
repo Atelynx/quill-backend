@@ -43,7 +43,6 @@ describe('EodhdMarketDataProvider', () => {
       })),
     };
 
-
     snapshotModelMock = {
       findOne: jest.fn(() => ({
         sort: jest.fn(() => ({
@@ -63,7 +62,7 @@ describe('EodhdMarketDataProvider', () => {
   });
   beforeAll(() => {
     Logger.overrideLogger(false);
-  })
+  });
 
   it('inicializa el cliente SDK correctamente', async () => {
     mockRealTime.mockResolvedValue({
@@ -124,7 +123,9 @@ describe('EodhdMarketDataProvider', () => {
   });
 
   it('maneja errores de API sin revelar secretos', async () => {
-    mockRealTime.mockRejectedValue(new Error('Request failed with status code 401'));
+    mockRealTime.mockRejectedValue(
+      new Error('Request failed with status code 401'),
+    );
 
     await expect(provider.getQuote('CMPC.SN')).rejects.toThrow(
       'EODHD no pudo obtener CMPC.SN',
@@ -153,7 +154,7 @@ describe('EodhdMarketDataProvider', () => {
   it('declares a daily refresh schedule', () => {
     const schedule = provider.getRefreshSchedule();
     expect(schedule).toBeDefined();
-    expect(schedule!.cronExpression).toBe('0 30 18 * * 1-5');
+    expect(schedule.cronExpression).toBe('0 30 18 * * 1-5');
   });
 
   it('uses config-based cron for refresh schedule', () => {
@@ -171,7 +172,7 @@ describe('EodhdMarketDataProvider', () => {
 
     const schedule = provider.getRefreshSchedule();
 
-    expect(schedule!.cronExpression).toBe('0 0 * * *');
+    expect(schedule.cronExpression).toBe('0 0 * * *');
   });
 
   it('getName returns EODHD', () => {
@@ -195,8 +196,16 @@ describe('EodhdMarketDataProvider', () => {
       const seeds = provider.getSeedData();
 
       expect(seeds).toHaveLength(2);
-      expect(seeds[0]).toMatchObject({ symbol: 'AAPL', close: 0, source: 'eodhd' });
-      expect(seeds[1]).toMatchObject({ symbol: 'MSFT', close: 0, source: 'eodhd' });
+      expect(seeds[0]).toMatchObject({
+        symbol: 'AAPL',
+        close: 0,
+        source: 'eodhd',
+      });
+      expect(seeds[1]).toMatchObject({
+        symbol: 'MSFT',
+        close: 0,
+        source: 'eodhd',
+      });
     });
 
     it('returns empty array when no symbols configured', () => {

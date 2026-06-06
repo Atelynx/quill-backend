@@ -25,22 +25,30 @@ describe('ExchangeRateCurrencyDataProvider', () => {
 
   describe('getName', () => {
     it('returns exchangeRate', () => {
-      provider = new ExchangeRateCurrencyDataProvider(configService as ConfigService);
+      provider = new ExchangeRateCurrencyDataProvider(
+        configService as ConfigService,
+      );
       expect(provider.getName()).toBe('exchangeRate');
     });
   });
 
   describe('getSymbols', () => {
     it('parses symbols from config', () => {
-      provider = new ExchangeRateCurrencyDataProvider(configService as ConfigService);
+      provider = new ExchangeRateCurrencyDataProvider(
+        configService as ConfigService,
+      );
       expect(provider.getSymbols()).toEqual(['USDCLP', 'EURUSD']);
     });
   });
 
   describe('getRefreshSchedule', () => {
     it('returns cron expression from config', () => {
-      provider = new ExchangeRateCurrencyDataProvider(configService as ConfigService);
-      expect(provider.getRefreshSchedule()).toEqual({ cronExpression: '0 0 * * * *' });
+      provider = new ExchangeRateCurrencyDataProvider(
+        configService as ConfigService,
+      );
+      expect(provider.getRefreshSchedule()).toEqual({
+        cronExpression: '0 0 * * * *',
+      });
     });
   });
 
@@ -57,7 +65,9 @@ describe('ExchangeRateCurrencyDataProvider', () => {
     });
 
     it('returns a MarketQuote for a valid symbol', async () => {
-      provider = new ExchangeRateCurrencyDataProvider(configService as ConfigService);
+      provider = new ExchangeRateCurrencyDataProvider(
+        configService as ConfigService,
+      );
 
       const quote = await provider.getQuote('USDCLP');
 
@@ -72,7 +82,9 @@ describe('ExchangeRateCurrencyDataProvider', () => {
     });
 
     it('normalizes symbol to uppercase', async () => {
-      provider = new ExchangeRateCurrencyDataProvider(configService as ConfigService);
+      provider = new ExchangeRateCurrencyDataProvider(
+        configService as ConfigService,
+      );
 
       const quote = await provider.getQuote('usdclp');
 
@@ -80,7 +92,9 @@ describe('ExchangeRateCurrencyDataProvider', () => {
     });
 
     it('trims symbol whitespace', async () => {
-      provider = new ExchangeRateCurrencyDataProvider(configService as ConfigService);
+      provider = new ExchangeRateCurrencyDataProvider(
+        configService as ConfigService,
+      );
 
       const quote = await provider.getQuote('  usdclp  ');
 
@@ -93,7 +107,9 @@ describe('ExchangeRateCurrencyDataProvider', () => {
         if (key === 'EXCHANGERATE_SYMBOLS') return 'USDCLP';
         return fallback;
       });
-      provider = new ExchangeRateCurrencyDataProvider(configService as ConfigService);
+      provider = new ExchangeRateCurrencyDataProvider(
+        configService as ConfigService,
+      );
 
       await expect(provider.getQuote('USDCLP')).rejects.toThrow(
         'EXCHANGERATE_API_KEY is not configured',
@@ -106,7 +122,9 @@ describe('ExchangeRateCurrencyDataProvider', () => {
         status: 401,
         statusText: 'Unauthorized',
       });
-      provider = new ExchangeRateCurrencyDataProvider(configService as ConfigService);
+      provider = new ExchangeRateCurrencyDataProvider(
+        configService as ConfigService,
+      );
 
       await expect(provider.getQuote('USDCLP')).rejects.toThrow(
         /External provider.*failed for USDCLP/,
@@ -118,7 +136,9 @@ describe('ExchangeRateCurrencyDataProvider', () => {
         ok: true,
         json: jest.fn().mockResolvedValue({ result: 'error' }),
       });
-      provider = new ExchangeRateCurrencyDataProvider(configService as ConfigService);
+      provider = new ExchangeRateCurrencyDataProvider(
+        configService as ConfigService,
+      );
 
       await expect(provider.getQuote('USDCLP')).rejects.toThrow(
         /External provider.*failed for USDCLP/,
@@ -134,7 +154,9 @@ describe('ExchangeRateCurrencyDataProvider', () => {
           time_last_update_unix: 1700000000,
         }),
       });
-      provider = new ExchangeRateCurrencyDataProvider(configService as ConfigService);
+      provider = new ExchangeRateCurrencyDataProvider(
+        configService as ConfigService,
+      );
 
       await expect(provider.getQuote('USDXYZ')).rejects.toThrow(
         /External provider.*failed for USDXYZ/,
@@ -143,7 +165,9 @@ describe('ExchangeRateCurrencyDataProvider', () => {
 
     it('handles network errors', async () => {
       mockFetch.mockRejectedValue(new Error('ECONNREFUSED'));
-      provider = new ExchangeRateCurrencyDataProvider(configService as ConfigService);
+      provider = new ExchangeRateCurrencyDataProvider(
+        configService as ConfigService,
+      );
 
       await expect(provider.getQuote('USDCLP')).rejects.toThrow(
         /External provider.*failed for USDCLP/,

@@ -5,25 +5,25 @@ import { NoiseWaveSimulationStrategy } from './nw-simulation.strategy';
 import { StrategyType } from './strategy.types';
 
 export class StrategyFactory {
-    static createStrategy(
-        strategyName: StrategyType | undefined,
-        gbm: GBMMarketSimulationStrategy,
-        flat: FlatMarketSimulationStrategy,
-        noiseWave: NoiseWaveSimulationStrategy,
-    ): IMarketSimulationStrategy {
-        const normalizedName = strategyName?.toLowerCase().trim();
+  static createStrategy(
+    strategyName: StrategyType | undefined,
+    gbm: GBMMarketSimulationStrategy,
+    flat: FlatMarketSimulationStrategy,
+    noiseWave: NoiseWaveSimulationStrategy,
+  ): IMarketSimulationStrategy {
+    const normalizedName = strategyName?.toLowerCase().trim();
 
-        switch (normalizedName) {
-            case 'flat':
-                return flat;
-            case 'gbm':
-                return gbm;
-            case 'nw':
-                return noiseWave
-            default:
-                throw new Error(
-                    `Unknown strategy: "${strategyName}". Valid options: "flat", "gbm", "nw"`,
-                );
-        }
+    switch (normalizedName) {
+      case 'flat':
+        return flat;
+      case 'gbm':
+        return gbm;
+      case 'nw':
+        return noiseWave;
+      default:
+        throw new Error(
+          `Unknown strategy: "${strategyName}". Valid options: "flat", "gbm", "nw"`,
+        );
     }
+  }
 }

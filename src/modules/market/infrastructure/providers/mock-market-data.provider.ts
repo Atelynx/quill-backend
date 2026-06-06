@@ -3,7 +3,11 @@ import type { StockDocument } from '../schemas/stock.schema';
 import { MarketQuote } from '../../domain/interfaces/market-quote.interface';
 import { seedStocks } from '../../domain/constants/seed-stocks';
 import { getCurrencyFromSymbol } from '../../../../common/utils/currency-mapper';
-import { MarketDataProvider, ProviderRefreshSchedule, StockSeed } from './market-data-provider.interface';
+import {
+  MarketDataProvider,
+  ProviderRefreshSchedule,
+  StockSeed,
+} from './market-data-provider.interface';
 import { ConfigService } from '@nestjs/config';
 
 /**
@@ -12,23 +16,17 @@ import { ConfigService } from '@nestjs/config';
  */
 @Injectable()
 export class MockMarketDataProvider implements MarketDataProvider {
-
   private readonly momentumBySymbol = new Map<string, number>();
   private readonly mockStocks = new Map<
     string,
     { price: number; previousClose: number; currency: string }
   >();
-  constructor(
-    private readonly configService: ConfigService
-  ) {
-
-
-  }
+  constructor(private readonly configService: ConfigService) {}
 
   /*
    * Get quote for a symbol using mock price generation.
    * Creates realistic price movements with momentum algorithm.
-  */
+   */
   async getQuote(symbol: string): Promise<MarketQuote> {
     const upperSymbol = symbol.toUpperCase();
 
@@ -85,30 +83,25 @@ export class MockMarketDataProvider implements MarketDataProvider {
       name: stock.name,
       currency: stock.currency,
       close: stock.close,
-      previousClose: Number(
-        (stock.close * basePrice).toFixed(2),
-      ),
+      previousClose: Number((stock.close * basePrice).toFixed(2)),
       dayChangePercentage: 1.5,
       source: 'mock',
     }));
   }
-  
+
   getRefreshSchedule(): ProviderRefreshSchedule | undefined {
     const cronExpression = this.configService.get<string>(
       'MOCK_DAILY_REFRESH_CRON',
       '0 30 18 * * 1-5',
     );
     return { cronExpression };
-
   }
 
   /**
    * Generate next price with momentum algorithm.
    * Internal helper kept for backward compatibility.
    */
-  generateNextPrice(
-    stock: Pick<StockDocument, 'symbol' | 'close'>,
-  ): number {
+  generateNextPrice(stock: Pick<StockDocument, 'symbol' | 'close'>): number {
     const previousMomentum = this.momentumBySymbol.get(stock.symbol) ?? 0;
     const noise = (Math.random() - 0.5) * 0.006;
     const wave = Math.sin(Date.now() / 45000 + stock.close / 120) * 0.0016;

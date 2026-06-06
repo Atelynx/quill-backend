@@ -63,11 +63,13 @@ describe('OrderExecutionService error paths', () => {
     ]);
     orderModel.find.mockReturnValue(query([order]));
     orderModel.findById.mockReturnValue(query(order));
-    userModel.findById.mockReturnValue(query({
-      id: order.userId.toString(),
-      availableBalance: 0,
-      save: jest.fn(),
-    }));
+    userModel.findById.mockReturnValue(
+      query({
+        id: order.userId.toString(),
+        availableBalance: 0,
+        save: jest.fn(),
+      }),
+    );
     positionModel.findOne.mockReturnValue(query(null));
 
     await service.executeCycle();

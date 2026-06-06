@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SchedulerRegistry } from '@nestjs/schedule';
@@ -30,16 +36,24 @@ export class CurrencyTickService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit(): void {
     const symbols = this.provider.getSymbols();
-    const intervalSeconds = this.configService.get<number>('CURRENCY_RT_TICK_INTERVAL_SECONDS', 5);
+    const intervalSeconds = this.configService.get<number>(
+      'CURRENCY_RT_TICK_INTERVAL_SECONDS',
+      5,
+    );
 
     if (intervalSeconds <= 0 || !symbols.length) {
       this.logger.log('Currency tick simulation is disabled.');
       return;
     }
 
-    const interval = setInterval(() => void this.processTick(), intervalSeconds * 1000);
+    const interval = setInterval(
+      () => void this.processTick(),
+      intervalSeconds * 1000,
+    );
     this.schedulerRegistry.addInterval(this.jobName, interval);
-    this.logger.log(`Currency tick simulation started every ${intervalSeconds}s for [${symbols.join(', ')}]`);
+    this.logger.log(
+      `Currency tick simulation started every ${intervalSeconds}s for [${symbols.join(', ')}]`,
+    );
   }
 
   onModuleDestroy(): void {
@@ -54,14 +68,26 @@ export class CurrencyTickService implements OnModuleInit, OnModuleDestroy {
 
     try {
       const symbols = this.provider.getSymbols();
-      const volatility = new Decimal(this.configService.get<number>('CURRENCY_ANCHOR_VOLATILITY', 0.005));
-      const drift = new Decimal(this.configService.get<number>('CURRENCY_ANCHOR_DRIFT', 0));
+      const volatility = new Decimal(
+        this.configService.get<number>('CURRENCY_ANCHOR_VOLATILITY', 0.005),
+      );
+      const drift = new Decimal(
+        this.configService.get<number>('CURRENCY_ANCHOR_DRIFT', 0),
+      );
 
-      const updates: Array<{ symbol: string; close: number; dayChangePercentage: number }> = [];
+      const updates: Array<{
+        symbol: string;
+        close: number;
+        dayChangePercentage: number;
+      }> = [];
 
       for (const symbol of symbols) {
-        const basePrice = await this.cacheService.get<number>(BASE_PRICE_KEY(symbol));
-        const livePrice = await this.cacheService.get<number>(LIVE_PRICE_KEY(symbol));
+        const basePrice = await this.cacheService.get<number>(
+          BASE_PRICE_KEY(symbol),
+        );
+        const livePrice = await this.cacheService.get<number>(
+          LIVE_PRICE_KEY(symbol),
+        );
 
         if (basePrice == null || livePrice == null) {
           continue;
@@ -74,7 +100,10 @@ export class CurrencyTickService implements OnModuleInit, OnModuleDestroy {
           drift,
         );
 
-        await this.cacheService.set(LIVE_PRICE_KEY(symbol), nextPrice.toNumber());
+        await this.cacheService.set(
+          LIVE_PRICE_KEY(symbol),
+          nextPrice.toNumber(),
+        );
 
         const dayChangePct = nextPrice
           .minus(basePrice)

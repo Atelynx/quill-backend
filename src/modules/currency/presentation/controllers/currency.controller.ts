@@ -14,7 +14,9 @@ export class CurrencyController {
   async getRate(@Param('symbol') symbol: string) {
     const rate = await this.currencyRateService.getRate(symbol);
     if (!rate) {
-      throw new NotFoundException(`Rate for ${symbol.toUpperCase()} not available`);
+      throw new NotFoundException(
+        `Rate for ${symbol.toUpperCase()} not available`,
+      );
     }
     return rate;
   }

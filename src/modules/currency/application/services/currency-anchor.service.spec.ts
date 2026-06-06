@@ -43,9 +43,9 @@ describe('CurrencyAnchorService', () => {
       schedulerRegistry as unknown as SchedulerRegistry,
     );
   });
-  beforeAll(()=>{
+  beforeAll(() => {
     Logger.overrideLogger(false);
-  })
+  });
 
   describe('onModuleInit', () => {
     it('warns and returns when provider has no symbols', async () => {
@@ -62,7 +62,9 @@ describe('CurrencyAnchorService', () => {
 
     it('fetches anchors and registers cron when schedule exists', async () => {
       provider.getSymbols.mockReturnValue(['EURUSD', 'GBPUSD']);
-      provider.getRefreshSchedule.mockReturnValue({ cronExpression: '0 */5 * * *' });
+      provider.getRefreshSchedule.mockReturnValue({
+        cronExpression: '0 */5 * * *',
+      });
       provider.getQuote
         .mockResolvedValueOnce({ close: 1.1 })
         .mockResolvedValueOnce({ close: 1.3 });
@@ -94,7 +96,9 @@ describe('CurrencyAnchorService', () => {
     it('deletes the cron job if it exists', () => {
       schedulerRegistry.doesExist.mockReturnValue(true);
       service.onModuleDestroy();
-      expect(schedulerRegistry.deleteCronJob).toHaveBeenCalledWith('currency-anchor');
+      expect(schedulerRegistry.deleteCronJob).toHaveBeenCalledWith(
+        'currency-anchor',
+      );
     });
 
     it('does nothing if cron job does not exist', () => {
@@ -112,8 +116,14 @@ describe('CurrencyAnchorService', () => {
 
       await (service as any).fetchAndStoreAnchors(['EURUSD']);
 
-      expect(cacheService.set).toHaveBeenCalledWith('forex:EURUSD:base_price', 1.1);
-      expect(cacheService.set).toHaveBeenCalledWith('forex:EURUSD:live_price', 1.1);
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'forex:EURUSD:base_price',
+        1.1,
+      );
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'forex:EURUSD:live_price',
+        1.1,
+      );
     });
 
     it('does not overwrite existing live price', async () => {
@@ -123,8 +133,14 @@ describe('CurrencyAnchorService', () => {
 
       await (service as any).fetchAndStoreAnchors(['EURUSD']);
 
-      expect(cacheService.set).toHaveBeenCalledWith('forex:EURUSD:base_price', 1.15);
-      expect(cacheService.set).not.toHaveBeenCalledWith('forex:EURUSD:live_price', 1.15);
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'forex:EURUSD:base_price',
+        1.15,
+      );
+      expect(cacheService.set).not.toHaveBeenCalledWith(
+        'forex:EURUSD:live_price',
+        1.15,
+      );
     });
 
     it('handles per-symbol errors without failing the batch', async () => {
@@ -144,7 +160,10 @@ describe('CurrencyAnchorService', () => {
 
       await (service as any).fetchAndStoreAnchors(['USDCLP']);
 
-      expect(cacheService.set).toHaveBeenCalledWith('forex:USDCLP:base_price', 200);
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'forex:USDCLP:base_price',
+        200,
+      );
     });
   });
 

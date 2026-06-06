@@ -56,7 +56,7 @@ export class OrderExecutionService {
     private readonly commissionService: CommissionService,
     private readonly cacheService: CacheService,
     private readonly currencyRateService: CurrencyRateService,
-  ) { }
+  ) {}
 
   @Cron(CronExpression.EVERY_10_SECONDS)
   async handleMarketTick(): Promise<void> {
@@ -85,7 +85,10 @@ export class OrderExecutionService {
     quotes: Array<{ symbol: string; close: number; currency?: string }>,
   ): Promise<void> {
     const quoteMap = new Map(
-      quotes.map((quote) => [quote.symbol, { price: quote.close, currency: quote.currency }]),
+      quotes.map((quote) => [
+        quote.symbol,
+        { price: quote.close, currency: quote.currency },
+      ]),
     );
 
     const pendingOrders = await this.orderModel
@@ -129,7 +132,8 @@ export class OrderExecutionService {
           .toDecimalPlaces(2)
           .toNumber();
 
-        const commissionNative = this.commissionService.calculate(grossAmountNative);
+        const commissionNative =
+          this.commissionService.calculate(grossAmountNative);
 
         let grossAmountCLP = grossAmountNative;
         let commissionCLP = commissionNative;
@@ -218,13 +222,18 @@ export class OrderExecutionService {
       .exec();
 
     if (existingPosition) {
-      const currentTotalCost = new Decimal(existingPosition.quantity).times(existingPosition.averageCost);
+      const currentTotalCost = new Decimal(existingPosition.quantity).times(
+        existingPosition.averageCost,
+      );
       const newTotalCost = currentTotalCost.plus(grossAmountNative);
       const newQuantity = existingPosition.quantity + order.quantity;
-      
+
       existingPosition.quantity = newQuantity;
-      existingPosition.averageCost = newTotalCost.dividedBy(newQuantity).toDecimalPlaces(2).toNumber();
-      
+      existingPosition.averageCost = newTotalCost
+        .dividedBy(newQuantity)
+        .toDecimalPlaces(2)
+        .toNumber();
+
       await existingPosition.save({ session });
     } else {
       await this.positionModel.create(
@@ -263,7 +272,7 @@ export class OrderExecutionService {
 
     position.quantity -= order.quantity;
     position.reservedQuantity -= order.quantity;
-    
+
     user.availableBalance = new Decimal(user.availableBalance)
       .plus(grossAmountCLP)
       .minus(commissionAmountCLP)
@@ -304,14 +313,17 @@ export class OrderExecutionService {
       .toDecimalPlaces(2)
       .toNumber();
 
-    const commissionNative = this.commissionService.calculate(grossAmountNative);
+    const commissionNative =
+      this.commissionService.calculate(grossAmountNative);
 
     let grossAmountCLP = grossAmountNative;
     let commissionCLP = commissionNative;
 
     const stockCurrency = stock.currency ?? 'CLP';
     if (stockCurrency !== 'CLP') {
-      const rate = await this.currencyRateService.getRate(`${stockCurrency}CLP`);
+      const rate = await this.currencyRateService.getRate(
+        `${stockCurrency}CLP`,
+      );
       if (rate) {
         const livePriceCLP = new Decimal(livePrice)
           .times(rate.rate)
@@ -365,8 +377,9 @@ export class OrderExecutionService {
             .exec();
 
           if (existingPosition) {
-            const currentTotalCost = new Decimal(existingPosition.quantity)
-              .times(existingPosition.averageCost);
+            const currentTotalCost = new Decimal(
+              existingPosition.quantity,
+            ).times(existingPosition.averageCost);
             const newTotalCost = currentTotalCost.plus(grossAmountNative);
             const newQuantity = existingPosition.quantity + quantity;
 
@@ -379,13 +392,15 @@ export class OrderExecutionService {
             await existingPosition.save({ session });
           } else {
             await this.positionModel.create(
-              [{
-                userId: new Types.ObjectId(user.id),
-                symbol,
-                quantity,
-                reservedQuantity: 0,
-                averageCost: livePrice,
-              }],
+              [
+                {
+                  userId: new Types.ObjectId(user.id),
+                  symbol,
+                  quantity,
+                  reservedQuantity: 0,
+                  averageCost: livePrice,
+                },
+              ],
               { session },
             );
           }
@@ -421,39 +436,50 @@ export class OrderExecutionService {
           }
         }
 
-        const netAmountNative = side === 'BUY'
-          ? new Decimal(grossAmountNative).plus(commissionNative).toDecimalPlaces(2).toNumber()
-          : new Decimal(grossAmountNative).minus(commissionNative).toDecimalPlaces(2).toNumber();
+        const netAmountNative =
+          side === 'BUY'
+            ? new Decimal(grossAmountNative)
+                .plus(commissionNative)
+                .toDecimalPlaces(2)
+                .toNumber()
+            : new Decimal(grossAmountNative)
+                .minus(commissionNative)
+                .toDecimalPlaces(2)
+                .toNumber();
 
         const [order] = await this.orderModel.create(
-          [{
-            userId: new Types.ObjectId(user.id),
-            symbol,
-            side,
-            quantity,
-            type: 'MARKET' as const,
-            status: 'EXECUTED' as const,
-            reservedAmount: 0,
-            executionPrice: livePrice,
-            commissionAmount: commissionNative,
-            executedAt,
-          }],
+          [
+            {
+              userId: new Types.ObjectId(user.id),
+              symbol,
+              side,
+              quantity,
+              type: 'MARKET' as const,
+              status: 'EXECUTED' as const,
+              reservedAmount: 0,
+              executionPrice: livePrice,
+              commissionAmount: commissionNative,
+              executedAt,
+            },
+          ],
           { session },
         );
 
         await this.tradeModel.create(
-          [{
-            userId: new Types.ObjectId(user.id),
-            orderId: new Types.ObjectId(order.id),
-            symbol,
-            side,
-            quantity,
-            executionPrice: livePrice,
-            grossAmount: grossAmountNative,
-            commissionAmount: commissionNative,
-            netAmount: netAmountNative,
-            executedAt,
-          }],
+          [
+            {
+              userId: new Types.ObjectId(user.id),
+              orderId: new Types.ObjectId(order.id),
+              symbol,
+              side,
+              quantity,
+              executionPrice: livePrice,
+              grossAmount: grossAmountNative,
+              commissionAmount: commissionNative,
+              netAmount: netAmountNative,
+              executedAt,
+            },
+          ],
           { session },
         );
 
@@ -464,7 +490,10 @@ export class OrderExecutionService {
 
       return executedOrder;
     } catch (error) {
-      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
         throw error;
       }
       this.logger.error(`Failed to execute market order for ${symbol}`, error);
@@ -488,9 +517,16 @@ export class OrderExecutionService {
     order.commissionAmount = commissionAmount;
     order.executedAt = executedAt;
 
-    const netAmount = order.side === 'BUY'
-      ? new Decimal(grossAmount).plus(commissionAmount).toDecimalPlaces(2).toNumber()
-      : new Decimal(grossAmount).minus(commissionAmount).toDecimalPlaces(2).toNumber();
+    const netAmount =
+      order.side === 'BUY'
+        ? new Decimal(grossAmount)
+            .plus(commissionAmount)
+            .toDecimalPlaces(2)
+            .toNumber()
+        : new Decimal(grossAmount)
+            .minus(commissionAmount)
+            .toDecimalPlaces(2)
+            .toNumber();
 
     await Promise.all([
       user.save({ session }),

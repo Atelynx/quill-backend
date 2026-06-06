@@ -108,10 +108,7 @@ describe('HttpExceptionFilter', () => {
   });
 
   it('falls back to default message when no message in response', () => {
-    filter.catch(
-      new HttpException({ statusCode: 400 }, 400),
-      mockHost,
-    );
+    filter.catch(new HttpException({ statusCode: 400 }, 400), mockHost);
 
     expect(mockResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({

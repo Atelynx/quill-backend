@@ -44,24 +44,25 @@ describe('CurrencyTickService', () => {
       schedulerRegistry as unknown as SchedulerRegistry,
     );
     // Prevent real intervals from being created during tests
-    setIntervalSpy = jest.spyOn(global, 'setInterval').mockImplementation(((fn: any, ms?: number, ...args: any[]) => {
+    setIntervalSpy = jest.spyOn(global, 'setInterval').mockImplementation(((
+      fn: any,
+      ms?: number,
+      ...args: any[]
+    ) => {
       // return a dummy timer object that won't keep node alive
-      return ({ ref: () => {}, unref: () => {} } as unknown) as NodeJS.Timeout;
+      return { ref: () => {}, unref: () => {} } as unknown as NodeJS.Timeout;
     }) as any);
   });
   beforeAll(() => {
     Logger.overrideLogger(false);
-
-  })
+  });
   afterEach(() => {
-
     jest.runOnlyPendingTimers();
     jest.clearAllTimers();
     jest.useRealTimers();
     service.onModuleDestroy?.();
     setIntervalSpy?.mockRestore?.();
-
-  })
+  });
   describe('onModuleInit', () => {
     it('registers interval when interval > 0 and symbols exist', () => {
       provider.getSymbols.mockReturnValue(['EURUSD']);
@@ -98,7 +99,9 @@ describe('CurrencyTickService', () => {
     it('deletes interval if it exists', () => {
       schedulerRegistry.doesExist.mockReturnValue(true);
       service.onModuleDestroy();
-      expect(schedulerRegistry.deleteInterval).toHaveBeenCalledWith('currency-tick');
+      expect(schedulerRegistry.deleteInterval).toHaveBeenCalledWith(
+        'currency-tick',
+      );
     });
 
     it('does nothing if interval does not exist', () => {
@@ -154,9 +157,7 @@ describe('CurrencyTickService', () => {
     });
 
     it('resets isTicking in finally block', async () => {
-      cacheService.get
-        .mockResolvedValueOnce(100)
-        .mockResolvedValueOnce(102);
+      cacheService.get.mockResolvedValueOnce(100).mockResolvedValueOnce(102);
       strategy.calculateNextTick.mockReturnValue(new Decimal(104));
 
       await (service as any).processTick();
@@ -165,9 +166,7 @@ describe('CurrencyTickService', () => {
     });
 
     it('does not emit when no updates', async () => {
-      cacheService.get
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null);
+      cacheService.get.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
 
       await (service as any).processTick();
 

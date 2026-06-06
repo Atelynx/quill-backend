@@ -13,11 +13,12 @@ import {
   PriceSnapshot,
   PriceSnapshotDocument,
 } from '../../infrastructure/schemas/price-snapshot.schema';
-import {
-  normalizeEodhdQuote,
-} from './eodhd-quote.mapper';
+import { normalizeEodhdQuote } from './eodhd-quote.mapper';
 import { getCurrencyFromSymbol } from '../../../../common/utils/currency-mapper';
-import { MarketDataProvider, StockSeed } from './market-data-provider.interface';
+import {
+  MarketDataProvider,
+  StockSeed,
+} from './market-data-provider.interface';
 
 @Injectable()
 export class EodhdMarketDataProvider implements MarketDataProvider {
@@ -41,7 +42,10 @@ export class EodhdMarketDataProvider implements MarketDataProvider {
       timeout: 20000,
     });
 
-    this.exchangeCode = this.configService.get<string>('EODHD_EXCHANGE_CODE', 'SN');
+    this.exchangeCode = this.configService.get<string>(
+      'EODHD_EXCHANGE_CODE',
+      'SN',
+    );
   }
 
   /**
@@ -159,22 +163,20 @@ export class EodhdMarketDataProvider implements MarketDataProvider {
     if (!snapshot) return null;
 
     // Reconstruct a MarketQuote from the snapshot
-    const stock = await this.stockModel
-      .findOne({ symbol })
-      .lean()
-      .exec();
+    const stock = await this.stockModel.findOne({ symbol }).lean().exec();
 
     if (!stock) return null;
 
     const previousClose = stock.previousClose ?? 0;
-    const dayChangePercentage = previousClose > 0
-      ? new Decimal(snapshot.price)
-          .minus(previousClose)
-          .dividedBy(previousClose)
-          .times(100)
-          .toDecimalPlaces(2)
-          .toNumber()
-      : 0;
+    const dayChangePercentage =
+      previousClose > 0
+        ? new Decimal(snapshot.price)
+            .minus(previousClose)
+            .dividedBy(previousClose)
+            .times(100)
+            .toDecimalPlaces(2)
+            .toNumber()
+        : 0;
 
     return {
       symbol: stock.symbol,

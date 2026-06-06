@@ -17,41 +17,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = context.getResponse<Response>();
     const request = context.getRequest<Request>();
 
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+    const isHttpException = exception instanceof HttpException;
+    const status = isHttpException
+      ? exception.getStatus()
+      : HttpStatus.INTERNAL_SERVER_ERROR;
 
     let message: string | string[] = 'Ha ocurrido un error inesperado.';
     let errorLabel: string | undefined;
 
-    if (exception instanceof HttpException) {
-      const exceptionResponse = exception.getResponse();
-
-      if (typeof exceptionResponse === 'string') {
-        message = exceptionResponse;
-      } else if (typeof exceptionResponse === 'object' && exceptionResponse) {
-        const responseMessage =
-          'message' in exceptionResponse
-            ? exceptionResponse.message
-            : undefined;
-        const responseError =
-          'error' in exceptionResponse ? exceptionResponse.error : undefined;
-
-        if (
-          typeof responseMessage === 'string' ||
-          Array.isArray(responseMessage)
-        ) {
-          message = responseMessage;
-        }
-
-        if (typeof responseError === 'string') {
-          errorLabel = responseError;
-        }
-      }
-    }
-
-    if (!(exception instanceof HttpException)) {
+    if (isHttpException) {
+      const details = this.getExceptionDetails(exception);
+      message = details.message;
+      errorLabel = details.errorLabel;
+    } else {
       this.logger.error(exception);
     }
 
@@ -62,5 +40,30 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message,
       error: errorLabel,
     });
+  }
+
+  private getExceptionDetails(exception: HttpException): {
+    message: string | string[];
+    errorLabel?: string;
+  } {
+    const response = exception.getResponse();
+
+    if (typeof response === 'string') {
+      return { message: response };
+    }
+
+    const defaultMsg = 'Ha ocurrido un error inesperado.';
+    if (typeof response === 'object' && response !== null) {
+      const msg = (response as Record<string, unknown>).message;
+      const err = (response as Record<string, unknown>).error;
+
+      const message =
+        typeof msg === 'string' || Array.isArray(msg) ? msg : defaultMsg;
+      const errorLabel = typeof err === 'string' ? err : undefined;
+
+      return { message, errorLabel };
+    }
+
+    return { message: defaultMsg };
   }
 }

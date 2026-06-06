@@ -18,14 +18,14 @@ export const seedStocks = [
     name: 'NVIDIA',
     sector: 'Semiconductores',
     currency: 'CLP',
-    close: 40000.00,
+    close: 40000.0,
   },
   {
     symbol: 'AMZN',
     name: 'Amazon',
     sector: 'Consumo',
     currency: 'USD',
-    close: 3000.00,
+    close: 3000.0,
   },
   {
     symbol: 'TSLA',

@@ -9,7 +9,10 @@ const query = <T>(value: T) => ({
 
 describe('OrderExecutionService', () => {
   let service: any, marketService: any, session: any, orderModel: any;
-  let userModel: any, positionModel: any, tradeModel: any, commissionService: any;
+  let userModel: any,
+    positionModel: any,
+    tradeModel: any,
+    commissionService: any;
 
   beforeEach(() => {
     marketService = { listQuotes: jest.fn() };
@@ -51,8 +54,14 @@ describe('OrderExecutionService', () => {
     ...overrides,
   });
 
-  async function executeWith(currentOrder: any, price: number, liveOrder = currentOrder) {
-    marketService.listQuotes.mockResolvedValue([{ symbol: currentOrder.symbol, close: price }]);
+  async function executeWith(
+    currentOrder: any,
+    price: number,
+    liveOrder = currentOrder,
+  ) {
+    marketService.listQuotes.mockResolvedValue([
+      { symbol: currentOrder.symbol, close: price },
+    ]);
     orderModel.find.mockReturnValue(query([currentOrder]));
     orderModel.findById.mockReturnValue(query(liveOrder));
     await service.executeCycle();
@@ -81,34 +90,57 @@ describe('OrderExecutionService', () => {
       commissionAmount: 1,
     });
     expect(tradeModel.create).toHaveBeenCalledWith(
-      [expect.objectContaining({ side: 'BUY', grossAmount: 200, netAmount: 201 })],
+      [
+        expect.objectContaining({
+          side: 'BUY',
+          grossAmount: 200,
+          netAmount: 201,
+        }),
+      ],
       { session },
     );
   });
 
   it('crea una posicion nueva cuando compra sin posicion previa', async () => {
     const currentOrder = order('BUY', { symbol: 'NEW.SN' });
-    userModel.findById.mockReturnValue(query({
-      id: currentOrder.userId.toString(),
-      availableBalance: 400,
-      reservedBalance: 202.5,
-      save: jest.fn(),
-    }));
+    userModel.findById.mockReturnValue(
+      query({
+        id: currentOrder.userId.toString(),
+        availableBalance: 400,
+        reservedBalance: 202.5,
+        save: jest.fn(),
+      }),
+    );
     positionModel.findOne.mockReturnValue(query(null));
     commissionService.calculate.mockReturnValue(1);
 
     await executeWith(currentOrder, 100);
 
     expect(positionModel.create).toHaveBeenCalledWith(
-      [expect.objectContaining({ symbol: 'NEW.SN', quantity: 2, averageCost: 100 })],
+      [
+        expect.objectContaining({
+          symbol: 'NEW.SN',
+          quantity: 2,
+          averageCost: 100,
+        }),
+      ],
       { session },
     );
   });
 
   it('ejecuta ventas parciales y totales liberando reservas', async () => {
     const currentOrder = order('SELL');
-    const user = { id: currentOrder.userId.toString(), availableBalance: 1000, save: jest.fn() };
-    const position = { quantity: 5, reservedQuantity: 2, save: jest.fn(), deleteOne: jest.fn() };
+    const user = {
+      id: currentOrder.userId.toString(),
+      availableBalance: 1000,
+      save: jest.fn(),
+    };
+    const position = {
+      quantity: 5,
+      reservedQuantity: 2,
+      save: jest.fn(),
+      deleteOne: jest.fn(),
+    };
     userModel.findById.mockReturnValue(query(user));
     positionModel.findOne.mockReturnValueOnce(query(position));
     commissionService.calculate.mockReturnValue(1.01);
@@ -119,12 +151,22 @@ describe('OrderExecutionService', () => {
     expect(position).toMatchObject({ quantity: 3, reservedQuantity: 0 });
     expect(position.save).toHaveBeenCalledWith({ session });
     expect(tradeModel.create).toHaveBeenCalledWith(
-      [expect.objectContaining({ side: 'SELL', grossAmount: 202.24, netAmount: 201.23 })],
+      [
+        expect.objectContaining({
+          side: 'SELL',
+          grossAmount: 202.24,
+          netAmount: 201.23,
+        }),
+      ],
       { session },
     );
 
     positionModel.findOne.mockReturnValueOnce(
-      query({ quantity: 2, reservedQuantity: 2, deleteOne: position.deleteOne }),
+      query({
+        quantity: 2,
+        reservedQuantity: 2,
+        deleteOne: position.deleteOne,
+      }),
     );
     await executeWith(order('SELL'), 100);
     expect(position.deleteOne).toHaveBeenCalledWith({ session });
@@ -132,8 +174,12 @@ describe('OrderExecutionService', () => {
 
   it('omite ordenes no ejecutables o ya procesadas', async () => {
     const buy = order('BUY', { limitPrice: 90 });
-    marketService.listQuotes.mockResolvedValue([{ symbol: buy.symbol, close: 100 }]);
-    orderModel.find.mockReturnValue(query([buy, order('SELL', { symbol: 'MISS.SN' })]));
+    marketService.listQuotes.mockResolvedValue([
+      { symbol: buy.symbol, close: 100 },
+    ]);
+    orderModel.find.mockReturnValue(
+      query([buy, order('SELL', { symbol: 'MISS.SN' })]),
+    );
     await service.executeCycle();
     expect(orderModel.findById).not.toHaveBeenCalled();
 
@@ -144,7 +190,9 @@ describe('OrderExecutionService', () => {
   });
 
   it('libera el ciclo del cron aunque falle la ejecucion', async () => {
-    marketService.listQuotes.mockRejectedValueOnce(new Error('Falla controlada.'));
+    marketService.listQuotes.mockRejectedValueOnce(
+      new Error('Falla controlada.'),
+    );
     await service.handleMarketTick();
     await service.handleMarketTick();
     expect(marketService.listQuotes).toHaveBeenCalledTimes(2);
@@ -191,8 +239,14 @@ describe('executeMarketOrder', () => {
     cacheService = { get: jest.fn() };
     currencyRateService = { getRate: jest.fn() };
 
-    const leanExec = (value: any) => ({ lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(value) }) });
-    stockModel.findOne.mockReturnValue(leanExec({ symbol: 'AAPL', currency: 'CLP' }));
+    const leanExec = (value: any) => ({
+      lean: jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(value) }),
+    });
+    stockModel.findOne.mockReturnValue(
+      leanExec({ symbol: 'AAPL', currency: 'CLP' }),
+    );
 
     service = new OrderExecutionService(
       {} as never,
@@ -251,13 +305,15 @@ describe('executeMarketOrder', () => {
     expect(user.availableBalance).toBe(499);
     expect(user.save).toHaveBeenCalled();
     expect(positionModel.create).toHaveBeenCalledWith(
-      [{
-        userId: new Types.ObjectId(userId),
-        symbol: 'NEW',
-        quantity: 5,
-        reservedQuantity: 0,
-        averageCost: 100,
-      }],
+      [
+        {
+          userId: new Types.ObjectId(userId),
+          symbol: 'NEW',
+          quantity: 5,
+          reservedQuantity: 0,
+          averageCost: 100,
+        },
+      ],
       { session },
     );
     expect(result).toBeDefined();

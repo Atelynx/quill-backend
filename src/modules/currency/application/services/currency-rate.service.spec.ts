@@ -29,8 +29,16 @@ describe('CurrencyRateService', () => {
       const rates = await service.getRates();
 
       expect(rates).toHaveLength(2);
-      expect(rates[0]).toMatchObject({ symbol: 'EURUSD', rate: 1.12, basePrice: 1.1 });
-      expect(rates[1]).toMatchObject({ symbol: 'GBPUSD', rate: 1.28, basePrice: 1.3 });
+      expect(rates[0]).toMatchObject({
+        symbol: 'EURUSD',
+        rate: 1.12,
+        basePrice: 1.1,
+      });
+      expect(rates[1]).toMatchObject({
+        symbol: 'GBPUSD',
+        rate: 1.28,
+        basePrice: 1.3,
+      });
     });
 
     it('skips symbols with missing cache data', async () => {
@@ -55,9 +63,7 @@ describe('CurrencyRateService', () => {
 
     it('computes dayChangePercentage correctly', async () => {
       provider.getSymbols.mockReturnValue(['EURUSD']);
-      cacheService.get
-        .mockResolvedValueOnce(100)
-        .mockResolvedValueOnce(105);
+      cacheService.get.mockResolvedValueOnce(100).mockResolvedValueOnce(105);
 
       const rates = await service.getRates();
 
@@ -66,9 +72,7 @@ describe('CurrencyRateService', () => {
 
     it('computes negative dayChangePercentage', async () => {
       provider.getSymbols.mockReturnValue(['EURUSD']);
-      cacheService.get
-        .mockResolvedValueOnce(100)
-        .mockResolvedValueOnce(95);
+      cacheService.get.mockResolvedValueOnce(100).mockResolvedValueOnce(95);
 
       const rates = await service.getRates();
 
@@ -78,37 +82,33 @@ describe('CurrencyRateService', () => {
 
   describe('getRate', () => {
     it('returns rate for a specific symbol with uppercase normalization', async () => {
-      cacheService.get
-        .mockResolvedValueOnce(1.1)
-        .mockResolvedValueOnce(1.12);
+      cacheService.get.mockResolvedValueOnce(1.1).mockResolvedValueOnce(1.12);
 
       const rate = await service.getRate('eurusd');
 
-      expect(rate).toMatchObject({ symbol: 'EURUSD', rate: 1.12, basePrice: 1.1 });
+      expect(rate).toMatchObject({
+        symbol: 'EURUSD',
+        rate: 1.12,
+        basePrice: 1.1,
+      });
     });
 
     it('returns null when base price is missing', async () => {
-      cacheService.get
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(1.12);
+      cacheService.get.mockResolvedValueOnce(null).mockResolvedValueOnce(1.12);
 
       const rate = await service.getRate('EURUSD');
       expect(rate).toBeNull();
     });
 
     it('returns null when live price is missing', async () => {
-      cacheService.get
-        .mockResolvedValueOnce(1.1)
-        .mockResolvedValueOnce(null);
+      cacheService.get.mockResolvedValueOnce(1.1).mockResolvedValueOnce(null);
 
       const rate = await service.getRate('EURUSD');
       expect(rate).toBeNull();
     });
 
     it('computes dayChangePercentage for single rate', async () => {
-      cacheService.get
-        .mockResolvedValueOnce(200)
-        .mockResolvedValueOnce(210);
+      cacheService.get.mockResolvedValueOnce(200).mockResolvedValueOnce(210);
 
       const rate = await service.getRate('USDCLP');
       expect(rate!.dayChangePercentage).toBe(5);
