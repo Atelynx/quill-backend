@@ -1,5 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import type { StockDocument } from '../schemas/stock.schema';
+import { Stock } from '../schemas/stock.schema';
 import { MarketQuote } from '../../domain/interfaces/market-quote.interface';
 import { seedStocks } from '../../domain/constants/seed-stocks';
 import { getCurrencyFromSymbol } from '../../../../common/utils/currency-mapper';
@@ -16,12 +19,19 @@ import { ConfigService } from '@nestjs/config';
  */
 @Injectable()
 export class MockMarketDataProvider implements MarketDataProvider {
+  private readonly logger = new Logger(MockMarketDataProvider.name);
   private readonly momentumBySymbol = new Map<string, number>();
   private readonly mockStocks = new Map<
     string,
     { price: number; previousClose: number; currency: string }
   >();
-  constructor(private readonly configService: ConfigService) {}
+  private initialized = false;
+
+  constructor(
+    private readonly configService: ConfigService,
+    @InjectModel(Stock.name)
+    private readonly stockModel: Model<StockDocument>,
+  ) {}
 
   /*
    * Get quote for a symbol using mock price generation.
@@ -30,7 +40,12 @@ export class MockMarketDataProvider implements MarketDataProvider {
   async getQuote(symbol: string): Promise<MarketQuote> {
     const upperSymbol = symbol.toUpperCase();
 
-    // Initialize mock stock data on first request
+    // Initialize from database on first request
+    if (!this.initialized) {
+      await this.seedFromDatabase();
+    }
+
+    // Fallback: initialize single symbol from hardcoded seed if not in DB
     if (!this.mockStocks.has(upperSymbol)) {
       const seed = seedStocks.find((s) => s.symbol === upperSymbol);
       this.mockStocks.set(upperSymbol, {
@@ -65,6 +80,36 @@ export class MockMarketDataProvider implements MarketDataProvider {
       previousClose: stock.previousClose,
       dayChangePercentage,
     };
+  }
+
+  private async seedFromDatabase(): Promise<void> {
+    try {
+      const stocks = await this.stockModel.find().lean().exec();
+
+      if (stocks.length > 0) {
+        this.logger.log(
+          `Seeding mock provider from DB: ${stocks.length} stocks found`,
+        );
+        for (const stock of stocks) {
+          const close = stock.close ?? 100;
+          this.mockStocks.set(stock.symbol, {
+            price: close,
+            previousClose: stock.previousClose ?? close,
+            currency: stock.currency,
+          });
+        }
+      } else {
+        this.logger.log(
+          'No stocks in DB, mock will use hardcoded seed data',
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to read stocks from DB for mock seeding: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+    }
+
+    this.initialized = true;
   }
 
   getName(): string {
