@@ -19,6 +19,12 @@ export class User {
 
   @Prop({ required: true, default: 0 })
   reservedBalance!: number;
+
+  @Prop({ unique: true, sparse: true, lowercase: true, trim: true })
+  username?: string;
+
+  @Prop({ type: [String], default: [] })
+  watchlist!: string[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

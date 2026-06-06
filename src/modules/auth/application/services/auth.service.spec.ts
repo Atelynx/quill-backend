@@ -45,6 +45,7 @@ describe('AuthService', () => {
     (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
     usersService.createUser.mockResolvedValue({
       email: 'ana@quill.dev',
+      username: 'ana_lopez',
     });
 
     const result = await service.register({
@@ -57,11 +58,36 @@ describe('AuthService', () => {
       fullName: 'Ana Lopez',
       email: 'ana@quill.dev',
       passwordHash: 'hashed-password',
+      username: undefined,
     });
     expect(result).toEqual({
       message: 'Cuenta creada correctamente. Inicia sesion para continuar.',
       email: 'ana@quill.dev',
+      username: 'ana_lopez',
     });
+  });
+
+  it('registra un usuario con username personalizado', async () => {
+    (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
+    usersService.createUser.mockResolvedValue({
+      email: 'ana@quill.dev',
+      username: 'analopez',
+    });
+
+    const result = await service.register({
+      fullName: 'Ana Lopez',
+      email: 'ana@quill.dev',
+      password: 'Password123',
+      username: 'analopez',
+    });
+
+    expect(usersService.createUser).toHaveBeenCalledWith({
+      fullName: 'Ana Lopez',
+      email: 'ana@quill.dev',
+      passwordHash: 'hashed-password',
+      username: 'analopez',
+    });
+    expect(result.username).toBe('analopez');
   });
 
   it('inicia sesion y construye la respuesta autenticada', async () => {

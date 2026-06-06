@@ -1,105 +1,126 @@
+# Plan: User Profile Features
 
-# Feature: Exchange Currency & Synthetic Market Provider
+## Overview
+Add profile management features: username, email change, password change, friends system (with request/accept), and stock watchlist.
 
-## Goals
+---
 
-Base on the logic of market provider and its abstraction, implement a domain service (The Brain) that **generates** real-time synthetic data for forex pairs (e.g. USDCLP, EURUSD) while optimizing external API token usage. Because the external API has strict rate limits, this module will use an "Anchor and Noise" architecture: it will **fetch (retrieve)** the base price periodically from an external API, apply a micro-movement algorithm to create a live data stream, and **push this data internally** via Event Emitter so the Real-Time Market Gateway can broadcast it to the end-users.
+## 1. Schema Changes
 
-### Expected External Payload Examples
-
-**EODHD-style (forex endpoint):**
-```json
-{
-  "code": "USDCLP.FOREX",
-  "timestamp": 1779741120,
-  "gmtoffset": 0,
-  "open": 900.71,
-  "high": 900.71,
-  "low": 889.48,
-  "close": 894.42,
-  "volume": 0,
-  "previousClose": 901.48,
-  "change": -7.06,
-  "change_p": -0.7832
-}
+### User Schema (`src/modules/users/infrastructure/schemas/user.schema.ts`)
+Add:
+```
+username?: string      // unique, sparse index (ignore nulls), lowercase, trimmed
+watchlist: string[]    // default [], array of stock symbols (e.g. ['AAPL', 'MSFT'])
 ```
 
-**exchangerate-api-style:**
-```json
-{
-  "valid": true,
-  "updated": 1780070457,
-  "base": "USD",
-  "rates": {
-    "CLP": 970.42
-  }
-}
+### Friendship Schema — NEW file (`src/modules/users/infrastructure/schemas/friendship.schema.ts`)
+```
+userId: ObjectId       // ref: User, required
+friendId: ObjectId     // ref: User, required
+status: string         // 'pending' | 'accepted'
+// timestamps: true
+// compound unique index on (userId, friendId)
 ```
 
-*Note: The `close` property (or equivalent `price`/`rate`) will be used as the anchor value. The normalization logic lives in each provider.*
+---
 
-## Architecture & Ticks Strategy
+## 2. Registration — Auto-generate Username
 
-The module utilizes two mechanisms to manage data flow and limit API consumption:
+- `RegisterDto` — add optional `username?` (`@IsOptional()`, `@IsString()`, `@MinLength(3)`, `@Matches(/^[a-zA-Z0-9_]+$/)`)
+- `AuthService.register()` — pass username to `UsersService`
+- `UsersService.createUser()` — generate random `user_XXXXXX` (6 hex chars) if not provided; check uniqueness and retry on collision
 
-* **`CURRENCY_API_REQ_TICK` (The Anchor — CronJob):** A long-interval cron (e.g., every 1 hour) that fetches the real anchor price from the external API and stores it in Redis as `forex:{symbol}:base_price`. Also seeds `forex:{symbol}:live_price` on first run.
-* **`CURRENCY_RT_TICK` (The Heartbeat & Bridge — setInterval):** A short-interval interval (e.g., every 5 seconds via `CURRENCY_RT_TICK_INTERVAL_SECONDS`) that reads the `base_price` and `live_price` from Redis, applies an `IMarketSimulationStrategy` to generate a synthetic next price, stores it as `forex:{symbol}:live_price`, and emits the event.
-* **Event Emission:** The heartbeat emits an internal NestJS event `internal.currency.update` with an array of `{ symbol, close, dayChangePercentage }`. The centralized Real-Time Market Gateway listens to this event and broadcasts it to `forex:{symbol}` WebSocket rooms.
-* **Strict Transaction Pricing:** The `forex:{symbol}:live_price` key in Redis holds the exact price the user sees on screen. Any trade execution **MUST** read this key, not `base_price`, to prevent phantom slippage.
+---
 
-### Deviation from original plan note
+## 3. UsersService — New Methods
 
-The original plan specified `CURRENCY_RT_TICK` as a cron expression, but the final implementation uses `setInterval` with `CURRENCY_RT_TICK_INTERVAL_SECONDS`. This aligns with Rule #4 (Code Consistency): the existing `MarketModule` uses `setInterval` for its high-frequency tick (`MARKET_TICK_INTERVAL_SECONDS`). The cron-based approach is retained for the low-frequency anchor (`CURRENCY_API_REQ_TICK`), mirroring `MarketRefreshScheduler`'s use of `CronJob`.
+| Method | What it does |
+|--------|-------------|
+| `updateProfile(id, { fullName?, username? })` | Updates fields, checks username uniqueness |
+| `changeEmail(id, currentPassword, newEmail)` | Verifies password, checks email not taken, updates, requires re-login (no new token) |
+| `changePassword(id, currentPassword, newPassword)` | Verifies current password, bcrypt-hashes new one, saves, requires re-login |
+| `addToWatchlist(id, symbols[])` | Push symbols to user's watchlist (deduplicate) |
+| `removeFromWatchlist(id, symbol)` | Pull symbol from array |
+| `getWatchlist(id)` | Return watchlist with stock data (join with Stock collection) |
+| `sendFriendRequest(userId, friendId)` | Create friendship with status 'pending' |
+| `acceptFriendRequest(userId, friendId)` | Update to 'accepted' |
+| `removeFriend(userId, friendId)` | Delete friendship (both directions) |
+| `getFriends(userId)` | Return list of accepted friend profiles |
+| `getPendingRequests(userId)` | Return incoming pending requests |
+| Extend `toProfile()` | Add `username`, `watchlist`, `friendsCount` |
 
-## Strategy Pattern & Shared Common Module
+---
 
-The `IMarketSimulationStrategy` interface and its three implementations (`FlatMarketSimulationStrategy`, `GBMMarketSimulationStrategy`, `NoiseWaveSimulationStrategy`) plus `StrategyFactory` are extracted from `MarketModule` into a new **shared** `CommonStrategiesModule` at `src/modules/common/`. Both `MarketModule` and `CurrencyModule` import this module independently, avoiding cross-domain coupling.
+## 4. Controller Endpoints — `UsersController`
 
-The currency module registers its own `'CURRENCY_SIMULATION_STRATEGY'` DI token (analogous to `'MARKET_SIMULATION_STRATEGY'`) selected via the `CURRENCY_SIMULATION_STRATEGY` env var.
+All JWT-protected (`@UseGuards(JwtAuthGuard)`), use `@CurrentUser()` for userId.
 
-## Environment Variables
+| Method | Route | DTO | Purpose |
+|--------|-------|-----|---------|
+| `PATCH` | `/users/me` | `UpdateProfileDto` | Update fullName/username |
+| `PATCH` | `/users/me/email` | `ChangeEmailDto` | Change email (re-login required) |
+| `PATCH` | `/users/me/password` | `ChangePasswordDto` | Change password (re-login required) |
+| `GET` | `/users/me/watchlist` | — | List watchlist with stock data |
+| `POST` | `/users/me/watchlist` | `AddWatchlistDto` | Add symbols to watchlist |
+| `DELETE` | `/users/me/watchlist/:symbol` | — | Remove symbol from watchlist |
+| `GET` | `/users/me/friends` | — | List accepted friends |
+| `GET` | `/users/me/friends/requests` | — | List incoming pending requests |
+| `POST` | `/users/me/friends/:userId` | — | Send friend request |
+| `PATCH` | `/users/me/friends/:userId` | `FriendActionDto` | Accept request |
+| `DELETE` | `/users/me/friends/:userId` | — | Unfriend / cancel request |
 
-### Module-level
+Existing `GET /users/me` already returns `toProfile()` — extend that method instead of adding a new route.
 
-| Variable | Type | Default | Description |
-|---|---|---|---|
-| `CURRENCY_PROVIDER` | string | `mock` | Selects the active provider (`mock`, `exchangeRate`) |
-| `CURRENCY_SIMULATION_STRATEGY` | string | `flat` | Simulation strategy (`flat`, `gbm`, `nw`) |
-| `CURRENCY_RT_TICK_INTERVAL_SECONDS` | number | `5` | Interval in seconds between synthetic ticks |
-| `CURRENCY_ANCHOR_VOLATILITY` | number | `0.005` | Base volatility for micro-movement simulation |
-| `CURRENCY_ANCHOR_DRIFT` | number | `0` | Base drift for micro-movement simulation |
+---
 
-### Provider-specific — Mock
+## 5. New DTOs (`src/modules/users/presentation/dto/`)
 
-| Variable | Type | Default | Description |
-|---|---|---|---|
-| `MOCK_CURRENCY_SYMBOLS` | string | `USDCLP` | Comma-separated forex pairs |
+| File | Fields | Validations |
+|------|--------|-------------|
+| `update-profile.dto.ts` | `fullName?`, `username?` | fullName: `@MinLength(3)`; username: `@MinLength(3)`, `@Matches(/^[a-zA-Z0-9_]+$/)` |
+| `change-email.dto.ts` | `currentPassword: string`, `newEmail: string` | newEmail: `@IsEmail()` |
+| `change-password.dto.ts` | `currentPassword: string`, `newPassword: string` | newPassword: `@MinLength(8)` |
+| `add-watchlist.dto.ts` | `symbols: string[]` | `@ArrayNotEmpty()`, `@IsString({ each: true })` |
+| `friend-action.dto.ts` | `status: 'accepted'` | `@IsString()`, `@IsIn(['accepted'])` |
 
-### Provider-specific — ExchangeRate
+---
 
-| Variable | Type | Default | Description |
-|---|---|---|---|
-| `EXCHANGERATE_API_KEY` | string | — | API key for exchangerate-api v6 |
-| `EXCHANGERATE_BASE_URL` | string | `https://v6.exchangerate-api.com/v6` | Base URL |
-| `EXCHANGERATE_SYMBOLS` | string | `USDCLP` | Comma-separated forex pairs |
-| `EXCHANGERATE_REFRESH_CRON` | string | `0 0 * * * *` | Cron expression for the anchor fetch |
+## 6. Friendship Collection Design
 
-## Implementation Rules & Patterns
+- Stored as separate documents (not embedded) for queryability
+- Compound unique index on `(userId, friendId)` prevents duplicates
+- Queries check both directions to avoid double-friend scenarios
+- When removing a friend, delete documents in both directions (`(userId, friendId)` and `(friendId, userId)`)
 
-1. **Modularity & Injection:** The module must offer a modular injection of the provider. If the primary API changes, it should only require updating the `CURRENCY_PROVIDER` env variable and restarting the container.
-2. **Strategy Pattern (Micro-movements):** The real-time synthetic data generation must be decoupled using an `IMarketSimulationStrategy` interface. This allows plugging in different algorithms (e.g., Geometric Brownian Motion) to simulate market noise without affecting the core service.
-3. **Strict Transaction Pricing:** When a user executes a trade, the `TradingService` **MUST** use the exact synthetic `CURRENT_PRICE` from Redis (`forex:{symbol}:live_price`) that the user saw on their screen at that millisecond, not the `BASE_PRICE` (`forex:{symbol}:base_price`), to prevent phantom slippage.
-4. **Code Consistency:** Follow existing NestJS principles. If Module A implements crons/scheduling in a specific way, this Currency Module must use the same strategy to keep the codebase cohesive. (Hence `setInterval` for the tick, `CronJob` for the anchor.)
-5. **Decoupling Constraint:** This module MUST NOT import or interact with `@WebSocketGateway`. It is strictly a domain data producer and must rely entirely on `@nestjs/event-emitter` to pass data out of its domain.
+---
 
-## Redis Key Conventions
+## 7. Security Decisions
 
-| Key | Value | Set by |
-|---|---|---|
-| `forex:{symbol}:base_price` | number (anchor) | `CurrencyAnchorService` (cron + init) |
-| `forex:{symbol}:live_price` | number (synthetic) | `CurrencyTickService` (interval) |
+- **Email change**: verify `currentPassword`, update email, NO new JWT issued → client must re-login
+- **Password change**: verify `currentPassword`, hash+savenew password, NO new JWT issued → client must re-login
+- Both return: `{ message: "... Please log in again." }`
+- Old JWT remains valid until natural expiration (no blacklist mechanism yet)
 
-## Git Workflow & Documentation
+---
 
-* **Branching:** Create a new branch `feat/currency-exchange`. Separate changes into descriptive, atomic commits.
-* **Unified Documentation:** All documentation (comments on domain interfaces, README updates explaining the Two-Tick flow, Strategy Pattern, and Redis key conventions) MUST be included in the same branch and Pull Request as the code. Do not create a separate docs branch.
+## 8. Files to Modify
+
+- `src/modules/users/infrastructure/schemas/user.schema.ts`
+- `src/modules/users/domain/entities/user.entity.ts`
+- `src/modules/users/application/services/users.service.ts`
+- `src/modules/users/application/services/users.service.spec.ts`
+- `src/modules/users/presentation/controllers/users.controller.ts`
+- `src/modules/users/users.module.ts`
+- `src/modules/auth/presentation/dto/register.dto.ts`
+- `src/modules/auth/application/services/auth.service.ts`
+
+## 9. Files to Create
+
+- `src/modules/users/infrastructure/schemas/friendship.schema.ts`
+- `src/modules/users/presentation/dto/update-profile.dto.ts`
+- `src/modules/users/presentation/dto/change-email.dto.ts`
+- `src/modules/users/presentation/dto/change-password.dto.ts`
+- `src/modules/users/presentation/dto/add-watchlist.dto.ts`
+- `src/modules/users/presentation/dto/friend-action.dto.ts`
+- `src/modules/users/presentation/controllers/users.controller.spec.ts`

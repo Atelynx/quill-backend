@@ -49,6 +49,7 @@ async function bootstrap(): Promise<void> {
 
   await app.listen(port);
   logger.log(`Backend de Quill escuchando en http://localhost:${port}/api`);
+  logger.log(`Swaggeer de Quill en http://localhost:${port}/api/swagger`)
   logger.log(
     `Origen permitido para frontend: ${frontendOrigin ?? 'no definido'}`,
   );
