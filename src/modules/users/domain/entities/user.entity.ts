@@ -5,6 +5,8 @@ export interface UserEntity {
   passwordHash: string;
   availableBalance: number;
   reservedBalance: number;
+  username?: string;
+  watchlist: string[];
   createdAt: Date;
   updatedAt: Date;
 }

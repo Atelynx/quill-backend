@@ -20,11 +20,13 @@ export class AuthService {
       fullName: dto.fullName,
       email: dto.email,
       passwordHash,
+      username: dto.username,
     });
 
     return {
       message: 'Cuenta creada correctamente. Inicia sesion para continuar.',
       email: user.email,
+      username: user.username,
     };
   }
 
