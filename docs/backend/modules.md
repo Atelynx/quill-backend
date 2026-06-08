@@ -18,6 +18,7 @@ Detalles:
 
 - usa `bcrypt` para hash y verificacion de contrasena
 - delega la creacion y lectura de usuarios a `UsersService`
+- devuelve `email` y `username` al completar un registro exitoso
 
 ## Users
 
