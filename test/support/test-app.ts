@@ -18,21 +18,30 @@ interface TestAppOptions {
 }
 
 function applyTestEnvironment(mongoUri: string, options: TestAppOptions = {}) {
-  process.env.MONGOMS_MD5_CHECK = 'false';
-  process.env.BACKEND_PORT = '3000';
-  process.env.FRONTEND_ORIGIN = 'http://localhost:5173';
-  process.env.MONGODB_URI = mongoUri;
-  process.env.REDIS_URL = 'redis://127.0.0.1:6399';
-  process.env.JWT_SECRET = 'quill-test-secret-12345';
-  process.env.JWT_EXPIRES_IN = '1d';
-  process.env.INITIAL_BALANCE = '100000';
-  process.env.COMMISSION_RATE = '0.005';
-  process.env.MARKET_PROVIDER = options.marketProvider ?? 'mock';
-  process.env.MARKET_TICK_INTERVAL_SECONDS = '3600';
-  process.env.EODHD_API_KEY = 'test-eodhd-token';
-  process.env.EODHD_SYMBOLS =
-    'BSANTANDER.SN,CENCOSUD.SN,CHILE.SN,CMPC.SN,COLBUN.SN,COPEC.SN,SQM-B.SN,VAPORES.SN';
-  process.env.EODHD_DAILY_REFRESH_ENABLED = 'false';
+  Object.assign(process.env, {
+    MONGOMS_MD5_CHECK: 'false',
+    BACKEND_PORT: '3000',
+    FRONTEND_ORIGIN: 'http://localhost:5173',
+    MONGODB_URI: mongoUri,
+    REDIS_URL: 'redis://127.0.0.1:6399',
+    JWT_SECRET: 'quill-test-secret-12345',
+    JWT_EXPIRES_IN: '1d',
+    INITIAL_BALANCE: '100000',
+    COMMISSION_RATE: '0.005',
+    MARKET_PROVIDER: options.marketProvider ?? 'mock',
+    MARKET_FETCH_ON_STARTUP: 'false',
+    MARKET_TICK_INTERVAL_SECONDS: '0',
+    SIMULATION_STRATEGY: 'flat',
+    EODHD_API_KEY: 'test-eodhd-token',
+    EODHD_SYMBOLS:
+      'BSANTANDER.SN,CENCOSUD.SN,CHILE.SN,CMPC.SN,COLBUN.SN,COPEC.SN,SQM-B.SN,VAPORES.SN',
+    EODHD_DAILY_REFRESH_ENABLED: 'false',
+    CURRENCY_PROVIDER: 'mock',
+    CURRENCY_SIMULATION_STRATEGY: 'flat',
+    CURRENCY_RT_TICK_INTERVAL_SECONDS: '0',
+    MOCK_CURRENCY_SYMBOLS: 'USDCLP',
+    CURRENCY_SUFFIX_MAP: '.SN=CLP,.US=USD',
+  });
 }
 
 export async function createTestApp(

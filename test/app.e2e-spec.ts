@@ -20,6 +20,7 @@ interface HealthResponse {
 interface RegisterResponse {
   message: string;
   email: string;
+  username: string;
 }
 
 interface LoginResponse {
@@ -35,6 +36,7 @@ interface LoginResponse {
 interface StockQuoteResponse {
   symbol: string;
   close: number;
+  currency?: string;
 }
 
 interface OrderResponse {
@@ -111,10 +113,13 @@ describe('Quill API (e2e)', () => {
       .expect(201);
     const firstBody = firstResponse.body as RegisterResponse;
 
-    expect(firstBody).toEqual({
+    expect(firstBody).toMatchObject({
       message: 'Cuenta creada correctamente. Inicia sesion para continuar.',
       email: payload.email,
     });
+    expect(firstBody.username).toEqual(
+      expect.stringMatching(/^user_[0-9a-f]{6}$/),
+    );
 
     const duplicateResponse = await request(httpServer)
       .post('/api/auth/register')
@@ -192,7 +197,14 @@ describe('Quill API (e2e)', () => {
       .get('/api/market/stocks')
       .expect(200);
     const quotes = quotesResponse.body as StockQuoteResponse[];
-    const targetQuote = quotes[0];
+    const targetQuote = quotes.find(
+      (quote) => quote.symbol === 'TSLA' && quote.currency === 'CLP',
+    );
+
+    expect(targetQuote).toBeDefined();
+    if (!targetQuote) {
+      throw new Error('No se encontro una accion CLP valida para el e2e.');
+    }
 
     const orderResponse = await request(httpServer)
       .post('/api/orders')
@@ -223,7 +235,7 @@ describe('Quill API (e2e)', () => {
       );
 
     const executionService = app.get(OrderExecutionService);
-    await (executionService as any).executeCycle();
+    await executionService.handleMarketTick();
 
     const executedOrdersResponse = await request(httpServer)
       .get('/api/orders')

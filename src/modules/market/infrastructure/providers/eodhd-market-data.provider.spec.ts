@@ -153,8 +153,21 @@ describe('EodhdMarketDataProvider', () => {
 
   it('declares a daily refresh schedule', () => {
     const schedule = provider.getRefreshSchedule();
-    expect(schedule).toBeDefined();
-    expect(schedule.cronExpression).toBe('0 30 18 * * 1-5');
+    expect(schedule).toEqual({ cronExpression: '0 30 18 * * 1-5' });
+  });
+
+  it('does not declare a refresh schedule when daily refresh is disabled', () => {
+    configMock.get = jest.fn((key: string, fallback?: unknown) => {
+      if (key === 'EODHD_DAILY_REFRESH_ENABLED') return false;
+      return fallback;
+    });
+    provider = new EodhdMarketDataProvider(
+      configMock as ConfigService,
+      stockModelMock,
+      snapshotModelMock,
+    );
+
+    expect(provider.getRefreshSchedule()).toBeUndefined();
   });
 
   it('uses config-based cron for refresh schedule', () => {
@@ -172,7 +185,7 @@ describe('EodhdMarketDataProvider', () => {
 
     const schedule = provider.getRefreshSchedule();
 
-    expect(schedule.cronExpression).toBe('0 0 * * *');
+    expect(schedule).toEqual({ cronExpression: '0 0 * * *' });
   });
 
   it('getName returns EODHD', () => {
