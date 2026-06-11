@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 import { Model, Types } from 'mongoose';
+import { AdminConfigService } from '../../../admin/application/services/admin-config.service';
 import { Stock } from '../../../market/infrastructure/schemas/stock.schema';
 import {
   Friendship,
@@ -31,6 +32,7 @@ export class UsersService {
     @InjectModel(Stock.name)
     private readonly stockModel: Model<Stock>,
     private readonly configService: ConfigService,
+    private readonly adminConfigService: AdminConfigService,
   ) {}
 
   async createUser(input: {
@@ -57,7 +59,8 @@ export class UsersService {
       }
     }
 
-    const initialBalance = this.configService.get<number>(
+    const adminBalance = await this.adminConfigService.get('INITIAL_BALANCE');
+    const initialBalance = adminBalance ?? this.configService.get<number>(
       'INITIAL_BALANCE',
       100000,
     );
