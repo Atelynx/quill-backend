@@ -5,16 +5,22 @@ import {
   AdminConfig,
   AdminConfigSchema,
 } from './infrastructure/schemas/admin-config.schema';
+import {
+  ConfigSnapshot,
+  ConfigSnapshotSchema,
+} from './infrastructure/schemas/config-snapshot.schema';
 import { AdminController } from './presentation/controllers/admin.controller';
+import { AdminSnapshotsController } from './presentation/controllers/admin-snapshots.controller';
 
 @Global()
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: AdminConfig.name, schema: AdminConfigSchema },
+      { name: ConfigSnapshot.name, schema: ConfigSnapshotSchema },
     ]),
   ],
-  controllers: [AdminController],
+  controllers: [AdminController, AdminSnapshotsController],
   providers: [AdminConfigService],
   exports: [AdminConfigService],
 })

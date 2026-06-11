@@ -1,11 +1,15 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   AdminConfig,
   AdminConfigDocument,
 } from '../../infrastructure/schemas/admin-config.schema';
+import {
+  ConfigSnapshot,
+  ConfigSnapshotDocument,
+} from '../../infrastructure/schemas/config-snapshot.schema';
 
 const SEED_CONFIGS: Array<{
   key: string;
@@ -65,6 +69,8 @@ export class AdminConfigService implements OnModuleInit {
   constructor(
     @InjectModel(AdminConfig.name)
     private readonly adminConfigModel: Model<AdminConfigDocument>,
+    @InjectModel(ConfigSnapshot.name)
+    private readonly snapshotModel: Model<ConfigSnapshotDocument>,
     private readonly configService: ConfigService,
   ) {}
 
@@ -117,7 +123,12 @@ export class AdminConfigService implements OnModuleInit {
   async set(
     key: string,
     value: any,
-    options?: { name?: string; tags?: string[]; updatedBy?: string },
+    options?: {
+      name?: string;
+      tags?: string[];
+      updatedBy?: string;
+      createSnapshot?: boolean;
+    },
   ): Promise<AdminConfigDocument> {
     await this.adminConfigModel
       .updateMany({ key }, { $set: { inUse: false } })
@@ -133,6 +144,14 @@ export class AdminConfigService implements OnModuleInit {
         updatedBy: options?.updatedBy as any,
       },
     ]);
+
+    const shouldSnapshot = options?.createSnapshot ?? true;
+    if (shouldSnapshot) {
+      const label = options?.name ?? value;
+      await this.createManualSnapshot(
+        `Auto · ${key} → ${JSON.stringify(label)}`,
+      );
+    }
 
     return doc;
   }
@@ -153,6 +172,52 @@ export class AdminConfigService implements OnModuleInit {
 
   async delete(key: string): Promise<void> {
     await this.adminConfigModel.deleteMany({ key }).exec();
+  }
+
+  async createManualSnapshot(
+    name?: string,
+    createdBy?: string,
+  ): Promise<ConfigSnapshotDocument> {
+    const activeConfigs = await this.adminConfigModel
+      .find({ inUse: true })
+      .lean()
+      .exec();
+
+    const configs: Record<string, any> = {};
+    for (const c of activeConfigs) {
+      configs[c.key] = c.value;
+    }
+
+    const [snapshot] = await this.snapshotModel.create([
+      {
+        configs,
+        name: name ?? `Manual · ${new Date().toISOString()}`,
+        createdBy: createdBy ? (new Types.ObjectId(createdBy) as any) : undefined,
+      },
+    ]);
+
+    return snapshot;
+  }
+
+  async restoreSnapshot(snapshotId: string): Promise<ConfigSnapshotDocument> {
+    const snapshot = await this.snapshotModel.findById(snapshotId).exec();
+
+    if (!snapshot) {
+      throw new NotFoundException('Snapshot no encontrado.');
+    }
+
+    for (const [key, value] of Object.entries(snapshot.configs)) {
+      await this.set(key, value, { createSnapshot: false });
+    }
+
+    const [audit] = await this.snapshotModel.create([
+      {
+        configs: { ...snapshot.configs },
+        name: `Restore · ${snapshot.name ?? snapshotId}`,
+      },
+    ]);
+
+    return audit;
   }
 
   async markUsed(key: string): Promise<void> {
