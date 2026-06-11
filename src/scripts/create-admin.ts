@@ -43,12 +43,19 @@ async function main(): Promise<void> {
     console.log('Modo interactivo — ingresa los datos del admin.');
     email = await ask('Email: ');
     username = await ask('Username (opcional): ');
-    password = await ask('Password (opcional, default: admin123): ');
+    while (!password || password.length < 8) {
+      password = await ask('Password (mínimo 8 caracteres): ');
+    }
   }
 
   if (!email) {
     console.error('Error: Email es requerido.');
     console.error('Uso: npm run create:admin -- --email=user@example.com [--username=admin] [--password=secreto123]');
+    process.exit(1);
+  }
+
+  if (password && password.length < 8) {
+    console.error('Error: La contraseña debe tener al menos 8 caracteres.');
     process.exit(1);
   }
 
