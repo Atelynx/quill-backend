@@ -34,14 +34,14 @@ const SEED_CONFIGS: Array<{
   },
   {
     key: 'MARKET_HOURS_OPEN',
-    envKey: '',
+    envKey: 'MARKET_HOURS_OPEN',
     defaultValue: '09:30',
     name: 'Horario apertura mercado',
     tags: ['market', 'hours'],
   },
   {
     key: 'MARKET_HOURS_CLOSED',
-    envKey: '',
+    envKey: 'MARKET_HOURS_CLOSED',
     defaultValue: '16:00',
     name: 'Horario cierre mercado',
     tags: ['market', 'hours'],
