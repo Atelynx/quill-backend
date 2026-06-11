@@ -21,7 +21,7 @@ export class User {
   @Prop({ required: true, default: 0 })
   reservedBalance!: number;
 
-  @Prop({ required: true, enum: ['investor', 'admin'], default: 'investor' })
+  @Prop({ required: true, default: 'investor', type:String })
   role!: UserRole;
 
   @Prop({ unique: true, sparse: true, lowercase: true, trim: true })
