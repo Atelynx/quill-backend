@@ -104,14 +104,6 @@ export class EodhdMarketDataProvider implements MarketDataProvider {
    * Default: 6:30 PM Monday-Friday (after market close for Chilean stocks).
    */
   getRefreshSchedule() {
-    const isEnabled = this.configService.get<boolean>(
-      'EODHD_DAILY_REFRESH_ENABLED',
-      true,
-    );
-    if (!isEnabled) {
-      return undefined;
-    }
-
     const cronExpression = this.configService.get<string>(
       'EODHD_DAILY_REFRESH_CRON',
       '0 30 18 * * 1-5',
