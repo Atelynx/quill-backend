@@ -103,7 +103,7 @@ export class AdminConfigService implements OnModuleInit {
       .findOneAndUpdate(
         { key, inUse: true },
         { $set: { lastUsedAt: new Date() } },
-        { sort: { createdAt: -1 }, new: true },
+        { sort: { createdAt: -1 }, returnDocument: 'after' },
       )
       .exec();
 
@@ -115,7 +115,7 @@ export class AdminConfigService implements OnModuleInit {
       .findOneAndUpdate(
         { key, inUse: true },
         { $set: { lastUsedAt: new Date() } },
-        { sort: { createdAt: -1 }, new: true },
+        { sort: { createdAt: -1 }, returnDocument: 'after' },
       )
       .exec();
   }
