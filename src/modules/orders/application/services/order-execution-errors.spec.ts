@@ -32,7 +32,8 @@ describe('OrderExecutionService error paths', () => {
       positionModel,
       { findOne: jest.fn() } as never,
       { create: jest.fn() } as never,
-      { calculate: jest.fn().mockReturnValue(1) } as never,
+      { calculate: jest.fn().mockResolvedValue(1) } as never,
+      { get: jest.fn() } as never,
       { get: jest.fn() } as never,
       { getRate: jest.fn() } as never,
     );

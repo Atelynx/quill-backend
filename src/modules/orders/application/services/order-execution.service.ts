@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AdminConfigService } from '../../../admin/application/services/admin-config.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
@@ -54,6 +55,7 @@ export class OrderExecutionService {
     @InjectModel(Trade.name)
     private readonly tradeModel: Model<TradeDocument>,
     private readonly commissionService: CommissionService,
+    private readonly adminConfigService: AdminConfigService,
     private readonly cacheService: CacheService,
     private readonly currencyRateService: CurrencyRateService,
   ) {}
@@ -77,6 +79,7 @@ export class OrderExecutionService {
   }
 
   private async executeCycle(): Promise<void> {
+    if (!await this.isMarketOpen()) return;
     const quotes = await this.marketService.listQuotes();
     await this.processPendingOrders(quotes);
   }
@@ -110,6 +113,24 @@ export class OrderExecutionService {
       : marketPrice >= order.limitPrice;
   }
 
+  private async isMarketOpen(): Promise<boolean> {
+    const [openTime, closeTime] = await Promise.all([
+      this.adminConfigService.get('MARKET_HOURS_OPEN'),
+      this.adminConfigService.get('MARKET_HOURS_CLOSED'),
+    ]);
+
+    if (!openTime || !closeTime) return true;
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const [openH, openM] = (openTime as string).split(':').map(Number);
+    const [closeH, closeM] = (closeTime as string).split(':').map(Number);
+    const openMinutes = openH * 60 + openM;
+    const closeMinutes = closeH * 60 + closeM;
+
+    return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+  }
+
   private async executeOrder(
     order: OrderDocument,
     marketPrice: number,
@@ -133,7 +154,7 @@ export class OrderExecutionService {
           .toNumber();
 
         const commissionNative =
-          this.commissionService.calculate(grossAmountNative);
+          await this.commissionService.calculate(grossAmountNative);
 
         let grossAmountCLP = grossAmountNative;
         let commissionCLP = commissionNative;
@@ -149,7 +170,7 @@ export class OrderExecutionService {
               .times(marketPriceCLP)
               .toDecimalPlaces(2)
               .toNumber();
-            commissionCLP = this.commissionService.calculate(grossAmountCLP);
+            commissionCLP = await this.commissionService.calculate(grossAmountCLP);
           }
         }
 
@@ -292,6 +313,10 @@ export class OrderExecutionService {
     side: 'BUY' | 'SELL',
     quantity: number,
   ): Promise<OrderDocument> {
+    if (!await this.isMarketOpen()) {
+      throw new BadRequestException('El mercado está cerrado. Las órdenes MARKET solo se ejecutan en horario de mercado.');
+    }
+
     const livePrice = await this.cacheService.get<number>(
       `stock:${symbol}:live_price`,
     );
@@ -314,7 +339,7 @@ export class OrderExecutionService {
       .toNumber();
 
     const commissionNative =
-      this.commissionService.calculate(grossAmountNative);
+      await this.commissionService.calculate(grossAmountNative);
 
     let grossAmountCLP = grossAmountNative;
     let commissionCLP = commissionNative;
@@ -333,7 +358,7 @@ export class OrderExecutionService {
           .times(livePriceCLP)
           .toDecimalPlaces(2)
           .toNumber();
-        commissionCLP = this.commissionService.calculate(grossAmountCLP);
+        commissionCLP = await this.commissionService.calculate(grossAmountCLP);
       }
     }
 

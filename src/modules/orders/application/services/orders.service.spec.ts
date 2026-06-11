@@ -74,7 +74,7 @@ describe('OrdersService', () => {
         symbol: 'AAPL',
       }),
     );
-    commissionService.calculate.mockReturnValue(2.5);
+    commissionService.calculate.mockResolvedValue(2.5);
     orderModel.create.mockResolvedValue({
       id: 'order-1',
       status: 'PENDING',
@@ -115,7 +115,7 @@ describe('OrdersService', () => {
 
     userModel.findById.mockReturnValue(createExecQuery(user));
     stockModel.findOne.mockReturnValue(createExecQuery({ symbol: 'ROUND.SN' }));
-    commissionService.calculate.mockReturnValue(0.16);
+    commissionService.calculate.mockResolvedValue(0.16);
     orderModel.create.mockResolvedValue({ id: 'order-round' });
 
     await service.createOrder(new Types.ObjectId().toString(), {
@@ -186,7 +186,7 @@ describe('OrdersService', () => {
         symbol: 'AAPL',
       }),
     );
-    commissionService.calculate.mockReturnValue(1);
+    commissionService.calculate.mockResolvedValue(1);
 
     const createOrderDto: CreateOrderDto = {
       symbol: 'AAPL',
