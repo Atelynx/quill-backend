@@ -365,6 +365,7 @@ export class UsersService {
       id: user.id,
       fullName: user.fullName,
       email: user.email,
+      role: user.role,
       username: user.username ?? null,
       availableBalance: user.availableBalance,
       reservedBalance: user.reservedBalance,
