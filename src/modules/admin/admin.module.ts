@@ -11,6 +11,8 @@ import {
 } from './infrastructure/schemas/config-snapshot.schema';
 import { AdminController } from './presentation/controllers/admin.controller';
 import { AdminSnapshotsController } from './presentation/controllers/admin-snapshots.controller';
+import { AdminUsersController } from './presentation/controllers/admin-users.controller';
+import { User, UserSchema } from '../../modules/users/infrastructure/schemas/user.schema';
 
 @Global()
 @Module({
@@ -18,9 +20,10 @@ import { AdminSnapshotsController } from './presentation/controllers/admin-snaps
     MongooseModule.forFeature([
       { name: AdminConfig.name, schema: AdminConfigSchema },
       { name: ConfigSnapshot.name, schema: ConfigSnapshotSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
-  controllers: [AdminController, AdminSnapshotsController],
+  controllers: [AdminController, AdminSnapshotsController, AdminUsersController],
   providers: [AdminConfigService],
   exports: [AdminConfigService],
 })

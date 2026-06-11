@@ -17,6 +17,7 @@
     "test:handles": "jest --detectOpenHandles",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
+    "create:admin": "npx ts-node -r tsconfig-paths/register src/scripts/create-admin.ts",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --runInBand --forceExit --config ./test/jest-e2e.json"
   },
