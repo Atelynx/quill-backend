@@ -46,10 +46,14 @@ describe('MockCurrencyDataProvider', () => {
     });
 
     it('generates different prices on successive calls', async () => {
+      jest.spyOn(Math, 'random')
+        .mockReturnValueOnce(0.1)
+        .mockReturnValueOnce(0.9);
       const quote1 = await provider.getQuote('USDCLP');
       const quote2 = await provider.getQuote('USDCLP');
 
       expect(quote1.price).not.toBe(quote2.price);
+      jest.restoreAllMocks();
     });
 
     it('handles uppercase and lowercase symbols', async () => {
