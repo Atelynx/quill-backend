@@ -1,7 +1,7 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import Decimal from 'decimal.js';
 import { CacheService } from '../../../system/application/services/cache/cache.service';
-import type { CurrencyDataProvider } from '../../domain/interfaces/currency-data-provider.interface';
+import { CurrencyDataProviderResolver } from './currency-data-provider.resolver';
 
 const BASE_PRICE_KEY = (symbol: string) => `forex:${symbol}:base_price`;
 const LIVE_PRICE_KEY = (symbol: string) => `forex:${symbol}:live_price`;
@@ -18,13 +18,13 @@ export class CurrencyRateService {
   private readonly logger = new Logger(CurrencyRateService.name);
 
   constructor(
-    @Inject('CURRENCY_DATA_PROVIDER')
-    private readonly provider: CurrencyDataProvider,
+    private readonly providerResolver: CurrencyDataProviderResolver,
     private readonly cacheService: CacheService,
   ) {}
 
   async getRates(): Promise<CurrencyRateEntry[]> {
-    const symbols = this.provider.getSymbols();
+    const provider = await this.providerResolver.getProvider();
+    const symbols = provider.getSymbols();
     const rates: CurrencyRateEntry[] = [];
 
     for (const symbol of symbols) {

@@ -14,7 +14,8 @@ describe('CurrencyRateService', () => {
       get: jest.fn(),
       set: jest.fn(),
     };
-    service = new CurrencyRateService(provider as never, cacheService as never);
+    const resolver = { getProvider: jest.fn().mockResolvedValue(provider) };
+    service = new CurrencyRateService(resolver as never, cacheService as never);
   });
 
   describe('getRates', () => {

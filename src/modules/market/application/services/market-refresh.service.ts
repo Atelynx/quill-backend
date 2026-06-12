@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -8,6 +8,7 @@ import {
   Stock,
   StockDocument,
 } from '../../infrastructure/schemas/stock.schema';
+import { MarketDataProviderResolver } from './market-data-provider.resolver';
 import { MarketUpdateWriterService } from './market-update-writer.service';
 
 /**
@@ -22,8 +23,7 @@ export class MarketRefreshService {
 
   constructor(
     @InjectModel(Stock.name) private readonly stockModel: Model<StockDocument>,
-    @Inject('MARKET_DATA_PROVIDER')
-    private readonly provider: MarketDataProvider,
+    private readonly providerResolver: MarketDataProviderResolver,
     private readonly updateWriter: MarketUpdateWriterService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
@@ -43,7 +43,8 @@ export class MarketRefreshService {
     this.isRefreshing = true;
     try {
       const stocks = await this.stockModel.find().exec();
-      const providerName = this.provider.getName().toLowerCase();
+      const provider = await this.providerResolver.getProvider();
+      const providerName = provider.getName().toLowerCase();
 
       if (!stocks.length) {
         this.logger.warn(
@@ -58,7 +59,7 @@ export class MarketRefreshService {
 
       // Delegate fetching to the provider — each provider handles its own caching/API strategy
       const symbols = stocks.map((stock) => stock.symbol);
-      const quotes = await this.fetchQuotes(this.provider, symbols, stocks);
+      const quotes = await this.fetchQuotes(provider, symbols, stocks);
 
       // Build updates for persistence
       const updates = quotes

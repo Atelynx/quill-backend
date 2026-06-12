@@ -1,9 +1,9 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import Decimal from 'decimal.js';
 import { Model } from 'mongoose';
-import type { MarketDataProvider } from '../../infrastructure/providers/market-data-provider.interface';
+import { MarketDataProviderResolver } from './market-data-provider.resolver';
 import { seedStocks } from '../../domain/constants/seed-stocks';
 import {
   PriceSnapshot,
@@ -28,13 +28,13 @@ export class MarketSeedService {
     private readonly stockModel: Model<StockDocument>,
     @InjectModel(PriceSnapshot.name)
     private readonly snapshotModel: Model<PriceSnapshotDocument>,
-    @Inject('MARKET_DATA_PROVIDER')
-    private readonly provider: MarketDataProvider,
+    private readonly providerResolver: MarketDataProviderResolver,
     private readonly configService: ConfigService,
   ) {}
 
   async seedInitialStocks(): Promise<void> {
-    const seedData = this.resolveSeedStocks();
+    const provider = await this.providerResolver.getProvider();
+    const seedData = this.resolveSeedStocks(provider);
 
     if (!seedData.length) {
       return;
@@ -57,11 +57,11 @@ export class MarketSeedService {
       return;
     }
 
-    const stocks = this.prepareSeedDocuments(missingStocks);
+    const stocks = this.prepareSeedDocuments(provider, missingStocks);
     await this.stockModel.insertMany(stocks);
 
     // Persist initial mock snapshots so the provider has historical data
-    if (this.provider.getName().toLowerCase() === 'mock') {
+    if (provider.getName().toLowerCase() === 'mock') {
       const now = Date.now();
       await this.snapshotModel.insertMany(this.buildMockSnapshots(stocks, now));
       this.logger.log('Initial market seeded with example data.');
@@ -77,8 +77,8 @@ export class MarketSeedService {
    * Falls back to hardcoded mock stocks only if the provider
    * does not implement getSeedData() at all.
    */
-  private resolveSeedStocks() {
-    const providerSeedData = this.provider.getSeedData?.();
+  private resolveSeedStocks(provider) {
+    const providerSeedData = provider.getSeedData?.();
 
     if (providerSeedData !== undefined) {
       // Provider explicitly declared seed data (even if empty)
@@ -99,6 +99,7 @@ export class MarketSeedService {
    * Prepares stock documents for insertion, normalizing defaults.
    */
   private prepareSeedDocuments(
+    provider,
     seedData: Array<{
       symbol: string;
       name: string;
@@ -109,7 +110,7 @@ export class MarketSeedService {
       source?: string;
     }>,
   ) {
-    const providerName = this.provider.getName().toLowerCase();
+    const providerName = provider.getName().toLowerCase();
 
     return seedData.map((stock) => ({
       ...stock,

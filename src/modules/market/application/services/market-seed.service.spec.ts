@@ -22,11 +22,12 @@ describe('MarketSeedService', () => {
       getSeedData: jest.fn(),
     };
     configService = { get: jest.fn() };
+    const resolver = { getProvider: jest.fn().mockResolvedValue(provider) };
 
     service = new MarketSeedService(
       stockModel as never,
       snapshotModel as never,
-      provider as never,
+      resolver as never,
       configService as unknown as ConfigService,
     );
   });
@@ -131,19 +132,19 @@ describe('MarketSeedService', () => {
   describe('resolveSeedStocks', () => {
     it('returns provider seed data when available', () => {
       provider.getSeedData.mockReturnValue([{ symbol: 'TEST', close: 100 }]);
-      const result = (service as any).resolveSeedStocks();
+      const result = (service as any).resolveSeedStocks(provider);
       expect(result).toEqual([{ symbol: 'TEST', close: 100 }]);
     });
 
     it('returns empty array when provider returns empty array', () => {
       provider.getSeedData.mockReturnValue([]);
-      const result = (service as any).resolveSeedStocks();
+      const result = (service as any).resolveSeedStocks(provider);
       expect(result).toEqual([]);
     });
 
     it('falls back to hardcoded seed stocks when provider has no getSeedData', () => {
       provider.getSeedData.mockReturnValue(undefined);
-      const result = (service as any).resolveSeedStocks();
+      const result = (service as any).resolveSeedStocks(provider);
       expect(result.length).toBeGreaterThan(0);
       expect(result[0]).toHaveProperty('symbol');
     });
@@ -151,7 +152,7 @@ describe('MarketSeedService', () => {
 
   describe('prepareSeedDocuments', () => {
     it('normalizes stock documents with defaults', () => {
-      const docs = (service as any).prepareSeedDocuments([
+      const docs = (service as any).prepareSeedDocuments(provider, [
         { symbol: 'AAPL', name: 'Apple', currency: 'USD', close: 150 },
       ]);
       expect(docs[0]).toMatchObject({

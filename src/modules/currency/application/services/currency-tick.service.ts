@@ -1,5 +1,4 @@
 import {
-  Inject,
   Injectable,
   Logger,
   OnModuleDestroy,
@@ -9,10 +8,10 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import Decimal from 'decimal.js';
-import type { IMarketSimulationStrategy } from '../../../common/strategies/market-simulation-strategy.interface';
 import { CacheService } from '../../../system/application/services/cache/cache.service';
 import { CURRENCY_UPDATE_EVENT } from '../../domain/constants/events';
-import type { CurrencyDataProvider } from '../../domain/interfaces/currency-data-provider.interface';
+import { CurrencyDataProviderResolver } from './currency-data-provider.resolver';
+import { CurrencyStrategyResolver } from './currency-strategy.resolver';
 
 const BASE_PRICE_KEY = (symbol: string) => `forex:${symbol}:base_price`;
 const LIVE_PRICE_KEY = (symbol: string) => `forex:${symbol}:live_price`;
@@ -24,18 +23,17 @@ export class CurrencyTickService implements OnModuleInit, OnModuleDestroy {
   private isTicking = false;
 
   constructor(
-    @Inject('CURRENCY_DATA_PROVIDER')
-    private readonly provider: CurrencyDataProvider,
-    @Inject('CURRENCY_SIMULATION_STRATEGY')
-    private readonly strategy: IMarketSimulationStrategy,
+    private readonly providerResolver: CurrencyDataProviderResolver,
+    private readonly strategyResolver: CurrencyStrategyResolver,
     private readonly cacheService: CacheService,
     private readonly eventEmitter: EventEmitter2,
     private readonly configService: ConfigService,
     private readonly schedulerRegistry: SchedulerRegistry,
   ) {}
 
-  onModuleInit(): void {
-    const symbols = this.provider.getSymbols();
+  async onModuleInit(): Promise<void> {
+    const provider = await this.providerResolver.getProvider();
+    const symbols = provider.getSymbols();
     const intervalSeconds = this.configService.get<number>(
       'CURRENCY_RT_TICK_INTERVAL_SECONDS',
       5,
@@ -67,7 +65,8 @@ export class CurrencyTickService implements OnModuleInit, OnModuleDestroy {
     this.isTicking = true;
 
     try {
-      const symbols = this.provider.getSymbols();
+      const provider = await this.providerResolver.getProvider();
+      const symbols = provider.getSymbols();
       const volatility = new Decimal(
         this.configService.get<number>('CURRENCY_ANCHOR_VOLATILITY', 0.005),
       );
@@ -93,7 +92,8 @@ export class CurrencyTickService implements OnModuleInit, OnModuleDestroy {
           continue;
         }
 
-        const nextPrice = this.strategy.calculateNextTick(
+        const strategy = await this.strategyResolver.getStrategy();
+        const nextPrice = strategy.calculateNextTick(
           new Decimal(basePrice),
           new Decimal(livePrice),
           volatility,

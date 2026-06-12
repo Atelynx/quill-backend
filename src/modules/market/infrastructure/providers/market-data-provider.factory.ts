@@ -2,6 +2,7 @@ import { MarketDataProvider } from './market-data-provider.interface';
 import { EodhdMarketDataProvider } from './eodhd-market-data.provider';
 import { MockMarketDataProvider } from './mock-market-data.provider';
 import { NoneMarketDataProvider } from './none-market-data.provider';
+import { FallbackMarketDataProvider } from './fallback-market-data.provider';
 
 /**
  * Factory for creating provider instances based on configuration.
@@ -30,7 +31,7 @@ export class MarketDataProviderFactory {
       case 'mock':
         return mockProvider;
       case 'eodhd':
-        return eodhdProvider;
+        return new FallbackMarketDataProvider(eodhdProvider, mockProvider);
       case 'none':
       case '':
       case undefined:

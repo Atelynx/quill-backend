@@ -25,10 +25,11 @@ describe('MarketTickService', () => {
     strategy = { calculateNextTick: jest.fn() };
     cacheService = { get: jest.fn(), set: jest.fn() };
     eventEmitter = { emit: jest.fn() };
+    const strategyResolver = { getStrategy: jest.fn().mockResolvedValue(strategy) };
 
     service = new MarketTickService(
       stockModel as never,
-      strategy as never,
+      strategyResolver as never,
       cacheService as never,
       eventEmitter as never as EventEmitter2,
     );

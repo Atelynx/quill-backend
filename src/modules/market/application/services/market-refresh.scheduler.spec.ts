@@ -32,9 +32,10 @@ describe('MarketRefreshScheduler', () => {
       deleteCronJob: jest.fn(),
       doesExist: jest.fn().mockReturnValue(true),
     };
+    const resolver = { getProvider: jest.fn().mockResolvedValue(provider) };
 
     scheduler = new MarketRefreshScheduler(
-      provider as never,
+      resolver as never,
       marketRefreshService as never,
       schedulerRegistry as unknown as SchedulerRegistry,
     );
@@ -47,12 +48,12 @@ describe('MarketRefreshScheduler', () => {
   });
 
   describe('onModuleInit', () => {
-    it('registers cron job when provider declares a schedule', () => {
+    it('registers cron job when provider declares a schedule', async () => {
       provider.getRefreshSchedule.mockReturnValue({
         cronExpression: '0 0 * * *',
       });
 
-      scheduler.onModuleInit();
+      await scheduler.onModuleInit();
 
       expect(schedulerRegistry.addCronJob).toHaveBeenCalledWith(
         'market-refresh',
@@ -60,10 +61,10 @@ describe('MarketRefreshScheduler', () => {
       );
     });
 
-    it('skips cron registration when provider has no schedule', () => {
+    it('skips cron registration when provider has no schedule', async () => {
       provider.getRefreshSchedule.mockReturnValue(undefined);
 
-      scheduler.onModuleInit();
+      await scheduler.onModuleInit();
 
       expect(schedulerRegistry.addCronJob).not.toHaveBeenCalled();
     });
@@ -102,6 +103,63 @@ describe('MarketRefreshScheduler', () => {
       expect(errorSpy).toHaveBeenCalledWith(
         expect.stringContaining('network error'),
       );
+    });
+  });
+
+  describe('reconcileSchedule', () => {
+    it('adds cron when provider declares a schedule', () => {
+      provider.getRefreshSchedule.mockReturnValue({
+        cronExpression: '0 */5 * * *',
+      });
+
+      (scheduler as any).reconcileSchedule(provider);
+
+      expect(schedulerRegistry.addCronJob).toHaveBeenCalledWith(
+        'market-refresh',
+        expect.any(Object),
+      );
+    });
+
+    it('removes cron and does not add new one when provider has no schedule', () => {
+      (scheduler as any).currentCronExpression = '0 0 * * *';
+      provider.getRefreshSchedule.mockReturnValue(undefined);
+
+      (scheduler as any).reconcileSchedule(provider);
+
+      expect(schedulerRegistry.deleteCronJob).toHaveBeenCalledWith(
+        'market-refresh',
+      );
+      expect(schedulerRegistry.addCronJob).not.toHaveBeenCalled();
+      expect((scheduler as any).currentCronExpression).toBeNull();
+    });
+
+    it('replaces cron when schedule expression changes', () => {
+      (scheduler as any).currentCronExpression = '0 0 * * *';
+      provider.getRefreshSchedule.mockReturnValue({
+        cronExpression: '0 */5 * * *',
+      });
+
+      (scheduler as any).reconcileSchedule(provider);
+
+      expect(schedulerRegistry.deleteCronJob).toHaveBeenCalledWith(
+        'market-refresh',
+      );
+      expect(schedulerRegistry.addCronJob).toHaveBeenCalledWith(
+        'market-refresh',
+        expect.any(Object),
+      );
+    });
+
+    it('does nothing when schedule expression is unchanged', () => {
+      (scheduler as any).currentCronExpression = '0 */5 * * *';
+      provider.getRefreshSchedule.mockReturnValue({
+        cronExpression: '0 */5 * * *',
+      });
+
+      (scheduler as any).reconcileSchedule(provider);
+
+      expect(schedulerRegistry.deleteCronJob).not.toHaveBeenCalled();
+      expect(schedulerRegistry.addCronJob).not.toHaveBeenCalled();
     });
   });
 });

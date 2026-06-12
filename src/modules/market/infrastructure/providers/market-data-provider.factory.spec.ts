@@ -2,6 +2,7 @@ import { MarketDataProviderFactory } from './market-data-provider.factory';
 import { EodhdMarketDataProvider } from './eodhd-market-data.provider';
 import { MockMarketDataProvider } from './mock-market-data.provider';
 import { NoneMarketDataProvider } from './none-market-data.provider';
+import { FallbackMarketDataProvider } from './fallback-market-data.provider';
 import { ConfigService } from '@nestjs/config';
 
 describe('ProviderFactory', () => {
@@ -73,7 +74,7 @@ describe('ProviderFactory', () => {
     ).toThrow('Unknown market provider');
   });
 
-  it('should create EodhdMarketDataProvider when "eodhd" is requested', () => {
+  it('should create FallbackMarketDataProvider wrapping eodhd+mock when "eodhd" is requested', () => {
     const provider = MarketDataProviderFactory.createProvider(
       'eodhd',
       mockProvider,
@@ -81,8 +82,8 @@ describe('ProviderFactory', () => {
       noneProvider,
     );
 
-    expect(provider).toBe(eodhdProvider);
-    expect(provider.getName()).toBe('EODHD');
+    expect(provider).toBeInstanceOf(FallbackMarketDataProvider);
+    expect(provider.getName()).toBe('EODHD_with_fallback_to_Mock');
   });
 
   it('should be case-insensitive for provider names', () => {

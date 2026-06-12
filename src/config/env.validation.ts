@@ -9,6 +9,7 @@ export const envValidationSchema = Joi.object({
   JWT_EXPIRES_IN: Joi.string().default('1d'),
   INITIAL_BALANCE: Joi.number().positive().default(100000),
   COMMISSION_RATE: Joi.number().min(0).max(1).default(0.005),
+  // Only used for initial DB seed; changes via admin panel take effect immediately
   MARKET_PROVIDER: Joi.string().valid('mock', 'eodhd').optional(),
   MARKET_HOURS_OPEN: Joi.string()
     .pattern(/^\d{2}:\d{2}$/)
@@ -17,6 +18,7 @@ export const envValidationSchema = Joi.object({
     .pattern(/^\d{2}:\d{2}$/)
     .default('16:00'),
   MARKET_TICK_INTERVAL_SECONDS: Joi.number().min(0).default(15),
+  // Only used for initial DB seed; changes via admin panel take effect immediately
   SIMULATION_STRATEGY: Joi.string().valid('flat', 'gbm', 'nw').default('flat'),
   EODHD_API_KEY: Joi.when('MARKET_PROVIDER', {
     is: 'eodhd',
@@ -33,7 +35,9 @@ export const envValidationSchema = Joi.object({
   EODHD_DAILY_REFRESH_CRON: Joi.string().default('0 30 18 * * 1-5'),
   EODHD_CACHE_TTL_SECONDS: Joi.number().positive().default(86400),
 
+  // Only used for initial DB seed; changes via admin panel take effect immediately
   CURRENCY_PROVIDER: Joi.string().valid('mock', 'exchangeRate').optional(),
+  // Only used for initial DB seed; changes via admin panel take effect immediately
   CURRENCY_SIMULATION_STRATEGY: Joi.string()
     .valid('flat', 'gbm', 'nw')
     .default('flat'),

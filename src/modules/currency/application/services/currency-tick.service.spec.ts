@@ -34,10 +34,12 @@ describe('CurrencyTickService', () => {
       deleteInterval: jest.fn(),
       doesExist: jest.fn().mockReturnValue(true),
     };
+    const providerResolver = { getProvider: jest.fn().mockResolvedValue(provider) };
+    const strategyResolver = { getStrategy: jest.fn().mockResolvedValue(strategy) };
 
     service = new CurrencyTickService(
-      provider as never,
-      strategy as never,
+      providerResolver as never,
+      strategyResolver as never,
       cacheService as never,
       eventEmitter as unknown as EventEmitter2,
       configService as unknown as ConfigService,
@@ -64,11 +66,11 @@ describe('CurrencyTickService', () => {
     setIntervalSpy?.mockRestore?.();
   });
   describe('onModuleInit', () => {
-    it('registers interval when interval > 0 and symbols exist', () => {
+    it('registers interval when interval > 0 and symbols exist', async () => {
       provider.getSymbols.mockReturnValue(['EURUSD']);
       configService.get.mockReturnValue(5);
 
-      service.onModuleInit();
+      await service.onModuleInit();
 
       expect(schedulerRegistry.addInterval).toHaveBeenCalledWith(
         'currency-tick',
@@ -76,20 +78,20 @@ describe('CurrencyTickService', () => {
       );
     });
 
-    it('does not register interval when interval <= 0', () => {
+    it('does not register interval when interval <= 0', async () => {
       provider.getSymbols.mockReturnValue(['EURUSD']);
       configService.get.mockReturnValue(0);
 
-      service.onModuleInit();
+      await service.onModuleInit();
 
       expect(schedulerRegistry.addInterval).not.toHaveBeenCalled();
     });
 
-    it('does not register interval when no symbols', () => {
+    it('does not register interval when no symbols', async () => {
       provider.getSymbols.mockReturnValue([]);
       configService.get.mockReturnValue(5);
 
-      service.onModuleInit();
+      await service.onModuleInit();
 
       expect(schedulerRegistry.addInterval).not.toHaveBeenCalled();
     });

@@ -2,6 +2,7 @@ import { CurrencyDataProvider } from '../../domain/interfaces/currency-data-prov
 import { ExchangeRateCurrencyDataProvider } from './exchangeRate-currency-data.provider';
 import { MockCurrencyDataProvider } from './mock-currency-data.provider';
 import { NoneCurrencyDataProvider } from './none-currency-data.provider';
+import { FallbackCurrencyDataProvider } from './fallback-currency-data.provider';
 
 export class CurrencyProviderFactory {
   static createProvider(
@@ -16,7 +17,7 @@ export class CurrencyProviderFactory {
       case 'mock':
         return mockProvider;
       case 'exchangeRate':
-        return exchangeRate;
+        return new FallbackCurrencyDataProvider(exchangeRate, mockProvider);
       case 'none':
       case '':
       case undefined:

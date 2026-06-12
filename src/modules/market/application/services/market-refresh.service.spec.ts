@@ -26,10 +26,11 @@ describe('MarketRefreshService', () => {
     };
     updateWriter = { persist: jest.fn().mockResolvedValue(undefined) };
     eventEmitter = { emit: jest.fn() };
+    const resolver = { getProvider: jest.fn().mockResolvedValue(provider) };
 
     service = new MarketRefreshService(
       stockModel,
-      provider,
+      resolver as never, 
       updateWriter,
       eventEmitter,
     );

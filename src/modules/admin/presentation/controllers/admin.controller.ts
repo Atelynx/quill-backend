@@ -9,7 +9,6 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../../common/guards/roles.guard';
 import { Roles } from '../../../../common/decorators/roles.decorator';
@@ -17,18 +16,12 @@ import { AdminConfigService } from '../../application/services/admin-config.serv
 import { CreateConfigDto } from '../dto/create-config.dto';
 import { UpsertConfigDto } from '../dto/upsert-config.dto';
 
-const RESTART_REQUIRED_KEYS = new Set([
-  'MARKET_PROVIDER',
-  'SIMULATION_STRATEGY',
-]);
-
 @Controller('admin/config')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
 export class AdminController {
   constructor(
     private readonly adminConfigService: AdminConfigService,
-    private readonly configService: ConfigService,
   ) {}
 
   @Get()
@@ -44,7 +37,7 @@ export class AdminController {
       throw new NotFoundException(`Configuración "${key}" no encontrada.`);
     }
 
-    const response: Record<string, any> = {
+    return {
       key: doc.key,
       value: doc.value,
       name: doc.name ?? null,
@@ -54,13 +47,6 @@ export class AdminController {
       createdAt: (doc as any).createdAt,
       updatedAt: (doc as any).updatedAt,
     };
-
-    if (RESTART_REQUIRED_KEYS.has(key)) {
-      response.effectiveValue = this.configService.get(key, doc.value);
-      response.appliesOn = 'restart';
-    }
-
-    return response;
   }
 
   @Get(':key/history')

@@ -37,8 +37,9 @@ describe('CurrencyAnchorService', () => {
       deleteCronJob: jest.fn(),
       doesExist: jest.fn().mockReturnValue(true),
     };
+    const resolver = { getProvider: jest.fn().mockResolvedValue(provider) };
     service = new CurrencyAnchorService(
-      provider as never,
+      resolver as never,
       cacheService as never,
       schedulerRegistry as unknown as SchedulerRegistry,
     );
@@ -108,13 +109,12 @@ describe('CurrencyAnchorService', () => {
     });
   });
 
-  describe('fetchAndStoreAnchors', () => {
+  describe('fetchAnchorsForSymbols', () => {
     it('sets base price and live price if live is null', async () => {
-      provider.getSymbols.mockReturnValue(['EURUSD']);
       provider.getQuote.mockResolvedValue({ close: 1.1 });
       cacheService.get.mockResolvedValue(null);
 
-      await (service as any).fetchAndStoreAnchors(['EURUSD']);
+      await (service as any).fetchAnchorsForSymbols(provider, ['EURUSD']);
 
       expect(cacheService.set).toHaveBeenCalledWith(
         'forex:EURUSD:base_price',
@@ -127,11 +127,10 @@ describe('CurrencyAnchorService', () => {
     });
 
     it('does not overwrite existing live price', async () => {
-      provider.getSymbols.mockReturnValue(['EURUSD']);
       provider.getQuote.mockResolvedValue({ close: 1.15 });
       cacheService.get.mockResolvedValue(1.12);
 
-      await (service as any).fetchAndStoreAnchors(['EURUSD']);
+      await (service as any).fetchAnchorsForSymbols(provider, ['EURUSD']);
 
       expect(cacheService.set).toHaveBeenCalledWith(
         'forex:EURUSD:base_price',
@@ -149,7 +148,7 @@ describe('CurrencyAnchorService', () => {
         .mockResolvedValueOnce({ close: 1.3 });
       const errorSpy = jest.spyOn((service as any).logger, 'error');
 
-      await (service as any).fetchAndStoreAnchors(['EURUSD', 'GBPUSD']);
+      await (service as any).fetchAnchorsForSymbols(provider, ['EURUSD', 'GBPUSD']);
 
       expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('EURUSD'));
       expect(cacheService.set).toHaveBeenCalledTimes(2);
@@ -158,7 +157,7 @@ describe('CurrencyAnchorService', () => {
     it('uses quote.price when quote.close is undefined', async () => {
       provider.getQuote.mockResolvedValue({ price: 200 });
 
-      await (service as any).fetchAndStoreAnchors(['USDCLP']);
+      await (service as any).fetchAnchorsForSymbols(provider, ['USDCLP']);
 
       expect(cacheService.set).toHaveBeenCalledWith(
         'forex:USDCLP:base_price',
@@ -168,6 +167,13 @@ describe('CurrencyAnchorService', () => {
   });
 
   describe('handleAnchorCron', () => {
+    beforeEach(() => {
+      provider.getRefreshSchedule.mockReturnValue({
+        cronExpression: '0 */5 * * *',
+      });
+      (service as any).currentCronExpression = '0 */5 * * *';
+    });
+
     it('fetches anchors for all symbols', async () => {
       provider.getSymbols.mockReturnValue(['EURUSD']);
       provider.getQuote.mockResolvedValue({ close: 1.1 });
@@ -182,6 +188,63 @@ describe('CurrencyAnchorService', () => {
       provider.getSymbols.mockReturnValue([]);
       await (service as any).handleAnchorCron();
       expect(provider.getQuote).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reconcileSchedule', () => {
+    it('adds cron when provider declares a schedule', () => {
+      provider.getRefreshSchedule.mockReturnValue({
+        cronExpression: '0 */5 * * *',
+      });
+
+      (service as any).reconcileSchedule(provider);
+
+      expect(schedulerRegistry.addCronJob).toHaveBeenCalledWith(
+        'currency-anchor',
+        expect.any(Object),
+      );
+    });
+
+    it('removes cron when provider has no schedule', () => {
+      (service as any).currentCronExpression = '0 0 * * *';
+      provider.getRefreshSchedule.mockReturnValue(undefined);
+
+      (service as any).reconcileSchedule(provider);
+
+      expect(schedulerRegistry.deleteCronJob).toHaveBeenCalledWith(
+        'currency-anchor',
+      );
+      expect(schedulerRegistry.addCronJob).not.toHaveBeenCalled();
+      expect((service as any).currentCronExpression).toBeNull();
+    });
+
+    it('replaces cron when schedule expression changes', () => {
+      (service as any).currentCronExpression = '0 0 * * *';
+      provider.getRefreshSchedule.mockReturnValue({
+        cronExpression: '0 */5 * * *',
+      });
+
+      (service as any).reconcileSchedule(provider);
+
+      expect(schedulerRegistry.deleteCronJob).toHaveBeenCalledWith(
+        'currency-anchor',
+      );
+      expect(schedulerRegistry.addCronJob).toHaveBeenCalledWith(
+        'currency-anchor',
+        expect.any(Object),
+      );
+    });
+
+    it('does nothing when schedule expression is unchanged', () => {
+      (service as any).currentCronExpression = '0 */5 * * *';
+      provider.getRefreshSchedule.mockReturnValue({
+        cronExpression: '0 */5 * * *',
+      });
+
+      (service as any).reconcileSchedule(provider);
+
+      expect(schedulerRegistry.deleteCronJob).not.toHaveBeenCalled();
+      expect(schedulerRegistry.addCronJob).not.toHaveBeenCalled();
     });
   });
 });

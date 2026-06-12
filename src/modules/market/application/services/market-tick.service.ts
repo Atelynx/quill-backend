@@ -1,15 +1,15 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import Decimal from 'decimal.js';
 import { Model } from 'mongoose';
 import { PRICE_UPDATE_EVENT } from '../../domain/constants/events';
-import type { IMarketSimulationStrategy } from '../../../common/strategies/market-simulation-strategy.interface';
 import {
   Stock,
   StockDocument,
 } from '../../infrastructure/schemas/stock.schema';
 import { CacheService } from '../../../system/application/services/cache/cache.service';
+import { MarketStrategyResolver } from './market-strategy.resolver';
 
 const BASE_PRICE_CACHE_PREFIX = 'stock:';
 const BASE_PRICE_CACHE_SUFFIX = ':base_price';
@@ -22,8 +22,7 @@ export class MarketTickService {
 
   constructor(
     @InjectModel(Stock.name) private readonly stockModel: Model<StockDocument>,
-    @Inject('MARKET_SIMULATION_STRATEGY')
-    private readonly strategy: IMarketSimulationStrategy,
+    private readonly strategyResolver: MarketStrategyResolver,
     private readonly cacheService: CacheService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
@@ -61,7 +60,8 @@ export class MarketTickService {
 
         const volatility = new Decimal(stock.baseVolatility ?? 0.015);
         const drift = new Decimal(stock.baseDrift ?? 0);
-        const nextPrice = this.strategy.calculateNextTick(
+        const strategy = await this.strategyResolver.getStrategy();
+        const nextPrice = strategy.calculateNextTick(
           new Decimal(basePrice),
           new Decimal(livePrice),
           volatility,

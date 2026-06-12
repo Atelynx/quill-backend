@@ -1,4 +1,5 @@
 import { CurrencyProviderFactory } from './currency-provider.factory';
+import { FallbackCurrencyDataProvider } from './fallback-currency-data.provider';
 
 describe('CurrencyProviderFactory', () => {
   const mockProvider = { getName: () => 'mock' };
@@ -15,14 +16,15 @@ describe('CurrencyProviderFactory', () => {
     expect(result.getName()).toBe('mock');
   });
 
-  it('creates exchangeRate provider', () => {
+  it('creates FallbackCurrencyDataProvider wrapping exchangeRate+mock when "exchangeRate" is requested', () => {
     const result = CurrencyProviderFactory.createProvider(
       'exchangeRate',
       mockProvider as never,
       exchangeRateProvider as never,
       noneProvider as never,
     );
-    expect(result.getName()).toBe('exchangeRate');
+    expect(result).toBeInstanceOf(FallbackCurrencyDataProvider);
+    expect(result.getName()).toBe('exchangeRate_with_fallback_to_mock');
   });
 
   it('creates none provider for "none"', () => {
