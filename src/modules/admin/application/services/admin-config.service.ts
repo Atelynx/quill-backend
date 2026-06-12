@@ -15,57 +15,7 @@ import {
   ConfigSnapshot,
   ConfigSnapshotDocument,
 } from '../../infrastructure/schemas/config-snapshot.schema';
-
-const SEED_CONFIGS: Array<{
-  key: string;
-  envKey: string;
-  defaultValue: any;
-  name: string;
-  tags: string[];
-}> = [
-  {
-    key: 'COMMISSION_RATE',
-    envKey: 'COMMISSION_RATE',
-    defaultValue: 0.005,
-    name: 'Comisión de trading',
-    tags: ['trading', 'fees'],
-  },
-  {
-    key: 'INITIAL_BALANCE',
-    envKey: 'INITIAL_BALANCE',
-    defaultValue: 100000,
-    name: 'Balance inicial',
-    tags: ['users', 'registration'],
-  },
-  {
-    key: 'MARKET_HOURS_OPEN',
-    envKey: 'MARKET_HOURS_OPEN',
-    defaultValue: '09:30',
-    name: 'Horario apertura mercado',
-    tags: ['market', 'hours'],
-  },
-  {
-    key: 'MARKET_HOURS_CLOSED',
-    envKey: 'MARKET_HOURS_CLOSED',
-    defaultValue: '16:00',
-    name: 'Horario cierre mercado',
-    tags: ['market', 'hours'],
-  },
-  {
-    key: 'MARKET_PROVIDER',
-    envKey: 'MARKET_PROVIDER',
-    defaultValue: 'mock',
-    name: 'Proveedor de datos de mercado',
-    tags: ['market', 'provider'],
-  },
-  {
-    key: 'SIMULATION_STRATEGY',
-    envKey: 'SIMULATION_STRATEGY',
-    defaultValue: 'flat',
-    name: 'Estrategia de simulación',
-    tags: ['market', 'simulation'],
-  },
-];
+import { envValidationSchema } from '../../../../config/env.validation';
 
 @Injectable()
 export class AdminConfigService implements OnModuleInit {
@@ -80,29 +30,60 @@ export class AdminConfigService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    for (const config of SEED_CONFIGS) {
+    const description = envValidationSchema.describe();
+    const adminConfigKeys = Object.entries(description.keys)
+      .filter(([_, schema]: [string, any]) =>
+        schema.metas?.some((meta: any) => meta.adminConfig === true),
+      )
+      .map(([key]) => key);
+
+    for (const key of adminConfigKeys) {
       const exists = await this.adminConfigModel
-        .exists({ key: config.key, inUse: true })
+        .exists({ key, inUse: true })
         .exec();
 
       if (!exists) {
-        const value = config.envKey
-          ? this.configService.get(config.envKey, config.defaultValue)
-          : config.defaultValue;
+        let value = this.configService.get(key);
+        if (value === undefined || value === null) {
+          const keySchema = description.keys[key] as any;
+          value = keySchema?.flags?.default;
+        }
+        if (value === undefined || value === null) {
+          if (key.includes('PROVIDER')) {
+            value = 'mock';
+          } else if (key.includes('STRATEGY')) {
+            value = 'flat';
+          }
+        }
+
+        const name = this.formatFriendlyName(key);
+        const tags = this.formatTags(key);
 
         await this.adminConfigModel.create({
-          key: config.key,
+          key,
           value,
-          name: config.name,
-          tags: config.tags,
+          name,
+          tags,
           inUse: true,
         });
 
         this.logger.log(
-          `Seeded default config: ${config.key}=${JSON.stringify(value)}`,
+          `Seeded dynamic config from env: ${key}=${JSON.stringify(value)}`,
         );
       }
     }
+  }
+
+  private formatFriendlyName(key: string): string {
+    return key
+      .toLowerCase()
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
+  private formatTags(key: string): string[] {
+    return key.toLowerCase().split('_');
   }
 
   async get(key: string): Promise<any> {

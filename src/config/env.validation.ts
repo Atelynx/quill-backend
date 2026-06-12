@@ -7,17 +7,21 @@ export const envValidationSchema = Joi.object({
   REDIS_URL: Joi.string().default('redis://localhost:6379'),
   JWT_SECRET: Joi.string().min(16).required(),
   JWT_EXPIRES_IN: Joi.string().default('1d'),
-  INITIAL_BALANCE: Joi.number().positive().default(100000),
-  COMMISSION_RATE: Joi.number().min(0).max(1).default(0.005),
-  MARKET_PROVIDER: Joi.string().valid('mock', 'eodhd').optional(),
+  INITIAL_BALANCE: Joi.number().positive().default(100000).meta({ adminConfig: true }),
+  COMMISSION_RATE: Joi.number().min(0).max(1).default(0.005).meta({ adminConfig: true }),
+  // Only used for initial DB seed; changes via admin panel take effect immediately
+  MARKET_PROVIDER: Joi.string().valid('mock', 'eodhd').optional().meta({ adminConfig: true }),
   MARKET_HOURS_OPEN: Joi.string()
     .pattern(/^\d{2}:\d{2}$/)
-    .default('09:30'),
+    .default('09:30')
+    .meta({ adminConfig: true }),
   MARKET_HOURS_CLOSED: Joi.string()
     .pattern(/^\d{2}:\d{2}$/)
-    .default('16:00'),
+    .default('16:00')
+    .meta({ adminConfig: true }),
   MARKET_TICK_INTERVAL_SECONDS: Joi.number().min(0).default(15),
-  SIMULATION_STRATEGY: Joi.string().valid('flat', 'gbm', 'nw').default('flat'),
+  // Only used for initial DB seed; changes via admin panel take effect immediately
+  SIMULATION_STRATEGY: Joi.string().valid('flat', 'gbm', 'nw').default('flat').meta({ adminConfig: true }),
   EODHD_API_KEY: Joi.when('MARKET_PROVIDER', {
     is: 'eodhd',
     then: Joi.string().required(),
@@ -33,10 +37,14 @@ export const envValidationSchema = Joi.object({
   EODHD_DAILY_REFRESH_CRON: Joi.string().default('0 30 18 * * 1-5'),
   EODHD_CACHE_TTL_SECONDS: Joi.number().positive().default(86400),
 
-  CURRENCY_PROVIDER: Joi.string().valid('mock', 'exchangeRate').optional(),
+
+  // Only used for initial DB seed; changes via admin panel take effect immediately
+  CURRENCY_PROVIDER: Joi.string().valid('mock', 'exchangeRate').optional().meta({ adminConfig: true }),
+  // Only used for initial DB seed; changes via admin panel take effect immediately
   CURRENCY_SIMULATION_STRATEGY: Joi.string()
     .valid('flat', 'gbm', 'nw')
-    .default('flat'),
+    .default('flat')
+    .meta({ adminConfig: true }),
   CURRENCY_RT_TICK_INTERVAL_SECONDS: Joi.number().min(0).default(5),
   CURRENCY_ANCHOR_VOLATILITY: Joi.number().min(0).default(0.005),
   CURRENCY_ANCHOR_DRIFT: Joi.number().default(0),
