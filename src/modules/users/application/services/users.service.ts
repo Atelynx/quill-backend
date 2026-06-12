@@ -60,10 +60,8 @@ export class UsersService {
     }
 
     const adminBalance = await this.adminConfigService.get('INITIAL_BALANCE');
-    const initialBalance = adminBalance ?? this.configService.get<number>(
-      'INITIAL_BALANCE',
-      100000,
-    );
+    const initialBalance =
+      adminBalance ?? this.configService.get<number>('INITIAL_BALANCE', 100000);
 
     return this.userModel.create({
       fullName: input.fullName,
@@ -102,10 +100,7 @@ export class UsersService {
     const lower = identifier.toLowerCase();
     return this.userModel
       .findOne({
-        $or: [
-          { email: lower },
-          { username: lower },
-        ],
+        $or: [{ email: lower }, { username: lower }],
       })
       .exec();
   }
@@ -176,10 +171,7 @@ export class UsersService {
     await user.save();
   }
 
-  async addToWatchlist(
-    id: string,
-    symbols: string[],
-  ): Promise<UserDocument> {
+  async addToWatchlist(id: string, symbols: string[]): Promise<UserDocument> {
     const user = await this.findById(id);
     const normalized = symbols.map((s) => s.toUpperCase());
 
@@ -221,10 +213,7 @@ export class UsersService {
     }));
   }
 
-  async sendFriendRequest(
-    userId: string,
-    friendId: string,
-  ): Promise<void> {
+  async sendFriendRequest(userId: string, friendId: string): Promise<void> {
     if (userId === friendId) {
       throw new BadRequestException('No puedes agregarte a ti mismo.');
     }
@@ -250,10 +239,7 @@ export class UsersService {
     });
   }
 
-  async acceptFriendRequest(
-    userId: string,
-    friendId: string,
-  ): Promise<void> {
+  async acceptFriendRequest(userId: string, friendId: string): Promise<void> {
     const request = await this.friendshipModel
       .findOne({
         userId: new Types.ObjectId(friendId),

@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -93,7 +98,9 @@ export class AdminConfigService implements OnModuleInit {
           inUse: true,
         });
 
-        this.logger.log(`Seeded default config: ${config.key}=${JSON.stringify(value)}`);
+        this.logger.log(
+          `Seeded default config: ${config.key}=${JSON.stringify(value)}`,
+        );
       }
     }
   }
@@ -157,17 +164,11 @@ export class AdminConfigService implements OnModuleInit {
   }
 
   async getHistory(key: string): Promise<AdminConfigDocument[]> {
-    return this.adminConfigModel
-      .find({ key })
-      .sort({ createdAt: -1 })
-      .exec();
+    return this.adminConfigModel.find({ key }).sort({ createdAt: -1 }).exec();
   }
 
   async getAll(): Promise<AdminConfigDocument[]> {
-    return this.adminConfigModel
-      .find({ inUse: true })
-      .sort({ key: 1 })
-      .exec();
+    return this.adminConfigModel.find({ inUse: true }).sort({ key: 1 }).exec();
   }
 
   async delete(key: string): Promise<void> {
@@ -192,7 +193,9 @@ export class AdminConfigService implements OnModuleInit {
       {
         configs,
         name: name ?? `Manual · ${new Date().toISOString()}`,
-        createdBy: createdBy ? (new Types.ObjectId(createdBy) as any) : undefined,
+        createdBy: createdBy
+          ? (new Types.ObjectId(createdBy) as any)
+          : undefined,
       },
     ]);
 

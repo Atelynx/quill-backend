@@ -12,7 +12,10 @@ import {
 import { AdminController } from './presentation/controllers/admin.controller';
 import { AdminSnapshotsController } from './presentation/controllers/admin-snapshots.controller';
 import { AdminUsersController } from './presentation/controllers/admin-users.controller';
-import { User, UserSchema } from '../../modules/users/infrastructure/schemas/user.schema';
+import {
+  User,
+  UserSchema,
+} from '../../modules/users/infrastructure/schemas/user.schema';
 
 @Global()
 @Module({
@@ -23,7 +26,11 @@ import { User, UserSchema } from '../../modules/users/infrastructure/schemas/use
       { name: User.name, schema: UserSchema },
     ]),
   ],
-  controllers: [AdminController, AdminSnapshotsController, AdminUsersController],
+  controllers: [
+    AdminController,
+    AdminSnapshotsController,
+    AdminUsersController,
+  ],
   providers: [AdminConfigService],
   exports: [AdminConfigService],
 })

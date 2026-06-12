@@ -85,7 +85,7 @@ export async function createTestApp(
   app.useGlobalFilters(new HttpExceptionFilter());
   const origins = (process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173')
     .split(',')
-    .map(o => o.trim())
+    .map((o) => o.trim())
     .filter(Boolean);
   app.enableCors({
     origin: origins.length === 1 ? origins[0] : origins,

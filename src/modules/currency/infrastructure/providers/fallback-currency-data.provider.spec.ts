@@ -79,9 +79,7 @@ describe('FallbackCurrencyDataProvider', () => {
 
   describe('getName', () => {
     it('combines primary and fallback names', () => {
-      expect(provider.getName()).toBe(
-        'exchangeRate_with_fallback_to_mock',
-      );
+      expect(provider.getName()).toBe('exchangeRate_with_fallback_to_mock');
     });
   });
 

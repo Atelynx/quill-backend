@@ -27,10 +27,7 @@ export class AdminUsersController {
   ) {}
 
   @Put(':id/role')
-  async updateRole(
-    @Param('id') id: string,
-    @Body() dto: UpdateUserRoleDto,
-  ) {
+  async updateRole(@Param('id') id: string, @Body() dto: UpdateUserRoleDto) {
     const user = await this.userModel.findByIdAndUpdate(
       id,
       { $set: { role: dto.role } },

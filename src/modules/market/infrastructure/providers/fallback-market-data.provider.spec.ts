@@ -5,7 +5,9 @@ type MockedMarketDataProvider = Omit<
   jest.Mocked<MarketDataProvider>,
   'getSeedData' | 'getRefreshSchedule'
 > & {
-  getSeedData: jest.MockedFunction<NonNullable<MarketDataProvider['getSeedData']>>;
+  getSeedData: jest.MockedFunction<
+    NonNullable<MarketDataProvider['getSeedData']>
+  >;
   getRefreshSchedule: jest.MockedFunction<
     NonNullable<MarketDataProvider['getRefreshSchedule']>
   >;

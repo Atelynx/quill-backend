@@ -18,7 +18,11 @@ function createExecQuery<T>(value: T) {
 }
 
 function createLeanQuery<T>(value: T) {
-  return { lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(value) }) };
+  return {
+    lean: jest
+      .fn()
+      .mockReturnValue({ exec: jest.fn().mockResolvedValue(value) }),
+  };
 }
 
 describe('UsersService', () => {
@@ -354,8 +358,22 @@ describe('UsersService', () => {
       );
       stockModel.find.mockReturnValue(
         createLeanQuery([
-          { symbol: 'AAPL', name: 'Apple', close: 150, previousClose: 148, dayChangePercentage: 1.35, currency: 'USD' },
-          { symbol: 'MSFT', name: 'Microsoft', close: 300, previousClose: 295, dayChangePercentage: 1.69, currency: 'USD' },
+          {
+            symbol: 'AAPL',
+            name: 'Apple',
+            close: 150,
+            previousClose: 148,
+            dayChangePercentage: 1.35,
+            currency: 'USD',
+          },
+          {
+            symbol: 'MSFT',
+            name: 'Microsoft',
+            close: 300,
+            previousClose: 295,
+            dayChangePercentage: 1.69,
+            currency: 'USD',
+          },
         ]),
       );
 
@@ -418,14 +436,22 @@ describe('UsersService', () => {
     });
 
     it('elimina amistad en ambas direcciones', async () => {
-      friendshipModel.deleteMany.mockReturnValue(createExecQuery({ deletedCount: 2 }));
+      friendshipModel.deleteMany.mockReturnValue(
+        createExecQuery({ deletedCount: 2 }),
+      );
 
       await service.removeFriend(userId, friendId);
 
       expect(friendshipModel.deleteMany).toHaveBeenCalledWith({
         $or: [
-          { userId: expect.any(Types.ObjectId), friendId: expect.any(Types.ObjectId) },
-          { userId: expect.any(Types.ObjectId), friendId: expect.any(Types.ObjectId) },
+          {
+            userId: expect.any(Types.ObjectId),
+            friendId: expect.any(Types.ObjectId),
+          },
+          {
+            userId: expect.any(Types.ObjectId),
+            friendId: expect.any(Types.ObjectId),
+          },
         ],
       });
     });
@@ -433,12 +459,21 @@ describe('UsersService', () => {
     it('lista amigos aceptados', async () => {
       friendshipModel.find.mockReturnValue(
         createLeanQuery([
-          { userId: new Types.ObjectId(userId), friendId: new Types.ObjectId(friendId), status: 'accepted' },
+          {
+            userId: new Types.ObjectId(userId),
+            friendId: new Types.ObjectId(friendId),
+            status: 'accepted',
+          },
         ]),
       );
       userModel.find.mockReturnValue(
         createLeanQuery([
-          { _id: new Types.ObjectId(friendId), fullName: 'Friend', email: 'friend@quill.dev', username: 'friend_user' },
+          {
+            _id: new Types.ObjectId(friendId),
+            fullName: 'Friend',
+            email: 'friend@quill.dev',
+            username: 'friend_user',
+          },
         ]),
       );
 
