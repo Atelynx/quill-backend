@@ -1,0 +1,35 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
+
+export type AdminConfigDocument = HydratedDocument<AdminConfig>;
+
+@Schema({ collection: 'admin_configs', timestamps: true })
+export class AdminConfig {
+  @Prop({ required: true })
+  key!: string;
+
+  @Prop({ required: true, type: SchemaTypes.Mixed })
+  value!: any;
+
+  @Prop()
+  name?: string;
+
+  @Prop({ type: [String], default: [] })
+  tags?: string[];
+
+  @Prop({ type: Boolean, default: true })
+  inUse!: boolean;
+
+  @Prop({ type: Date })
+  lastUsedAt?: Date;
+
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'User' })
+  updatedBy?: Types.ObjectId;
+}
+
+const schema = SchemaFactory.createForClass(AdminConfig);
+
+schema.index({ key: 1, inUse: 1 });
+schema.index({ key: 1, createdAt: -1 });
+
+export const AdminConfigSchema = schema;

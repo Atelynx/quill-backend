@@ -7,6 +7,7 @@ describe('jwt-strategy', () => {
   const mockedPayload = {
     email: 'example@gmail.com',
     sub: 'example',
+    role: 'investor' as const,
   };
   beforeEach(() => {
     configService = {

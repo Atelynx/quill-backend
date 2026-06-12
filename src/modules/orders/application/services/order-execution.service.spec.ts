@@ -36,6 +36,7 @@ describe('OrderExecutionService', () => {
       tradeModel,
       commissionService,
       { get: jest.fn() } as never,
+      { get: jest.fn() } as never,
       { getRate: jest.fn() } as never,
     );
     jest.spyOn(service.logger, 'error').mockImplementation(jest.fn());
@@ -78,7 +79,7 @@ describe('OrderExecutionService', () => {
     const position = { quantity: 3, averageCost: 80, save: jest.fn() };
     userModel.findById.mockReturnValue(query(user));
     positionModel.findOne.mockReturnValue(query(position));
-    commissionService.calculate.mockReturnValue(1);
+    commissionService.calculate.mockResolvedValue(1);
 
     await executeWith(currentOrder, 100);
 
@@ -112,7 +113,7 @@ describe('OrderExecutionService', () => {
       }),
     );
     positionModel.findOne.mockReturnValue(query(null));
-    commissionService.calculate.mockReturnValue(1);
+    commissionService.calculate.mockResolvedValue(1);
 
     await executeWith(currentOrder, 100);
 
@@ -143,7 +144,7 @@ describe('OrderExecutionService', () => {
     };
     userModel.findById.mockReturnValue(query(user));
     positionModel.findOne.mockReturnValueOnce(query(position));
-    commissionService.calculate.mockReturnValue(1.01);
+    commissionService.calculate.mockResolvedValue(1.01);
 
     await executeWith(currentOrder, 101.12);
 
@@ -235,7 +236,7 @@ describe('executeMarketOrder', () => {
     userModel = { findById: jest.fn() };
     positionModel = { findOne: jest.fn(), create: jest.fn() };
     tradeModel = { create: jest.fn().mockResolvedValue(undefined) };
-    commissionService = { calculate: jest.fn().mockReturnValue(1) };
+    commissionService = { calculate: jest.fn().mockResolvedValue(1) };
     cacheService = { get: jest.fn() };
     currencyRateService = { getRate: jest.fn() };
 
@@ -258,6 +259,7 @@ describe('executeMarketOrder', () => {
       stockModel as never,
       tradeModel as never,
       commissionService as never,
+      { get: jest.fn() } as never,
       cacheService as never,
       currencyRateService as never,
     );

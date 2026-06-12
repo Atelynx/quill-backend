@@ -57,6 +57,7 @@ describe('UsersService', () => {
       friendshipModel as never,
       stockModel as never,
       configService as never,
+      { get: jest.fn().mockResolvedValue(null) } as never,
     );
   });
 

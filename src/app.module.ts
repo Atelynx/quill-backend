@@ -6,6 +6,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { resolveEnvFilePaths } from './config/env-file-paths';
 import { normalizeMongoDbUri } from './config/normalize-mongodb-uri';
 import { envValidationSchema } from './config/env.validation';
+import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CurrencyModule } from './modules/currency/currency.module';
 import { MarketModule } from './modules/market/market.module';
@@ -38,6 +39,7 @@ import { UsersModule } from './modules/users/users.module';
     }),
     SystemModule,
     UsersModule,
+    AdminModule,
     AuthModule,
     CurrencyModule,
     MarketModule,

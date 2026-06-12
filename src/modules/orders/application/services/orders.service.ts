@@ -98,7 +98,7 @@ export class OrdersService {
       }
 
       const grossAmount = new Decimal(normalizedQuantity).times(limitPriceCLP);
-      const estimatedCommission = this.commissionService.calculate(
+      const estimatedCommission = await this.commissionService.calculate(
         grossAmount.toNumber(),
       );
 
