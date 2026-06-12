@@ -11,6 +11,7 @@ import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
 import Decimal from 'decimal.js';
 import { CurrencyRateService } from '../../../currency/application/services/currency-rate.service';
+import { isMarketOpen } from '../../../../common/utils/market-hours';
 import { MarketService } from '../../../market/application/services/market.service';
 import {
   Stock,
@@ -79,7 +80,7 @@ export class OrderExecutionService {
   }
 
   private async executeCycle(): Promise<void> {
-    if (!await this.isMarketOpen()) return;
+    if (!(await this.isMarketOpen())) return;
     const quotes = await this.marketService.listQuotes();
     await this.processPendingOrders(quotes);
   }
@@ -121,14 +122,7 @@ export class OrderExecutionService {
 
     if (!openTime || !closeTime) return true;
 
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const [openH, openM] = (openTime as string).split(':').map(Number);
-    const [closeH, closeM] = (closeTime as string).split(':').map(Number);
-    const openMinutes = openH * 60 + openM;
-    const closeMinutes = closeH * 60 + closeM;
-
-    return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+    return isMarketOpen(openTime as string, closeTime as string);
   }
 
   private async executeOrder(
@@ -170,7 +164,8 @@ export class OrderExecutionService {
               .times(marketPriceCLP)
               .toDecimalPlaces(2)
               .toNumber();
-            commissionCLP = await this.commissionService.calculate(grossAmountCLP);
+            commissionCLP =
+              await this.commissionService.calculate(grossAmountCLP);
           }
         }
 
@@ -313,8 +308,10 @@ export class OrderExecutionService {
     side: 'BUY' | 'SELL',
     quantity: number,
   ): Promise<OrderDocument> {
-    if (!await this.isMarketOpen()) {
-      throw new BadRequestException('El mercado está cerrado. Las órdenes MARKET solo se ejecutan en horario de mercado.');
+    if (!(await this.isMarketOpen())) {
+      throw new BadRequestException(
+        'El mercado está cerrado. Las órdenes MARKET solo se ejecutan en horario de mercado.',
+      );
     }
 
     const livePrice = await this.cacheService.get<number>(
