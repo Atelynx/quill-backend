@@ -2,7 +2,11 @@ import { ConfigService } from '@nestjs/config';
 import { MockMarketDataProvider } from './mock-market-data.provider';
 
 function createLeanQuery<T>(value: T) {
-  return { lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(value) }) };
+  return {
+    lean: jest
+      .fn()
+      .mockReturnValue({ exec: jest.fn().mockResolvedValue(value) }),
+  };
 }
 
 describe('MockMarketDataProvider', () => {
@@ -20,10 +24,7 @@ describe('MockMarketDataProvider', () => {
   });
 
   beforeEach(() => {
-    provider = new MockMarketDataProvider(
-      configService,
-      stockModel as never,
-    );
+    provider = new MockMarketDataProvider(configService, stockModel as never);
   });
 
   describe('getQuote()', () => {
@@ -140,10 +141,7 @@ describe('MockMarketDataProvider', () => {
           return undefined;
         }),
       } as unknown as ConfigService;
-      provider = new MockMarketDataProvider(
-        configService,
-        stockModel as never,
-      );
+      provider = new MockMarketDataProvider(configService, stockModel as never);
 
       const schedule = provider.getRefreshSchedule();
 

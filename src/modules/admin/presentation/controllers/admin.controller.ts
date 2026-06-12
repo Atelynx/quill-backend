@@ -17,7 +17,10 @@ import { AdminConfigService } from '../../application/services/admin-config.serv
 import { CreateConfigDto } from '../dto/create-config.dto';
 import { UpsertConfigDto } from '../dto/upsert-config.dto';
 
-const RESTART_REQUIRED_KEYS = new Set(['MARKET_PROVIDER', 'SIMULATION_STRATEGY']);
+const RESTART_REQUIRED_KEYS = new Set([
+  'MARKET_PROVIDER',
+  'SIMULATION_STRATEGY',
+]);
 
 @Controller('admin/config')
 @UseGuards(JwtAuthGuard, RolesGuard)

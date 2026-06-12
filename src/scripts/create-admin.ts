@@ -50,7 +50,9 @@ async function main(): Promise<void> {
 
   if (!email) {
     console.error('Error: Email es requerido.');
-    console.error('Uso: npm run create:admin -- --email=user@example.com [--username=admin] [--password=secreto123]');
+    console.error(
+      'Uso: npm run create:admin -- --email=user@example.com [--username=admin] [--password=secreto123]',
+    );
     process.exit(1);
   }
 
@@ -72,7 +74,9 @@ async function main(): Promise<void> {
   });
 
   if (loaded.error) {
-    console.warn('No se pudo cargar .env, usando variables de entorno existentes.');
+    console.warn(
+      'No se pudo cargar .env, usando variables de entorno existentes.',
+    );
   }
 
   const MONGODB_URI = process.env.MONGODB_URI;
@@ -107,8 +111,7 @@ async function main(): Promise<void> {
       fullName: username ?? 'Admin',
       email: email.toLowerCase(),
       username: (
-        username ??
-        `admin_${Math.random().toString(36).slice(2, 8)}`
+        username ?? `admin_${Math.random().toString(36).slice(2, 8)}`
       ).toLowerCase(),
       passwordHash,
       role: 'admin',

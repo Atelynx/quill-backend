@@ -15,4 +15,5 @@ export class ConfigSnapshot {
   createdBy?: Types.ObjectId;
 }
 
-export const ConfigSnapshotSchema = SchemaFactory.createForClass(ConfigSnapshot);
+export const ConfigSnapshotSchema =
+  SchemaFactory.createForClass(ConfigSnapshot);

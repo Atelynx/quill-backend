@@ -99,9 +99,7 @@ export class MockMarketDataProvider implements MarketDataProvider {
           });
         }
       } else {
-        this.logger.log(
-          'No stocks in DB, mock will use hardcoded seed data',
-        );
+        this.logger.log('No stocks in DB, mock will use hardcoded seed data');
       }
     } catch (error) {
       this.logger.warn(
