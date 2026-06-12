@@ -14,13 +14,14 @@ async function bootstrap(): Promise<void> {
   });
 
   const configService = app.get(ConfigService);
-  const frontendOrigin = configService.get<string>('FRONTEND_ORIGIN');
+  const rawOrigins = configService.get<string>('FRONTEND_ORIGIN', 'http://localhost:5173');
+  const origins = rawOrigins.split(',').map(o => o.trim()).filter(Boolean);
   const port = configService.get<number>('BACKEND_PORT', 3000);
 
   app.use(helmet());
   app.use(compression());
   app.enableCors({
-    origin: frontendOrigin,
+    origin: origins.length === 1 ? origins[0] : origins,
     credentials: true,
   });
   app.useGlobalPipes(
@@ -51,7 +52,7 @@ async function bootstrap(): Promise<void> {
   logger.log(`Backend de Quill escuchando en http://localhost:${port}/api`);
   logger.log(`Swaggeer de Quill en http://localhost:${port}/api/swagger`)
   logger.log(
-    `Origen permitido para frontend: ${frontendOrigin ?? 'no definido'}`,
+    `Origen permitido para frontend: ${rawOrigins ?? 'no definido'}`,
   );
 }
 
