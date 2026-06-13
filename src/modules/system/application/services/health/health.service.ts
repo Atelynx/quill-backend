@@ -11,14 +11,14 @@ export class HealthService {
   ) {}
 
   getStatus() {
+    const mongodbUp = this.connection.readyState === ConnectionStates.connected;
+    const redisUp = this.cacheService.isConnected();
+
     return {
-      status: 'ok',
+      status: mongodbUp ? (redisUp ? 'ok' : 'degraded') : 'error',
       services: {
-        mongodb:
-          this.connection.readyState === ConnectionStates.connected
-            ? 'up'
-            : 'down',
-        redis: this.cacheService.isConnected() ? 'up' : 'fallback',
+        mongodb: mongodbUp ? 'up' : 'down',
+        redis: redisUp ? 'up' : 'fallback',
       },
       timestamp: new Date().toISOString(),
     };

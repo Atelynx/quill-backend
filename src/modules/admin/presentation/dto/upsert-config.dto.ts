@@ -2,7 +2,7 @@ import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class UpsertConfigDto {
   @IsNotEmpty()
-  value!: any;
+  value!: unknown;
 
   @IsOptional()
   @IsString()

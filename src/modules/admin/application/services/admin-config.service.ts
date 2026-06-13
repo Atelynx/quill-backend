@@ -15,11 +15,12 @@ import {
   ConfigSnapshot,
   ConfigSnapshotDocument,
 } from '../../infrastructure/schemas/config-snapshot.schema';
+import { validateAdminConfigValue } from './admin-config-value.validation';
 
 const SEED_CONFIGS: Array<{
   key: string;
   envKey: string;
-  defaultValue: any;
+  defaultValue: string | number;
   name: string;
   tags: string[];
 }> = [
@@ -87,7 +88,10 @@ export class AdminConfigService implements OnModuleInit {
 
       if (!exists) {
         const value = config.envKey
-          ? this.configService.get(config.envKey, config.defaultValue)
+          ? this.configService.get<string | number>(
+              config.envKey,
+              config.defaultValue,
+            )
           : config.defaultValue;
 
         await this.adminConfigModel.create({
@@ -105,7 +109,7 @@ export class AdminConfigService implements OnModuleInit {
     }
   }
 
-  async get(key: string): Promise<any> {
+  async get<T>(key: string): Promise<T | null> {
     const doc = await this.adminConfigModel
       .findOneAndUpdate(
         { key, inUse: true },
@@ -114,7 +118,7 @@ export class AdminConfigService implements OnModuleInit {
       )
       .exec();
 
-    return doc?.value ?? null;
+    return doc ? (doc.value as T) : null;
   }
 
   async getFull(key: string): Promise<AdminConfigDocument | null> {
@@ -129,7 +133,7 @@ export class AdminConfigService implements OnModuleInit {
 
   async set(
     key: string,
-    value: any,
+    value: unknown,
     options?: {
       name?: string;
       tags?: string[];
@@ -137,6 +141,8 @@ export class AdminConfigService implements OnModuleInit {
       createSnapshot?: boolean;
     },
   ): Promise<AdminConfigDocument> {
+    validateAdminConfigValue(key, value);
+
     await this.adminConfigModel
       .updateMany({ key }, { $set: { inUse: false } })
       .exec();
@@ -148,7 +154,9 @@ export class AdminConfigService implements OnModuleInit {
         name: options?.name,
         tags: options?.tags,
         inUse: true,
-        updatedBy: options?.updatedBy as any,
+        updatedBy: options?.updatedBy
+          ? new Types.ObjectId(options.updatedBy)
+          : undefined,
       },
     ]);
 
@@ -184,7 +192,7 @@ export class AdminConfigService implements OnModuleInit {
       .lean()
       .exec();
 
-    const configs: Record<string, any> = {};
+    const configs: Record<string, unknown> = {};
     for (const c of activeConfigs) {
       configs[c.key] = c.value;
     }
@@ -193,9 +201,7 @@ export class AdminConfigService implements OnModuleInit {
       {
         configs,
         name: name ?? `Manual · ${new Date().toISOString()}`,
-        createdBy: createdBy
-          ? (new Types.ObjectId(createdBy) as any)
-          : undefined,
+        createdBy: createdBy ? new Types.ObjectId(createdBy) : undefined,
       },
     ]);
 

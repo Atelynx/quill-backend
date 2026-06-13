@@ -10,9 +10,11 @@ export class NoneCurrencyDataProvider implements CurrencyDataProvider {
     return [];
   }
 
-  async getQuote(symbol: string): Promise<MarketQuote> {
-    throw new Error(
-      `No currency provider configured for ${symbol}. Set CURRENCY_PROVIDER=mock or CURRENCY_PROVIDER=exchangeRate in .env`,
+  getQuote(symbol: string): Promise<MarketQuote> {
+    return Promise.reject(
+      new Error(
+        `No currency provider configured for ${symbol}. Set CURRENCY_PROVIDER=mock or CURRENCY_PROVIDER=exchangeRate in .env`,
+      ),
     );
   }
 }

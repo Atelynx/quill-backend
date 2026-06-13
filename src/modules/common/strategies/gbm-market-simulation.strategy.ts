@@ -21,11 +21,11 @@ export class GBMMarketSimulationStrategy implements IMarketSimulationStrategy {
   }
 
   private boxMuller(): Decimal {
-    let u1: number, u2: number;
+    let u1: number;
     do {
       u1 = Math.random();
     } while (u1 <= 0);
-    u2 = Math.random();
+    const u2 = Math.random();
     const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
     return new Decimal(z);
   }

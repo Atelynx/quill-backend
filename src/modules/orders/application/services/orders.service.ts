@@ -86,7 +86,7 @@ export class OrdersService {
         const rate = await this.currencyRateService.getRate(
           `${stockCurrency}CLP`,
         );
-        if (!rate) {
+        if (!rate || !Number.isFinite(rate.rate) || rate.rate <= 0) {
           throw new BadRequestException(
             `Tipo de cambio no disponible para ${stockCurrency}.`,
           );

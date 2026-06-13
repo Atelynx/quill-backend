@@ -33,7 +33,7 @@ export class MockCurrencyDataProvider implements CurrencyDataProvider {
     return undefined;
   }
 
-  async getQuote(symbol: string): Promise<MarketQuote> {
+  getQuote(symbol: string): Promise<MarketQuote> {
     const upperSymbol = symbol.toUpperCase();
 
     if (!this.rates.has(upperSymbol)) {
@@ -57,7 +57,7 @@ export class MockCurrencyDataProvider implements CurrencyDataProvider {
           )
         : 0;
 
-    return {
+    return Promise.resolve({
       symbol: upperSymbol,
       price: nextPrice,
       close: nextPrice,
@@ -66,7 +66,7 @@ export class MockCurrencyDataProvider implements CurrencyDataProvider {
       exchange: 'FOREX',
       previousClose: rate.previousPrice,
       dayChangePercentage,
-    };
+    });
   }
 
   private readSymbols(): string[] {

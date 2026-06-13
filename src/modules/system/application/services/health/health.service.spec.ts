@@ -33,11 +33,20 @@ describe('HealthService', () => {
     );
 
     expect(service.getStatus()).toMatchObject({
-      status: 'ok',
+      status: 'error',
       services: {
         mongodb: 'down',
         redis: 'fallback',
       },
     });
+  });
+
+  it('informa estado degradado cuando solo redis usa fallback', () => {
+    const service = new HealthService(
+      { readyState: ConnectionStates.connected } as never,
+      { isConnected: jest.fn().mockReturnValue(false) } as never,
+    );
+
+    expect(service.getStatus().status).toBe('degraded');
   });
 });

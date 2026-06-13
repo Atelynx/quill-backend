@@ -1,6 +1,42 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { OrderExecutionService } from './order-execution.service';
+
+interface ServiceInternals {
+  logger: Logger;
+  executeCycle(): Promise<void>;
+  executeMarketOrder(
+    userId: string,
+    symbol: string,
+    side: 'BUY' | 'SELL',
+    quantity: number,
+  ): Promise<unknown>;
+  handleMarketTick(): Promise<void>;
+}
+
+interface SessionMock {
+  withTransaction: jest.Mock;
+  endSession: jest.Mock;
+}
+
+interface OrderMock {
+  id: string;
+  userId: Types.ObjectId;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  quantity: number;
+  limitPrice: number;
+  reservedAmount: number;
+  status: string;
+  executionPrice?: number;
+  commissionAmount?: number;
+  save: jest.Mock;
+}
+
+interface ModelMock {
+  find: jest.Mock;
+  findById: jest.Mock;
+}
 
 const query = <T>(value: T) => ({
   session: jest.fn().mockReturnThis(),
@@ -8,41 +44,61 @@ const query = <T>(value: T) => ({
 });
 
 describe('OrderExecutionService', () => {
-  let service: any, marketService: any, session: any, orderModel: any;
-  let userModel: any,
-    positionModel: any,
-    tradeModel: any,
-    commissionService: any;
+  let service: ServiceInternals;
+  let marketService: { listQuotes: jest.Mock };
+  let session: SessionMock;
+  let orderModel: ModelMock;
+  let userModel: { findById: jest.Mock };
+  let positionModel: { findOne: jest.Mock; create: jest.Mock };
+  let stockModel: { findOne: jest.Mock };
+  let tradeModel: { create: jest.Mock };
+  let commissionService: { calculate: jest.Mock };
+  let currencyRateService: { getRate: jest.Mock };
+  let errorSpy: jest.SpyInstance;
 
   beforeEach(() => {
     marketService = { listQuotes: jest.fn() };
     session = {
-      withTransaction: jest.fn(async (callback) => callback()),
+      withTransaction: jest.fn((callback: () => Promise<unknown>) =>
+        callback(),
+      ),
       endSession: jest.fn().mockResolvedValue(undefined),
     };
     orderModel = { find: jest.fn(), findById: jest.fn() };
     userModel = { findById: jest.fn() };
     positionModel = { findOne: jest.fn(), create: jest.fn() };
+    stockModel = { findOne: jest.fn() };
+    stockModel.findOne.mockReturnValue({
+      lean: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ currency: 'CLP' }),
+      }),
+    });
     tradeModel = { create: jest.fn().mockResolvedValue(undefined) };
     commissionService = { calculate: jest.fn() };
+    currencyRateService = { getRate: jest.fn() };
     service = new OrderExecutionService(
       {} as never,
-      marketService,
+      marketService as never,
       { startSession: jest.fn().mockResolvedValue(session) } as never,
-      orderModel,
-      userModel,
-      positionModel,
-      { findOne: jest.fn() } as never,
-      tradeModel,
-      commissionService,
+      orderModel as never,
+      userModel as never,
+      positionModel as never,
+      stockModel as never,
+      tradeModel as never,
+      commissionService as never,
       { get: jest.fn() } as never,
       { get: jest.fn() } as never,
-      { getRate: jest.fn() } as never,
-    );
-    jest.spyOn(service.logger, 'error').mockImplementation(jest.fn());
+      currencyRateService as never,
+    ) as unknown as ServiceInternals;
+    errorSpy = jest
+      .spyOn(service.logger, 'error')
+      .mockImplementation(jest.fn());
   });
 
-  const order = (side: 'BUY' | 'SELL', overrides = {}) => ({
+  const order = (
+    side: 'BUY' | 'SELL',
+    overrides: Partial<OrderMock> = {},
+  ): OrderMock => ({
     id: new Types.ObjectId().toString(),
     userId: new Types.ObjectId(),
     symbol: `${side}.SN`,
@@ -56,12 +112,13 @@ describe('OrderExecutionService', () => {
   });
 
   async function executeWith(
-    currentOrder: any,
+    currentOrder: OrderMock,
     price: number,
     liveOrder = currentOrder,
-  ) {
+    currency?: string,
+  ): Promise<void> {
     marketService.listQuotes.mockResolvedValue([
-      { symbol: currentOrder.symbol, close: price },
+      { symbol: currentOrder.symbol, close: price, currency },
     ]);
     orderModel.find.mockReturnValue(query([currentOrder]));
     orderModel.findById.mockReturnValue(query(liveOrder));
@@ -127,6 +184,65 @@ describe('OrderExecutionService', () => {
       ],
       { session },
     );
+  });
+
+  it('convierte una orden extranjera con una tasa valida', async () => {
+    const currentOrder = order('BUY', { symbol: 'AAPL.US' });
+    const user = {
+      id: currentOrder.userId.toString(),
+      availableBalance: 1000,
+      reservedBalance: 202.5,
+      save: jest.fn(),
+    };
+    userModel.findById.mockReturnValue(query(user));
+    positionModel.findOne.mockReturnValue(query(null));
+    currencyRateService.getRate.mockResolvedValue({ rate: 900 });
+    commissionService.calculate
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(2);
+
+    await executeWith(currentOrder, 1, currentOrder, 'USD');
+
+    expect(currencyRateService.getRate).toHaveBeenCalledWith('USDCLP');
+    expect(user.availableBalance).toBe(-599.5);
+  });
+
+  it.each([null, { rate: 0 }, { rate: -1 }, { rate: Number.NaN }])(
+    'mantiene pendiente una orden extranjera sin tasa valida',
+    async (rate) => {
+      const currentOrder = order('BUY', { symbol: 'AAPL.US' });
+      userModel.findById.mockReturnValue(
+        query({
+          id: currentOrder.userId.toString(),
+          availableBalance: 1000,
+          reservedBalance: 202.5,
+          save: jest.fn(),
+        }),
+      );
+      currencyRateService.getRate.mockResolvedValue(rate);
+      commissionService.calculate.mockResolvedValue(1);
+
+      await executeWith(currentOrder, 1, currentOrder, 'USD');
+
+      expect(currentOrder.status).toBe('PENDING');
+      expect(tradeModel.create).not.toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalled();
+    },
+  );
+
+  it('consulta la moneda del activo cuando la cotizacion no la informa', async () => {
+    const currentOrder = order('BUY', { symbol: 'AAPL.US' });
+    stockModel.findOne.mockReturnValue({
+      lean: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ currency: 'USD' }),
+      }),
+    });
+    currencyRateService.getRate.mockResolvedValue(null);
+
+    await executeWith(currentOrder, 1, currentOrder, undefined);
+
+    expect(stockModel.findOne).toHaveBeenCalledWith({ symbol: 'AAPL.US' });
+    expect(currentOrder.status).toBe('PENDING');
   });
 
   it('ejecuta ventas parciales y totales liberando reservas', async () => {
@@ -197,12 +313,12 @@ describe('OrderExecutionService', () => {
     await service.handleMarketTick();
     await service.handleMarketTick();
     expect(marketService.listQuotes).toHaveBeenCalledTimes(2);
-    expect(service.logger.error).toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalled();
   });
 });
 
 describe('executeMarketOrder', () => {
-  let service: any;
+  let service: ServiceInternals;
   let cacheService: { get: jest.Mock };
   let stockModel: { findOne: jest.Mock };
   let session: { withTransaction: jest.Mock; endSession: jest.Mock };
@@ -212,6 +328,7 @@ describe('executeMarketOrder', () => {
   let tradeModel: { create: jest.Mock };
   let commissionService: { calculate: jest.Mock };
   let currencyRateService: { getRate: jest.Mock };
+  let errorSpy: jest.SpyInstance;
 
   const orderId = new Types.ObjectId().toString();
   const userId = new Types.ObjectId().toString();
@@ -224,7 +341,9 @@ describe('executeMarketOrder', () => {
 
   beforeEach(() => {
     session = {
-      withTransaction: jest.fn(async (callback: () => any) => callback()),
+      withTransaction: jest.fn((callback: () => Promise<unknown>) =>
+        callback(),
+      ),
       endSession: jest.fn().mockResolvedValue(undefined),
     };
     stockModel = { findOne: jest.fn() };
@@ -240,7 +359,7 @@ describe('executeMarketOrder', () => {
     cacheService = { get: jest.fn() };
     currencyRateService = { getRate: jest.fn() };
 
-    const leanExec = (value: any) => ({
+    const leanExec = <T>(value: T) => ({
       lean: jest
         .fn()
         .mockReturnValue({ exec: jest.fn().mockResolvedValue(value) }),
@@ -262,8 +381,10 @@ describe('executeMarketOrder', () => {
       { get: jest.fn() } as never,
       cacheService as never,
       currencyRateService as never,
-    );
-    jest.spyOn(service.logger, 'error').mockImplementation(jest.fn());
+    ) as unknown as ServiceInternals;
+    errorSpy = jest
+      .spyOn(service.logger, 'error')
+      .mockImplementation(jest.fn());
   });
 
   it('lanza NotFoundException cuando no hay precio en vivo', async () => {
@@ -295,6 +416,27 @@ describe('executeMarketOrder', () => {
       service.executeMarketOrder(userId, 'AAPL', 'BUY', 10),
     ).rejects.toThrow(BadRequestException);
   });
+
+  it.each([null, { rate: 0 }, { rate: -1 }, { rate: Number.NaN }])(
+    'rechaza una orden MARKET extranjera sin tasa valida',
+    async (rate) => {
+      cacheService.get.mockResolvedValue(100);
+      stockModel.findOne.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest
+            .fn()
+            .mockResolvedValue({ symbol: 'AAPL', currency: 'USD' }),
+        }),
+      });
+      currencyRateService.getRate.mockResolvedValue(rate);
+
+      await expect(
+        service.executeMarketOrder(userId, 'AAPL', 'BUY', 1),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(session.withTransaction).not.toHaveBeenCalled();
+    },
+  );
 
   it('BUY crea una nueva posicion cuando no existe previamente', async () => {
     cacheService.get.mockResolvedValue(100);
@@ -381,7 +523,7 @@ describe('executeMarketOrder', () => {
       service.executeMarketOrder(userId, 'AAPL', 'BUY', 5),
     ).rejects.toThrow('DB timeout');
 
-    expect(service.logger.error).toHaveBeenCalledWith(
+    expect(errorSpy).toHaveBeenCalledWith(
       'Failed to execute market order for AAPL',
       unexpectedError,
     );

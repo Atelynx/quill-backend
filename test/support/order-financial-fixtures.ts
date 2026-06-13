@@ -52,9 +52,20 @@ export async function registerAndLogin(app: INestApplication, email: string) {
 
   const { userModel } = getFinancialModels(app);
   const user = await userModel.findOne({ email }).exec();
+  const responseBody = loginResponse.body as unknown;
+  if (
+    typeof responseBody !== 'object' ||
+    responseBody === null ||
+    !('accessToken' in responseBody) ||
+    typeof responseBody.accessToken !== 'string'
+  ) {
+    throw new Error(
+      'La respuesta de login no contiene un access token válido.',
+    );
+  }
 
   return {
-    token: loginResponse.body.accessToken as string,
+    token: responseBody.accessToken,
     user: user as UserDocument,
     server,
   };

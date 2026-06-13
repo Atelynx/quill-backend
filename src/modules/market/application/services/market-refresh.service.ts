@@ -58,7 +58,7 @@ export class MarketRefreshService {
 
       // Delegate fetching to the provider — each provider handles its own caching/API strategy
       const symbols = stocks.map((stock) => stock.symbol);
-      const quotes = await this.fetchQuotes(this.provider, symbols, stocks);
+      const quotes = await this.fetchQuotes(this.provider, symbols);
 
       // Build updates for persistence
       const updates = quotes
@@ -92,11 +92,7 @@ export class MarketRefreshService {
    * Fetches quotes using the provider's getQuotes method if available,
    * otherwise falls back to calling getQuote() per symbol.
    */
-  private async fetchQuotes(
-    provider: MarketDataProvider,
-    symbols: string[],
-    stocks: StockDocument[],
-  ) {
+  private async fetchQuotes(provider: MarketDataProvider, symbols: string[]) {
     if (provider.getQuotes) {
       return provider.getQuotes(symbols);
     }
