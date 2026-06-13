@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AdminConfigService } from '../../../admin/application/services/admin-config.service';
 import { MarketDataProviderFactory } from '../../infrastructure/providers/market-data-provider.factory';
 import { MarketDataProvider } from '../../infrastructure/providers/market-data-provider.interface';
@@ -8,6 +8,7 @@ import { NoneMarketDataProvider } from '../../infrastructure/providers/none-mark
 
 @Injectable()
 export class MarketDataProviderResolver {
+  private readonly logger = new Logger(MarketDataProviderResolver.name);
   private cachedProvider: MarketDataProvider | null = null;
   private cachedKey: string | null = null;
 
@@ -29,6 +30,9 @@ export class MarketDataProviderResolver {
       this.mockProvider,
       this.eodhdProvider,
       this.noneProvider,
+    );
+    this.logger.log(
+      `Market provider swapped: ${this.cachedKey ?? '(none)'} → ${key}, active: ${provider.getName()}`,
     );
     this.cachedKey = key;
     this.cachedProvider = provider;

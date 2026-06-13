@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AdminConfigService } from '../../../admin/application/services/admin-config.service';
 import { CurrencyProviderFactory } from '../../infrastructure/providers/currency-provider.factory';
 import { CurrencyDataProvider } from '../../domain/interfaces/currency-data-provider.interface';
@@ -8,6 +8,7 @@ import { NoneCurrencyDataProvider } from '../../infrastructure/providers/none-cu
 
 @Injectable()
 export class CurrencyDataProviderResolver {
+  private readonly logger = new Logger(CurrencyDataProviderResolver.name);
   private cachedProvider: CurrencyDataProvider | null = null;
   private cachedKey: string | null = null;
 
@@ -29,6 +30,9 @@ export class CurrencyDataProviderResolver {
       this.mockProvider,
       this.exchangeRateProvider,
       this.noneProvider,
+    );
+    this.logger.log(
+      `Currency provider swapped: ${this.cachedKey ?? '(none)'} → ${key}, active: ${provider.getName()}`,
     );
     this.cachedKey = key;
     this.cachedProvider = provider;

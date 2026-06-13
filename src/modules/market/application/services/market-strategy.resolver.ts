@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AdminConfigService } from '../../../admin/application/services/admin-config.service';
 import { StrategyFactory } from '../../../common/strategies/strategy.factory';
 import { IMarketSimulationStrategy } from '../../../common/strategies/market-simulation-strategy.interface';
@@ -9,6 +9,7 @@ import { StrategyType } from '../../../common/strategies/strategy.types';
 
 @Injectable()
 export class MarketStrategyResolver {
+  private readonly logger = new Logger(MarketStrategyResolver.name);
   private cachedStrategy: IMarketSimulationStrategy | null = null;
   private cachedKey: string | null = null;
 
@@ -30,6 +31,9 @@ export class MarketStrategyResolver {
       this.gbmStrategy,
       this.flatStrategy,
       this.nwStrategy,
+    );
+    this.logger.log(
+      `Market strategy swapped: ${this.cachedKey ?? '(none)'} → ${key}, active: ${key}`,
     );
     this.cachedKey = key;
     this.cachedStrategy = strategy;
