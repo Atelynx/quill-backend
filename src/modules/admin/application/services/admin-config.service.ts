@@ -118,6 +118,8 @@ export class AdminConfigService implements OnModuleInit {
       createSnapshot?: boolean;
     },
   ): Promise<AdminConfigDocument> {
+    const oldValue = await this.get(key);
+
     await this.adminConfigModel
       .updateMany({ key }, { $set: { inUse: false } })
       .exec();
@@ -132,6 +134,10 @@ export class AdminConfigService implements OnModuleInit {
         updatedBy: options?.updatedBy as any,
       },
     ]);
+
+    this.logger.log(
+      `${key}: ${JSON.stringify(oldValue)} → ${JSON.stringify(value)}`,
+    );
 
     const shouldSnapshot = options?.createSnapshot ?? true;
     if (shouldSnapshot) {
