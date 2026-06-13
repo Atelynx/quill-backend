@@ -9,13 +9,31 @@ import {
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  WsException,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import type { JwtPayload } from '../../../../common/interfaces/jwt-payload.interface';
+
+interface SubscriptionPayload {
+  topic: string;
+  type?: 'stock' | 'forex';
+}
+
+const isAllowedOrigin = (
+  origin: string | undefined,
+  callback: (error: Error | null, allowed?: boolean) => void,
+): void => {
+  const origins = (process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  callback(null, !origin || origins.includes(origin));
+};
 
 @Injectable()
 @WebSocketGateway({
   namespace: '/realtime',
-  cors: { origin: '*' },
+  cors: { origin: isAllowedOrigin, credentials: true },
 })
 export class RealtimeGateway
   implements OnGatewayConnection, OnGatewayDisconnect
@@ -28,15 +46,23 @@ export class RealtimeGateway
   constructor(private readonly jwtService: JwtService) {}
 
   async handleConnection(socket: Socket): Promise<void> {
-    const token = socket.handshake.auth.token ?? socket.handshake.query.token;
+    const authToken: unknown = socket.handshake.auth.token;
+    const queryToken: unknown = socket.handshake.query.token;
+    const token =
+      typeof authToken === 'string'
+        ? authToken
+        : typeof queryToken === 'string'
+          ? queryToken
+          : undefined;
     if (!token) {
       socket.disconnect();
       return;
     }
     try {
-      const payload = await this.jwtService.verifyAsync(token);
-      socket.data.user = payload;
-      socket.join(`user:${payload.sub}`);
+      const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
+      const socketData = socket.data as Record<string, unknown>;
+      socketData.user = payload;
+      void socket.join(`user:${payload.sub}`);
     } catch {
       socket.disconnect();
     }
@@ -47,24 +73,20 @@ export class RealtimeGateway
   }
 
   @SubscribeMessage('subscribe')
-  handleSubscribe(
-    client: Socket,
-    data: { topic: string; type?: 'stock' | 'forex' },
-  ): void {
-    const prefix = data.type === 'forex' ? 'forex' : 'stock';
-    const room = `${prefix}:${data.topic}`;
-    client.join(room);
+  handleSubscribe(client: Socket, data: unknown): void {
+    const payload = this.validateSubscription(data);
+    const prefix = payload.type === 'forex' ? 'forex' : 'stock';
+    const room = `${prefix}:${payload.topic}`;
+    void client.join(room);
     this.logger.debug(`Client ${client.id} subscribed to ${room}`);
   }
 
   @SubscribeMessage('unsubscribe')
-  handleUnsubscribe(
-    client: Socket,
-    data: { topic: string; type?: 'stock' | 'forex' },
-  ): void {
-    const prefix = data.type === 'forex' ? 'forex' : 'stock';
-    const room = `${prefix}:${data.topic}`;
-    client.leave(room);
+  handleUnsubscribe(client: Socket, data: unknown): void {
+    const payload = this.validateSubscription(data);
+    const prefix = payload.type === 'forex' ? 'forex' : 'stock';
+    const room = `${prefix}:${payload.topic}`;
+    void client.leave(room);
     this.logger.debug(`Client ${client.id} unsubscribed from ${room}`);
   }
 
@@ -102,5 +124,23 @@ export class RealtimeGateway
         timestamp: new Date(),
       });
     }
+  }
+
+  private validateSubscription(data: unknown): SubscriptionPayload {
+    if (!data || typeof data !== 'object') {
+      throw new WsException('Payload de suscripción inválido.');
+    }
+
+    const { topic, type } = data as Record<string, unknown>;
+    const normalizedTopic =
+      typeof topic === 'string' ? topic.trim().toUpperCase() : '';
+    if (
+      !/^[A-Z0-9.-]{1,20}$/.test(normalizedTopic) ||
+      (type !== undefined && type !== 'stock' && type !== 'forex')
+    ) {
+      throw new WsException('Payload de suscripción inválido.');
+    }
+
+    return { topic: normalizedTopic, type };
   }
 }

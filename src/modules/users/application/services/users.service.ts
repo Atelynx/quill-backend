@@ -59,7 +59,8 @@ export class UsersService {
       }
     }
 
-    const adminBalance = await this.adminConfigService.get('INITIAL_BALANCE');
+    const adminBalance =
+      await this.adminConfigService.get<number>('INITIAL_BALANCE');
     const initialBalance =
       adminBalance ?? this.configService.get<number>('INITIAL_BALANCE', 100000);
 
@@ -332,7 +333,7 @@ export class UsersService {
         fullName: u?.fullName ?? null,
         email: u?.email ?? null,
         username: u?.username ?? null,
-        requestedAt: (r as any).createdAt,
+        requestedAt: r.createdAt,
       };
     });
   }

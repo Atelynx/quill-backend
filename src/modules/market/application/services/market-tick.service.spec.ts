@@ -3,8 +3,13 @@ import Decimal from 'decimal.js';
 import { PRICE_UPDATE_EVENT } from '../../domain/constants/events';
 import { MarketTickService } from './market-tick.service';
 
+interface MarketTickInternals {
+  isTicking: boolean;
+}
+
 describe('MarketTickService', () => {
   let service: MarketTickService;
+  let internals: MarketTickInternals;
   let stockModel: { find: jest.Mock };
   let strategy: { calculateNextTick: jest.Mock };
   let cacheService: { get: jest.Mock; set: jest.Mock };
@@ -32,11 +37,12 @@ describe('MarketTickService', () => {
       cacheService as never,
       eventEmitter as never as EventEmitter2,
     );
+    internals = service as unknown as MarketTickInternals;
   });
 
   describe('processTick', () => {
     it('skips when already ticking (concurrent guard)', async () => {
-      (service as any).isTicking = true;
+      internals.isTicking = true;
 
       await service.processTick();
 
@@ -128,8 +134,11 @@ describe('MarketTickService', () => {
 
       await service.processTick();
 
-      const volatilityArg = strategy.calculateNextTick.mock.calls[0][2];
-      const driftArg = strategy.calculateNextTick.mock.calls[0][3];
+      const calls = strategy.calculateNextTick.mock.calls as unknown as Array<
+        [unknown, unknown, Decimal, Decimal]
+      >;
+      const volatilityArg = calls[0][2];
+      const driftArg = calls[0][3];
       expect(volatilityArg.toNumber()).toBe(0.015);
       expect(driftArg.toNumber()).toBe(0);
     });
@@ -143,7 +152,7 @@ describe('MarketTickService', () => {
 
       await service.processTick();
 
-      expect((service as any).isTicking).toBe(false);
+      expect(internals.isTicking).toBe(false);
     });
 
     it('does not emit when no updates collected', async () => {

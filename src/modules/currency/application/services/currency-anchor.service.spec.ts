@@ -9,8 +9,15 @@ jest.mock('cron', () => ({
 }));
 import { Logger } from '@nestjs/common';
 
+interface CurrencyAnchorInternals {
+  logger: Logger;
+  fetchAndStoreAnchors(symbols: string[]): Promise<void>;
+  handleAnchorCron(): Promise<void>;
+}
+
 describe('CurrencyAnchorService', () => {
   let service: CurrencyAnchorService;
+  let internals: CurrencyAnchorInternals;
   let provider: {
     getSymbols: jest.Mock;
     getName: jest.Mock;
@@ -42,6 +49,7 @@ describe('CurrencyAnchorService', () => {
       cacheService as never,
       schedulerRegistry as unknown as SchedulerRegistry,
     );
+    internals = service as unknown as CurrencyAnchorInternals;
   });
   beforeAll(() => {
     Logger.overrideLogger(false);
@@ -50,7 +58,7 @@ describe('CurrencyAnchorService', () => {
   describe('onModuleInit', () => {
     it('warns and returns when provider has no symbols', async () => {
       provider.getSymbols.mockReturnValue([]);
-      const warnSpy = jest.spyOn((service as any).logger, 'warn');
+      const warnSpy = jest.spyOn(internals.logger, 'warn');
 
       await service.onModuleInit();
 
@@ -114,7 +122,7 @@ describe('CurrencyAnchorService', () => {
       provider.getQuote.mockResolvedValue({ close: 1.1 });
       cacheService.get.mockResolvedValue(null);
 
-      await (service as any).fetchAndStoreAnchors(['EURUSD']);
+      await internals.fetchAndStoreAnchors(['EURUSD']);
 
       expect(cacheService.set).toHaveBeenCalledWith(
         'forex:EURUSD:base_price',
@@ -131,7 +139,7 @@ describe('CurrencyAnchorService', () => {
       provider.getQuote.mockResolvedValue({ close: 1.15 });
       cacheService.get.mockResolvedValue(1.12);
 
-      await (service as any).fetchAndStoreAnchors(['EURUSD']);
+      await internals.fetchAndStoreAnchors(['EURUSD']);
 
       expect(cacheService.set).toHaveBeenCalledWith(
         'forex:EURUSD:base_price',
@@ -147,9 +155,9 @@ describe('CurrencyAnchorService', () => {
       provider.getQuote
         .mockRejectedValueOnce(new Error('API error'))
         .mockResolvedValueOnce({ close: 1.3 });
-      const errorSpy = jest.spyOn((service as any).logger, 'error');
+      const errorSpy = jest.spyOn(internals.logger, 'error');
 
-      await (service as any).fetchAndStoreAnchors(['EURUSD', 'GBPUSD']);
+      await internals.fetchAndStoreAnchors(['EURUSD', 'GBPUSD']);
 
       expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('EURUSD'));
       expect(cacheService.set).toHaveBeenCalledTimes(2);
@@ -158,7 +166,7 @@ describe('CurrencyAnchorService', () => {
     it('uses quote.price when quote.close is undefined', async () => {
       provider.getQuote.mockResolvedValue({ price: 200 });
 
-      await (service as any).fetchAndStoreAnchors(['USDCLP']);
+      await internals.fetchAndStoreAnchors(['USDCLP']);
 
       expect(cacheService.set).toHaveBeenCalledWith(
         'forex:USDCLP:base_price',
@@ -173,14 +181,14 @@ describe('CurrencyAnchorService', () => {
       provider.getQuote.mockResolvedValue({ close: 1.1 });
       cacheService.get.mockResolvedValue(null);
 
-      await (service as any).handleAnchorCron();
+      await internals.handleAnchorCron();
 
       expect(provider.getQuote).toHaveBeenCalledWith('EURUSD');
     });
 
     it('returns early when no symbols', async () => {
       provider.getSymbols.mockReturnValue([]);
-      await (service as any).handleAnchorCron();
+      await internals.handleAnchorCron();
       expect(provider.getQuote).not.toHaveBeenCalled();
     });
   });

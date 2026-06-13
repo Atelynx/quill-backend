@@ -7,6 +7,7 @@ import {
   isMarketOpen,
   formatTime,
 } from '../../../../common/utils/market-hours';
+import { ParseLimitPipe } from '../../../../common/pipes/parse-limit.pipe';
 
 @Controller('market')
 export class MarketController {
@@ -26,21 +27,23 @@ export class MarketController {
   @Get('status')
   async getStatus() {
     const [openTime, closeTime] = await Promise.all([
-      this.adminConfigService.get('MARKET_HOURS_OPEN'),
-      this.adminConfigService.get('MARKET_HOURS_CLOSED'),
+      this.adminConfigService.get<string>('MARKET_HOURS_OPEN'),
+      this.adminConfigService.get<string>('MARKET_HOURS_CLOSED'),
     ]);
 
     const currentMinutes = getCurrentMinutes();
+    const effectiveOpenTime = openTime ?? '09:30';
+    const effectiveCloseTime = closeTime ?? '16:00';
     const open = isMarketOpen(
-      openTime as string,
-      closeTime as string,
+      effectiveOpenTime,
+      effectiveCloseTime,
       currentMinutes,
     );
 
     return {
       open,
-      openTime: openTime as string,
-      closeTime: closeTime as string,
+      openTime: effectiveOpenTime,
+      closeTime: effectiveCloseTime,
       currentTime: formatTime(new Date()),
     };
   }
@@ -54,8 +57,11 @@ export class MarketController {
   }
 
   @Get('stocks/:symbol/history')
-  getHistory(@Param('symbol') symbol: string, @Query('limit') limit?: string) {
-    return this.marketService.getPriceHistory(symbol, Number(limit ?? 24));
+  getHistory(
+    @Param('symbol') symbol: string,
+    @Query('limit', new ParseLimitPipe(24, 200)) limit: number,
+  ) {
+    return this.marketService.getPriceHistory(symbol, limit);
   }
 
   @Get('top-movers')

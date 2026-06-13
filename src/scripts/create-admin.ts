@@ -3,8 +3,10 @@ import * as dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import { createInterface } from 'node:readline';
 import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
 import { resolveEnvFilePaths } from '../config/env-file-paths';
 import { normalizeMongoDbUri } from '../config/normalize-mongodb-uri';
+import { validateAdminPassword } from './admin-password';
 
 function parseArgs(): {
   email: string;
@@ -43,8 +45,10 @@ async function main(): Promise<void> {
     console.log('Modo interactivo — ingresa los datos del admin.');
     email = await ask('Email: ');
     username = await ask('Username (opcional): ');
-    while (!password || password.length < 8) {
-      password = await ask('Password (mínimo 8 caracteres): ');
+    while (!password) {
+      password = await ask(
+        'Password (mínimo 12 caracteres, mayúsculas, minúsculas y números): ',
+      );
     }
   }
 
@@ -56,8 +60,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  if (password && password.length < 8) {
-    console.error('Error: La contraseña debe tener al menos 8 caracteres.');
+  try {
+    password = validateAdminPassword(password);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Contraseña inválida.';
+    console.error(`Error: ${message}`);
     process.exit(1);
   }
 
@@ -66,7 +74,7 @@ async function main(): Promise<void> {
     path:
       envPaths.find((p) => {
         try {
-          return require('fs').existsSync(p);
+          return existsSync(p);
         } catch {
           return false;
         }
@@ -103,9 +111,7 @@ async function main(): Promise<void> {
     );
     console.log(`Usuario "${email}" actualizado a rol admin.`);
   } else {
-    const passwordHash = password
-      ? await bcrypt.hash(password, 10)
-      : await bcrypt.hash('admin123', 10);
+    const passwordHash = await bcrypt.hash(password, 10);
 
     await usersCollection.insertOne({
       fullName: username ?? 'Admin',
@@ -128,7 +134,8 @@ async function main(): Promise<void> {
   console.log('Desconectado de MongoDB.');
 }
 
-main().catch((err) => {
-  console.error('Error:', err.message);
+main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : 'Error desconocido';
+  console.error('Error:', message);
   process.exit(1);
 });

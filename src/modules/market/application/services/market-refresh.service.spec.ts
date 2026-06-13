@@ -2,6 +2,17 @@ import { Logger } from '@nestjs/common';
 import { PRICE_UPDATE_EVENT } from '../../domain/constants/events';
 import { MarketRefreshService } from './market-refresh.service';
 
+interface MarketRefreshInternals {
+  logger: Logger;
+  errorMessage(error: unknown): string;
+}
+
+interface ProviderMock {
+  getName: jest.Mock;
+  getQuote: jest.Mock;
+  getQuotes?: jest.Mock;
+}
+
 describe('MarketRefreshService', () => {
   const stock = {
     _id: '1',
@@ -11,11 +22,12 @@ describe('MarketRefreshService', () => {
     previousClose: 100,
     close: 100,
   };
-  let stockModel: any;
-  let provider: any;
-  let updateWriter: any;
-  let eventEmitter: any;
+  let stockModel: { find: jest.Mock };
+  let provider: ProviderMock;
+  let updateWriter: { persist: jest.Mock };
+  let eventEmitter: { emit: jest.Mock };
   let service: MarketRefreshService;
+  let internals: MarketRefreshInternals;
 
   beforeEach(() => {
     stockModel = { find: jest.fn() };
@@ -28,11 +40,12 @@ describe('MarketRefreshService', () => {
     eventEmitter = { emit: jest.fn() };
 
     service = new MarketRefreshService(
-      stockModel,
-      provider,
-      updateWriter,
-      eventEmitter,
+      stockModel as never,
+      provider as never,
+      updateWriter as never,
+      eventEmitter as never,
     );
+    internals = service as unknown as MarketRefreshInternals;
   });
   beforeAll(() => {
     Logger.overrideLogger(false);
@@ -41,20 +54,17 @@ describe('MarketRefreshService', () => {
   it('calls provider.getQuotes() and persists results', async () => {
     mockStocks();
     const apiQuote = quote(120, 'mock');
-    provider.getQuotes.mockResolvedValue([apiQuote]);
+    provider.getQuotes?.mockResolvedValue([apiQuote]);
 
     await service.refreshMarket();
 
     expect(provider.getQuotes).toHaveBeenCalledWith(['COPEC.SN']);
-    expect(updateWriter.persist).toHaveBeenCalledWith(
-      [
-        expect.objectContaining({
-          quote: expect.objectContaining({ price: 120 }),
-          save: true,
-        }),
-      ],
-      'mock',
-    );
+    const persistCalls = updateWriter.persist.mock.calls as unknown as Array<
+      [[{ quote: { price: number }; save: boolean }], string]
+    >;
+    expect(persistCalls[0][0][0].quote.price).toBe(120);
+    expect(persistCalls[0][0][0].save).toBe(true);
+    expect(persistCalls[0][1]).toBe('mock');
   });
 
   it('falls back to getQuote() when provider has no getQuotes()', async () => {
@@ -83,14 +93,14 @@ describe('MarketRefreshService', () => {
   it('skips refresh if already in progress', async () => {
     mockStocks();
     // Make the provider call slow enough that the second call overlaps
-    provider.getQuotes.mockImplementation(
+    provider.getQuotes?.mockImplementation(
       () =>
         new Promise((resolve) =>
           setTimeout(() => resolve([quote(120, 'mock')]), 100),
         ),
     );
 
-    const warnSpy = jest.spyOn((service as any).logger, 'warn');
+    const warnSpy = jest.spyOn(internals.logger, 'warn');
 
     // Fire first call in background
     const promise1 = service.refreshMarket();
@@ -108,7 +118,7 @@ describe('MarketRefreshService', () => {
 
   it('emits price update event after refresh', async () => {
     mockStocks();
-    provider.getQuotes.mockResolvedValue([quote(120, 'mock')]);
+    provider.getQuotes?.mockResolvedValue([quote(120, 'mock')]);
 
     await service.refreshMarket();
 
@@ -126,7 +136,7 @@ describe('MarketRefreshService', () => {
         .mockRejectedValueOnce(new Error('rate limit'))
         .mockResolvedValueOnce(quote(115, 'mock'));
 
-      const errorSpy = jest.spyOn((service as any).logger, 'error');
+      const errorSpy = jest.spyOn(internals.logger, 'error');
 
       const results = await service.refreshMarket();
 
@@ -137,12 +147,12 @@ describe('MarketRefreshService', () => {
     });
 
     it('errorMessage returns "unknown error" for non-Error input', () => {
-      const result = (service as any).errorMessage('string error');
+      const result = internals.errorMessage('string error');
       expect(result).toBe('unknown error');
     });
   });
 
-  function mockStocks() {
+  function mockStocks(): void {
     stockModel.find
       .mockReturnValueOnce({ exec: jest.fn().mockResolvedValue([stock]) })
       .mockReturnValueOnce({

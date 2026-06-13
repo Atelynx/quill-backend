@@ -2,6 +2,7 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../../../common/guards/jwt-auth.guard';
 import type { JwtPayload } from '../../../../common/interfaces/jwt-payload.interface';
+import { ParseLimitPipe } from '../../../../common/pipes/parse-limit.pipe';
 import { TradesService } from '../../application/services/trades.service';
 
 @Controller('trades')
@@ -12,8 +13,8 @@ export class TradesController {
   @Get()
   getTrades(
     @CurrentUser() payload: JwtPayload,
-    @Query('limit') limit?: string,
+    @Query('limit', new ParseLimitPipe(20, 100)) limit: number,
   ) {
-    return this.tradesService.listUserTrades(payload.sub, Number(limit ?? 20));
+    return this.tradesService.listUserTrades(payload.sub, limit);
   }
 }

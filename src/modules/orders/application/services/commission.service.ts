@@ -11,7 +11,8 @@ export class CommissionService {
   ) {}
 
   async calculate(baseAmount: number): Promise<number> {
-    const adminRate = await this.adminConfigService.get('COMMISSION_RATE');
+    const adminRate =
+      await this.adminConfigService.get<number>('COMMISSION_RATE');
     const rate =
       adminRate ?? this.configService.get<number>('COMMISSION_RATE', 0.005);
     return new Decimal(baseAmount).times(rate).toDecimalPlaces(2).toNumber();

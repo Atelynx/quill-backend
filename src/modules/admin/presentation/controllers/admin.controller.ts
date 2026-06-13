@@ -44,19 +44,19 @@ export class AdminController {
       throw new NotFoundException(`Configuración "${key}" no encontrada.`);
     }
 
-    const response: Record<string, any> = {
+    const response: Record<string, unknown> = {
       key: doc.key,
       value: doc.value,
       name: doc.name ?? null,
       tags: doc.tags ?? [],
       inUse: doc.inUse,
       lastUsedAt: doc.lastUsedAt ?? null,
-      createdAt: (doc as any).createdAt,
-      updatedAt: (doc as any).updatedAt,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
     };
 
     if (RESTART_REQUIRED_KEYS.has(key)) {
-      response.effectiveValue = this.configService.get(key, doc.value);
+      response.effectiveValue = this.configService.get<unknown>(key, doc.value);
       response.appliesOn = 'restart';
     }
 

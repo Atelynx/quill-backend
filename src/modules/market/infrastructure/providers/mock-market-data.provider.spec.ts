@@ -115,14 +115,14 @@ describe('MockMarketDataProvider', () => {
       expect(Array.isArray(seeds)).toBe(true);
       expect(seeds.length).toBeGreaterThan(0);
       expect(seeds[0]).toMatchObject({
-        symbol: expect.any(String),
-        name: expect.any(String),
-        currency: expect.any(String),
-        close: expect.any(Number),
-        previousClose: expect.any(Number),
         dayChangePercentage: 1.5,
         source: 'mock',
       });
+      expect(typeof seeds[0].symbol).toBe('string');
+      expect(typeof seeds[0].name).toBe('string');
+      expect(typeof seeds[0].currency).toBe('string');
+      expect(typeof seeds[0].close).toBe('number');
+      expect(typeof seeds[0].previousClose).toBe('number');
     });
   });
 

@@ -1,11 +1,21 @@
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
+  NODE_ENV: Joi.string()
+    .valid('development', 'test', 'production')
+    .default('development'),
   BACKEND_PORT: Joi.number().default(3000),
   FRONTEND_ORIGIN: Joi.string().default('http://localhost:5173'),
   MONGODB_URI: Joi.string().required(),
   REDIS_URL: Joi.string().default('redis://localhost:6379'),
-  JWT_SECRET: Joi.string().min(16).required(),
+  JWT_SECRET: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string()
+      .min(32)
+      .invalid('REEMPLAZAR_CON_SECRETO_ALEATORIO_DE_AL_MENOS_32_CARACTERES')
+      .required(),
+    otherwise: Joi.string().min(16).required(),
+  }),
   JWT_EXPIRES_IN: Joi.string().default('1d'),
   INITIAL_BALANCE: Joi.number().positive().default(100000),
   COMMISSION_RATE: Joi.number().min(0).max(1).default(0.005),

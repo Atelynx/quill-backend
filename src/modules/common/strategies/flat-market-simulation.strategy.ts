@@ -10,6 +10,8 @@ export class FlatMarketSimulationStrategy implements IMarketSimulationStrategy {
     _volatility: Decimal,
     _drift: Decimal,
   ): Decimal {
+    void _volatility;
+    void _drift;
     return currentPrice;
   }
 }

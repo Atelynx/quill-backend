@@ -1,21 +1,23 @@
-import { validate, getMetadataStorage } from 'class-validator';
+import { validate } from 'class-validator';
 import { LoginDto } from './login.dto';
 import { RegisterDto } from './register.dto';
 
 describe('Auth Data transfer object validation', () => {
-  it('should have validation decorators for each DTO property', () => {
-    const metadatas = (
-      getMetadataStorage() as any
-    ).getTargetValidationMetadatas(LoginDto, RegisterDto);
+  it.each([LoginDto, RegisterDto])(
+    'should reject an empty %p',
+    async (DtoClass) => {
+      const errors = await validate(new DtoClass());
 
-    const props = Array.from(
-      new Set(metadatas.map((m: any) => m.propertyName)),
-    );
-    expect(props.length).toBeGreaterThan(0);
+      expect(errors.length).toBeGreaterThan(0);
+    },
+  );
 
-    props.forEach((prop) => {
-      const propMetas = metadatas.filter((m: any) => m.propertyName === prop);
-      expect(propMetas.length).toBeGreaterThan(0);
+  it('should validate a complete login request', async () => {
+    const dto = Object.assign(new LoginDto(), {
+      email: 'usuario@example.com',
+      password: 'Password123!',
     });
+
+    await expect(validate(dto)).resolves.toHaveLength(0);
   });
 });

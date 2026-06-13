@@ -9,8 +9,8 @@ describe('EodhdMarketDataProvider', () => {
   const mockRealTime = jest.fn();
   let provider: EodhdMarketDataProvider;
   let configMock: Partial<ConfigService>;
-  let stockModelMock: any;
-  let snapshotModelMock: any;
+  let stockModelMock: { findOne: jest.Mock };
+  let snapshotModelMock: { findOne: jest.Mock; create: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -56,8 +56,8 @@ describe('EodhdMarketDataProvider', () => {
 
     provider = new EodhdMarketDataProvider(
       configMock as ConfigService,
-      stockModelMock,
-      snapshotModelMock,
+      stockModelMock as never,
+      snapshotModelMock as never,
     );
   });
   beforeAll(() => {
@@ -166,8 +166,8 @@ describe('EodhdMarketDataProvider', () => {
     });
     provider = new EodhdMarketDataProvider(
       configMock as ConfigService,
-      stockModelMock,
-      snapshotModelMock,
+      stockModelMock as never,
+      snapshotModelMock as never,
     );
 
     const schedule = provider.getRefreshSchedule();
@@ -189,8 +189,8 @@ describe('EodhdMarketDataProvider', () => {
       configMock.getOrThrow = jest.fn(() => 'test-token');
       provider = new EodhdMarketDataProvider(
         configMock as ConfigService,
-        stockModelMock,
-        snapshotModelMock,
+        stockModelMock as never,
+        snapshotModelMock as never,
       );
 
       const seeds = provider.getSeedData();
@@ -217,8 +217,8 @@ describe('EodhdMarketDataProvider', () => {
       configMock.getOrThrow = jest.fn(() => 'test-token');
       provider = new EodhdMarketDataProvider(
         configMock as ConfigService,
-        stockModelMock,
-        snapshotModelMock,
+        stockModelMock as never,
+        snapshotModelMock as never,
       );
 
       expect(provider.getSeedData()).toEqual([]);

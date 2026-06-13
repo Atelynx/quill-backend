@@ -94,9 +94,9 @@ describe('Quill API (e2e)', () => {
       .expect(200);
     const body = response.body as HealthResponse;
 
-    expect(body.status).toBe('ok');
     expect(body.services.mongodb).toBe('up');
     expect(['up', 'fallback']).toContain(body.services.redis);
+    expect(body.status).toBe(body.services.redis === 'up' ? 'ok' : 'degraded');
     expect(body.timestamp).toEqual(expect.any(String));
   });
 

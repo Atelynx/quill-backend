@@ -31,7 +31,7 @@ npm run dev                   # Backend :3000, Frontend :5173
 | Variable | Descripción |
 |----------|-------------|
 | `MONGODB_URI` | Conexión MongoDB (requiere replica set) |
-| `JWT_SECRET` | Secreto JWT |
+| `JWT_SECRET` | Secreto JWT largo, aleatorio y privado; reemplazar siempre el placeholder de `.env.example` |
 | `INITIAL_BALANCE` | Saldo ficticio inicial |
 | `COMMISSION_RATE` | Tasa de comisión |
 | `MARKET_PROVIDER` | `mock` (default) o `eodhd` |

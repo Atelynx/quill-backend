@@ -11,6 +11,7 @@ import {
 import { CurrentUser } from '../../../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../../../common/guards/jwt-auth.guard';
 import type { JwtPayload } from '../../../../common/interfaces/jwt-payload.interface';
+import { ParseObjectIdPipe } from '../../../../common/pipes/parse-object-id.pipe';
 import { UsersService } from '../../application/services/users.service';
 import { AddWatchlistDto } from '../dto/add-watchlist.dto';
 import { ChangeEmailDto } from '../dto/change-email.dto';
@@ -112,7 +113,7 @@ export class UsersController {
   @Post('me/friends/:userId')
   async sendFriendRequest(
     @CurrentUser() payload: JwtPayload,
-    @Param('userId') friendId: string,
+    @Param('userId', ParseObjectIdPipe) friendId: string,
   ) {
     await this.usersService.sendFriendRequest(payload.sub, friendId);
     return { message: 'Solicitud de amistad enviada.' };
@@ -121,9 +122,10 @@ export class UsersController {
   @Patch('me/friends/:userId')
   async acceptFriendRequest(
     @CurrentUser() payload: JwtPayload,
-    @Param('userId') friendId: string,
+    @Param('userId', ParseObjectIdPipe) friendId: string,
     @Body() _dto: FriendActionDto,
   ) {
+    void _dto.status;
     await this.usersService.acceptFriendRequest(payload.sub, friendId);
     return { message: 'Solicitud de amistad aceptada.' };
   }
@@ -131,7 +133,7 @@ export class UsersController {
   @Delete('me/friends/:userId')
   async removeFriend(
     @CurrentUser() payload: JwtPayload,
-    @Param('userId') friendId: string,
+    @Param('userId', ParseObjectIdPipe) friendId: string,
   ) {
     await this.usersService.removeFriend(payload.sub, friendId);
     return { message: 'Amistad eliminada.' };

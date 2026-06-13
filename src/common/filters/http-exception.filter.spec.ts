@@ -7,6 +7,10 @@ import {
 } from '@nestjs/common';
 import { HttpExceptionFilter } from './http-exception.filter';
 
+function getLogger(filter: HttpExceptionFilter): Logger {
+  return (filter as unknown as { logger: Logger }).logger;
+}
+
 describe('HttpExceptionFilter', () => {
   let filter: HttpExceptionFilter;
   let mockResponse: { status: jest.Mock; json: jest.Mock };
@@ -36,17 +40,28 @@ describe('HttpExceptionFilter', () => {
     filter.catch(new Error('unexpected'), mockHost);
 
     expect(mockResponse.status).toHaveBeenCalledWith(500);
-    expect(mockResponse.json).toHaveBeenCalledWith({
+    const calls = mockResponse.json.mock.calls as unknown as Array<
+      [
+        {
+          statusCode: number;
+          path: string;
+          timestamp: unknown;
+          message: string;
+          error: unknown;
+        },
+      ]
+    >;
+    expect(calls[0][0]).toMatchObject({
       statusCode: 500,
       path: '/test',
-      timestamp: expect.any(String),
       message: 'Ha ocurrido un error inesperado.',
       error: undefined,
     });
+    expect(typeof calls[0][0].timestamp).toBe('string');
   });
 
   it('logs non-HttpException errors', () => {
-    const errorSpy = jest.spyOn((filter as any).logger, 'error');
+    const errorSpy = jest.spyOn(getLogger(filter), 'error');
     const error = new Error('something broke');
 
     filter.catch(error, mockHost);
@@ -55,7 +70,7 @@ describe('HttpExceptionFilter', () => {
   });
 
   it('does not log HttpException errors', () => {
-    const errorSpy = jest.spyOn((filter as any).logger, 'error');
+    const errorSpy = jest.spyOn(getLogger(filter), 'error');
 
     filter.catch(new BadRequestException('bad input'), mockHost);
 

@@ -11,6 +11,7 @@ import { Model } from 'mongoose';
 import { JwtAuthGuard } from '../../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../../common/guards/roles.guard';
 import { Roles } from '../../../../common/decorators/roles.decorator';
+import { ParseObjectIdPipe } from '../../../../common/pipes/parse-object-id.pipe';
 import {
   User,
   UserDocument,
@@ -27,7 +28,10 @@ export class AdminUsersController {
   ) {}
 
   @Put(':id/role')
-  async updateRole(@Param('id') id: string, @Body() dto: UpdateUserRoleDto) {
+  async updateRole(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdateUserRoleDto,
+  ) {
     const user = await this.userModel.findByIdAndUpdate(
       id,
       { $set: { role: dto.role } },
