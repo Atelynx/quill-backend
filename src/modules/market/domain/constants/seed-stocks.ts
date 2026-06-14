@@ -1,44 +1,54 @@
 export const seedStocks = [
-  {
-    symbol: 'APPL',
-    name: 'Apple',
-    sector: 'Tecnología',
-    currency: 'USD',
-    close: 180,
-  },
-  {
-    symbol: 'MSFT',
-    name: 'Microsoft',
-    sector: 'Tecnología',
-    currency: 'USD',
-    close: 120.2,
-  },
-  {
-    symbol: 'NVDA',
-    name: 'NVIDIA',
-    sector: 'Semiconductores',
+{
+    symbol: 'COPEC.SN',
+    name: 'COPEC.SN',
     currency: 'CLP',
-    close: 40000.0,
+    close: 6113.44,
+    previousClose: 6159,
+    dayChangePercentage: -0.7397304757265855,
+    source: 'mock',
+    baseVolatility: 0.015,
+    baseDrift: 0,
+    high: 6219.7998,
+    low: 6136,
+    open: 6200,
+    volume: 1371420
   },
   {
-    symbol: 'AMZN',
-    name: 'Amazon',
-    sector: 'Consumo',
-    currency: 'USD',
-    close: 3000.0,
-  },
-  {
-    symbol: 'TSLA',
-    name: 'Tesla',
-    sector: 'Automotriz',
+    symbol: 'CENCOSUD.SN',
+    name: 'CENCOSUD.SN',
     currency: 'CLP',
-    close: 171.48,
+    close: 2208.68,
+    previousClose: 2180.1,
+    dayChangePercentage: 1.3109490390349035,
+    source: 'mock',
+    baseVolatility: 0.015,
+    baseDrift: 0,
+    high: 2260,
+    low: 2180.1001,
+    open: 2210,
+    volume: 3840685
   },
   {
-    symbol: 'GOOG',
-    name: 'Alphabet',
-    sector: 'Tecnología',
+    symbol: 'CHILE.SN',
+    name: 'CHILE.SN',
     currency: 'CLP',
-    close: 2000,
+    close: 179,
+    previousClose: 178.25,
+    dayChangePercentage: 0.42075736325385693,
+    source: 'mock',
+    baseVolatility: 0.015,
+    baseDrift: 0,
+    high: 182.5,
+    low: 178.52,
+    open: 179.9,
+    volume: 80637425
   },
+
 ];
+ 
+
+function ISODate(value: string) {
+  return new Date(value);
+}
+
