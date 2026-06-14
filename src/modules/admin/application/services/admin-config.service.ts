@@ -10,13 +10,13 @@ import { Model, Types } from 'mongoose';
 import {
   AdminConfig,
   AdminConfigDocument,
-  SEED_CONFIGS,
-} from '../../infrastructure/schemas/admin-config.schema';
+ } from '../../infrastructure/schemas/admin-config.schema';
 import {
   ConfigSnapshot,
   ConfigSnapshotDocument,
 } from '../../infrastructure/schemas/config-snapshot.schema';
 import { validateAdminConfigValue } from './admin-config-value.validation';
+import { SEED_CONFIGS } from '../../infrastructure/seed/seed.type';
 
 
 
@@ -45,11 +45,11 @@ export class AdminConfigService implements OnModuleInit {
         // this.logger.log(`Key ${config.key} is not found in DB, attempting to create a new and store it`);
 
         const value = this.configService.get<string | number>(
-          config.envKey,
+          config.key,
           config.defaultValue,
         )
 
-        
+
         await this.adminConfigModel.create({
           key: config.key,
           value,

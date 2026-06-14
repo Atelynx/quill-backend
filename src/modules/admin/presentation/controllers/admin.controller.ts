@@ -21,8 +21,9 @@ import { CreateConfigDto } from '../dto/create-config.dto';
 import { UpsertConfigDto } from '../dto/upsert-config.dto';
 import {
   AdminConfigDocument,
-  RESTART_REQUIRED_KEYS,
+
 } from '../../infrastructure/schemas/admin-config.schema';
+import { RESTART_REQUIRED_KEYS } from '../../infrastructure/seed/seed.type';
 
 
 
@@ -77,14 +78,14 @@ export class AdminController {
     return this.adminConfigService.getHistory(key);
   }
 
-  @Post()
-  async create(@Body() dto: CreateConfigDto, @CurrentUser() user: JwtPayload) {
-    return this.adminConfigService.set(dto.key, dto.value, {
-      name: dto.name,
-      tags: dto.tags,
-      updatedBy: user.sub,
-    });
-  }
+  // @Post()
+  // async create(@Body() dto: CreateConfigDto, @CurrentUser() user: JwtPayload) {
+  //   return this.adminConfigService.set(dto.key, dto.value, {
+  //     name: dto.name,
+  //     tags: dto.tags,
+  //     updatedBy: user.sub,
+  //   });
+  // }
 
   @Put(':key')
   async update(
@@ -104,14 +105,14 @@ export class AdminController {
     });
   }
 
-  @Delete(':key')
-  async remove(@Param('key') key: string) {
-    const existing = await this.adminConfigService.getFull(key);
-    if (!existing) {
-      throw new NotFoundException(`Configuración "${key}" no encontrada.`);
-    }
+  // @Delete(':key')
+  // async remove(@Param('key') key: string) {
+  //   const existing = await this.adminConfigService.getFull(key);
+  //   if (!existing) {
+  //     throw new NotFoundException(`Configuración "${key}" no encontrada.`);
+  //   }
 
-    await this.adminConfigService.delete(key);
-    return { message: `Configuración "${key}" eliminada.` };
-  }
+  //   await this.adminConfigService.delete(key);
+  //   return { message: `Configuración "${key}" eliminada.` };
+  // }
 }
