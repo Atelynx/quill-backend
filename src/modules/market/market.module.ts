@@ -25,6 +25,7 @@ import { MarketController } from './presentation/controllers/market.controller';
 import { NoiseWaveSimulationStrategy } from '../common/strategies/nw-simulation.strategy';
 import { StrategyFactory } from '../common/strategies/strategy.factory';
 import { StrategyType } from '../common/strategies/strategy.types';
+import { AdminConfigService } from '../admin/application/services/admin-config.service';
 
 @Module({
   imports: [
@@ -59,14 +60,17 @@ import { StrategyType } from '../common/strategies/strategy.types';
         EodhdMarketDataProvider,
         NoneMarketDataProvider,
         ConfigService,
+        AdminConfigService
       ],
-      useFactory: (
+      useFactory: async (
         mockProvider: MockMarketDataProvider,
         eodhdProvider: EodhdMarketDataProvider,
         noneProvider: NoneMarketDataProvider,
         configService: ConfigService,
+        adminConfigService: AdminConfigService
       ) => {
-        const providerName = configService.get<string>('MARKET_PROVIDER');
+        const adminConfigProviderName = await adminConfigService.get<string>('MARKET_PROVIDER');
+        const providerName = adminConfigProviderName ? adminConfigProviderName : configService.get<string>("MARKET_PROVIDER", 'mock');
 
         if (providerName === 'eodhd') {
           return new FallbackMarketDataProvider(eodhdProvider, mockProvider);
@@ -83,21 +87,25 @@ import { StrategyType } from '../common/strategies/strategy.types';
     {
       provide: 'MARKET_SIMULATION_STRATEGY',
       inject: [
-        ConfigService,
         GBMMarketSimulationStrategy,
         FlatMarketSimulationStrategy,
         NoiseWaveSimulationStrategy,
+        ConfigService,
+        AdminConfigService
       ],
-      useFactory: (
-        configService: ConfigService,
+      useFactory: async (
         gbm: GBMMarketSimulationStrategy,
         flat: FlatMarketSimulationStrategy,
         nw: NoiseWaveSimulationStrategy,
+        configService: ConfigService,
+        adminConfigService: AdminConfigService,
       ) => {
-        const strategyName = configService.get<string>(
+        const strategyConfigProviderName = await adminConfigService.get<string>('SIMULATION_STRATEGY');
+        const strategyName = strategyConfigProviderName ? strategyConfigProviderName : configService.get<string>(
           'SIMULATION_STRATEGY',
           'flat',
         );
+   
         return StrategyFactory.createStrategy(
           strategyName as StrategyType,
           gbm,
@@ -109,4 +117,4 @@ import { StrategyType } from '../common/strategies/strategy.types';
   ],
   exports: [MarketService, MongooseModule, 'MARKET_DATA_PROVIDER'],
 })
-export class MarketModule {}
+export class MarketModule { }

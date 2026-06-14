@@ -10,6 +10,7 @@ import { Model, Types } from 'mongoose';
 import {
   AdminConfig,
   AdminConfigDocument,
+  SEED_CONFIGS,
 } from '../../infrastructure/schemas/admin-config.schema';
 import {
   ConfigSnapshot,
@@ -17,56 +18,7 @@ import {
 } from '../../infrastructure/schemas/config-snapshot.schema';
 import { validateAdminConfigValue } from './admin-config-value.validation';
 
-const SEED_CONFIGS: Array<{
-  key: string;
-  envKey: string;
-  defaultValue: string | number;
-  name: string;
-  tags: string[];
-}> = [
-  {
-    key: 'COMMISSION_RATE',
-    envKey: 'COMMISSION_RATE',
-    defaultValue: 0.005,
-    name: 'Comisión de trading',
-    tags: ['trading', 'fees'],
-  },
-  {
-    key: 'INITIAL_BALANCE',
-    envKey: 'INITIAL_BALANCE',
-    defaultValue: 100000,
-    name: 'Balance inicial',
-    tags: ['users', 'registration'],
-  },
-  {
-    key: 'MARKET_HOURS_OPEN',
-    envKey: 'MARKET_HOURS_OPEN',
-    defaultValue: '09:30',
-    name: 'Horario apertura mercado',
-    tags: ['market', 'hours'],
-  },
-  {
-    key: 'MARKET_HOURS_CLOSED',
-    envKey: 'MARKET_HOURS_CLOSED',
-    defaultValue: '16:00',
-    name: 'Horario cierre mercado',
-    tags: ['market', 'hours'],
-  },
-  {
-    key: 'MARKET_PROVIDER',
-    envKey: 'MARKET_PROVIDER',
-    defaultValue: 'mock',
-    name: 'Proveedor de datos de mercado',
-    tags: ['market', 'provider'],
-  },
-  {
-    key: 'SIMULATION_STRATEGY',
-    envKey: 'SIMULATION_STRATEGY',
-    defaultValue: 'flat',
-    name: 'Estrategia de simulación',
-    tags: ['market', 'simulation'],
-  },
-];
+
 
 @Injectable()
 export class AdminConfigService implements OnModuleInit {
@@ -78,22 +30,26 @@ export class AdminConfigService implements OnModuleInit {
     @InjectModel(ConfigSnapshot.name)
     private readonly snapshotModel: Model<ConfigSnapshotDocument>,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   async onModuleInit(): Promise<void> {
+
+
     for (const config of SEED_CONFIGS) {
       const exists = await this.adminConfigModel
         .exists({ key: config.key, inUse: true })
         .exec();
 
       if (!exists) {
-        const value = config.envKey
-          ? this.configService.get<string | number>(
-              config.envKey,
-              config.defaultValue,
-            )
-          : config.defaultValue;
 
+        // this.logger.log(`Key ${config.key} is not found in DB, attempting to create a new and store it`);
+
+        const value = this.configService.get<string | number>(
+          config.envKey,
+          config.defaultValue,
+        )
+
+        
         await this.adminConfigModel.create({
           key: config.key,
           value,
