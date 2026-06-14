@@ -19,6 +19,12 @@ describe('MarketService', () => {
   let marketSeedService: {
     seedInitialStocks: jest.Mock;
   };
+  let cacheService: {
+    set: jest.Mock;
+  };
+  let eventEmitter: {
+    emit: jest.Mock;
+  };
 
   beforeEach(() => {
     stockModel = {
@@ -31,6 +37,8 @@ describe('MarketService', () => {
     configService = { get: jest.fn() };
     marketRefreshService = { refreshMarket: jest.fn() };
     marketSeedService = { seedInitialStocks: jest.fn() };
+    cacheService = { set: jest.fn() };
+    eventEmitter = { emit: jest.fn() };
 
     service = new MarketService(
       stockModel as never,
@@ -38,6 +46,8 @@ describe('MarketService', () => {
       configService as never,
       marketRefreshService as never,
       marketSeedService as never,
+      cacheService as never,
+      eventEmitter as never,
     );
   });
 

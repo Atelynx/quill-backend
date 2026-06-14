@@ -9,10 +9,18 @@ function createLeanQuery<T>(value: T) {
   };
 }
 
+function createFindOneQuery<T>(value: T | null) {
+  return {
+    lean: jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue(value),
+    }),
+  };
+}
+
 describe('MockMarketDataProvider', () => {
   let provider: MockMarketDataProvider;
   let configService: ConfigService;
-  let stockModel: { find: jest.Mock };
+  let stockModel: { find: jest.Mock; findOne: jest.Mock };
 
   beforeEach(() => {
     configService = {
@@ -20,6 +28,7 @@ describe('MockMarketDataProvider', () => {
     } as unknown as ConfigService;
     stockModel = {
       find: jest.fn(),
+      findOne: jest.fn().mockReturnValue(createFindOneQuery(null)),
     };
   });
 

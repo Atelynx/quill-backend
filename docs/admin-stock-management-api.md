@@ -164,18 +164,16 @@ Update the base price of a stock (admin or provider-managed).
 ```
 
 **What happens behind the scenes:**
-1. MongoDB `stocks` document is updated (`close`, `previousClose`, `dayChangePercentage`, `source: 'admin'`)
+1. MongoDB `stocks` document is updated (`close`, `previousClose`, `dayChangePercentage`)
 2. A `PriceSnapshot` is created for history
 3. Redis keys are updated: `market:{symbol}`, `stock:{symbol}:base_price`, `stock:{symbol}:live_price` (all set to the new price)
 4. An `internal.price.update` event is emitted → WebSocket clients receive the update in real-time
 
 **Frontend notes:**
-- This endpoint modifies **any** stock, not just admin-created ones
-- When used on a provider-managed stock (`source: "mock"` or `"eodhd"`), it:
-  - Changes the price immediately
-  - Sets `source` to `"admin"` (so the next provider refresh skips it)
-  - The stock "moves" from provider-managed to admin-managed
-- Show a confirmation dialog: "This stock is currently managed by {provider}. Changing the price will switch it to admin-managed mode. Continue?"
+- This endpoint modifies **any** stock, regardless of source
+- **`source` is never modified** — provider-managed stocks stay managed by their provider
+- On the next scheduled refresh, the provider **will overwrite** the price back to the real value
+- Show a toast/notification: "Price updated. Next provider refresh will overwrite this value."
 
 ---
 
@@ -239,13 +237,13 @@ interface PriceUpdate {
 
 ## Data Model: `source` Field Semantics
 
-| `source` | Meaning | Managed by provider refresh? | Can admin delete? |
-|----------|---------|------------------------------|-------------------|
-| `"mock"` | Created/seeded by mock provider | Yes | No |
-| `"eodhd"` | Created/seeded by EODHD provider | Yes | No |
-| `"admin"` | Created by admin via panel | **No** | Yes |
+| `source` | Meaning | Managed by provider refresh? | Admin delete? | Admin PATCH overwritten by refresh? |
+|----------|---------|------------------------------|---------------|-------------------------------------|
+| `"mock"` | Seeded by mock provider | Yes | No | Yes |
+| `"eodhd"` | Seeded by EODHD provider | Yes | No | Yes |
+| `"admin"` | Created by admin via panel | **No** | Yes | No |
 
-When admin updates the price of a provider-managed stock, its `source` changes to `"admin"`, effectively taking ownership from the provider.
+**Admin PATCH never changes `source`.** Provider-managed stocks stay with the provider — the next refresh will overwrite the admin's price. Admin-created stocks (`source: 'admin'`) are excluded from all provider refresh cycles.
 
 ---
 
@@ -253,5 +251,5 @@ When admin updates the price of a provider-managed stock, its `source` changes t
 
 1. **Admin stock list page** — `GET /admin/stocks` with search + source filter
 2. **Create stock form** — `POST /admin/stocks`
-3. **Price update inline** — `PATCH /admin/stocks/:symbol/price` (with confirmation dialog for provider-managed stocks)
+3. **Price update inline** — `PATCH /admin/stocks/:symbol/price` (show toast that refresh will overwrite)
 4. **Delete stock** — `DELETE /admin/stocks/:symbol` (only for admin-managed)
