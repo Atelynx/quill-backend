@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { AdminConfigService } from '../../../admin/application/services/admin-config.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, Model, Types } from 'mongoose';
+import { ClientSession, Connection, Model, Types } from 'mongoose';
 import Decimal from 'decimal.js';
 import { CurrencyRateService } from '../../../currency/application/services/currency-rate.service';
 import { isMarketOpen } from '../../../../common/utils/market-hours';
@@ -116,13 +116,13 @@ export class OrderExecutionService {
 
   private async isMarketOpen(): Promise<boolean> {
     const [openTime, closeTime] = await Promise.all([
-      this.adminConfigService.get('MARKET_HOURS_OPEN'),
-      this.adminConfigService.get('MARKET_HOURS_CLOSED'),
+      this.adminConfigService.get<string>('MARKET_HOURS_OPEN'),
+      this.adminConfigService.get<string>('MARKET_HOURS_CLOSED'),
     ]);
 
     if (!openTime || !closeTime) return true;
 
-    return isMarketOpen(openTime as string, closeTime as string);
+    return isMarketOpen(openTime, closeTime);
   }
 
   private async executeOrder(
@@ -130,6 +130,14 @@ export class OrderExecutionService {
     marketPrice: number,
     currency?: string,
   ): Promise<void> {
+    let executionCurrency: string;
+    try {
+      executionCurrency = await this.resolveCurrency(order.symbol, currency);
+    } catch (error) {
+      this.logger.error(`Failed to execute order ${order.id}`, error);
+      return;
+    }
+
     const session = await this.connection.startSession();
     try {
       await session.withTransaction(async () => {
@@ -153,20 +161,18 @@ export class OrderExecutionService {
         let grossAmountCLP = grossAmountNative;
         let commissionCLP = commissionNative;
 
-        if (currency && currency !== 'CLP') {
-          const rate = await this.currencyRateService.getRate(`${currency}CLP`);
-          if (rate) {
-            const marketPriceCLP = new Decimal(marketPrice)
-              .times(rate.rate)
-              .toDecimalPlaces(2)
-              .toNumber();
-            grossAmountCLP = new Decimal(liveOrder.quantity)
-              .times(marketPriceCLP)
-              .toDecimalPlaces(2)
-              .toNumber();
-            commissionCLP =
-              await this.commissionService.calculate(grossAmountCLP);
-          }
+        if (executionCurrency !== 'CLP') {
+          const rate = await this.getValidRate(executionCurrency);
+          const marketPriceCLP = new Decimal(marketPrice)
+            .times(rate)
+            .toDecimalPlaces(2)
+            .toNumber();
+          grossAmountCLP = new Decimal(liveOrder.quantity)
+            .times(marketPriceCLP)
+            .toDecimalPlaces(2)
+            .toNumber();
+          commissionCLP =
+            await this.commissionService.calculate(grossAmountCLP);
         }
 
         const executedAt = new Date();
@@ -209,7 +215,7 @@ export class OrderExecutionService {
   }
 
   private async processBuyOrder(
-    session: any,
+    session: ClientSession,
     user: UserDocument,
     order: OrderDocument,
     grossAmountCLP: number,
@@ -268,7 +274,7 @@ export class OrderExecutionService {
   }
 
   private async processSellOrder(
-    session: any,
+    session: ClientSession,
     user: UserDocument,
     order: OrderDocument,
     grossAmountCLP: number,
@@ -324,7 +330,10 @@ export class OrderExecutionService {
       );
     }
 
-    const stock = await this.stockModel.findOne({ symbol }).lean().exec();
+    const stock = await this.stockModel
+      .findOne({ symbol })
+      .lean<Pick<Stock, 'currency'>>()
+      .exec();
 
     if (!stock) {
       throw new NotFoundException('La acción solicitada no existe.');
@@ -343,20 +352,16 @@ export class OrderExecutionService {
 
     const stockCurrency = stock.currency ?? 'CLP';
     if (stockCurrency !== 'CLP') {
-      const rate = await this.currencyRateService.getRate(
-        `${stockCurrency}CLP`,
-      );
-      if (rate) {
-        const livePriceCLP = new Decimal(livePrice)
-          .times(rate.rate)
-          .toDecimalPlaces(2)
-          .toNumber();
-        grossAmountCLP = new Decimal(quantity)
-          .times(livePriceCLP)
-          .toDecimalPlaces(2)
-          .toNumber();
-        commissionCLP = await this.commissionService.calculate(grossAmountCLP);
-      }
+      const rate = await this.getValidRate(stockCurrency);
+      const livePriceCLP = new Decimal(livePrice)
+        .times(rate)
+        .toDecimalPlaces(2)
+        .toNumber();
+      grossAmountCLP = new Decimal(quantity)
+        .times(livePriceCLP)
+        .toDecimalPlaces(2)
+        .toNumber();
+      commissionCLP = await this.commissionService.calculate(grossAmountCLP);
     }
 
     const session = await this.connection.startSession();
@@ -526,7 +531,7 @@ export class OrderExecutionService {
   }
 
   private async finalizeOrder(
-    session: any,
+    session: ClientSession,
     user: UserDocument,
     order: OrderDocument,
     marketPrice: number,
@@ -571,5 +576,39 @@ export class OrderExecutionService {
         { session },
       ),
     ]);
+  }
+
+  private async getValidRate(currency: string): Promise<number> {
+    const pair = `${currency}CLP`;
+    const entry = await this.currencyRateService.getRate(pair);
+
+    if (!entry || !Number.isFinite(entry.rate) || entry.rate <= 0) {
+      throw new BadRequestException(
+        `Tipo de cambio válido no disponible para ${pair}.`,
+      );
+    }
+
+    return entry.rate;
+  }
+
+  private async resolveCurrency(
+    symbol: string,
+    quoteCurrency?: string,
+  ): Promise<string> {
+    if (quoteCurrency) {
+      return quoteCurrency.toUpperCase();
+    }
+
+    const stock = await this.stockModel
+      .findOne({ symbol })
+      .lean<Pick<Stock, 'currency'>>()
+      .exec();
+    if (!stock?.currency) {
+      throw new BadRequestException(
+        `Moneda no disponible para ejecutar la orden de ${symbol}.`,
+      );
+    }
+
+    return stock.currency.toUpperCase();
   }
 }

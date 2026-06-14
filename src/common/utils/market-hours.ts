@@ -1,11 +1,13 @@
+import { DateTime } from 'luxon';
+
 export function parseTimeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;
 }
 
 export function getCurrentMinutes(): number {
-  const now = new Date();
-  return now.getHours() * 60 + now.getMinutes();
+  const now = DateTime.now().setZone('America/Santiago');
+  return now.hour * 60 + now.minute;
 }
 
 export function isMarketOpen(

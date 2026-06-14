@@ -12,10 +12,12 @@ import {
 import { AdminController } from './presentation/controllers/admin.controller';
 import { AdminSnapshotsController } from './presentation/controllers/admin-snapshots.controller';
 import { AdminUsersController } from './presentation/controllers/admin-users.controller';
+import { AdminStockController } from './presentation/controllers/admin-stock.controller';
 import {
   User,
   UserSchema,
 } from '../../modules/users/infrastructure/schemas/user.schema';
+import { MarketModule } from '../../modules/market/market.module';
 
 @Global()
 @Module({
@@ -25,11 +27,13 @@ import {
       { name: ConfigSnapshot.name, schema: ConfigSnapshotSchema },
       { name: User.name, schema: UserSchema },
     ]),
+    MarketModule,
   ],
   controllers: [
     AdminController,
     AdminSnapshotsController,
     AdminUsersController,
+    AdminStockController,
   ],
   providers: [AdminConfigService],
   exports: [AdminConfigService],

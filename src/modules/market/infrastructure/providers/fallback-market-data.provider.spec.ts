@@ -1,5 +1,6 @@
 import { FallbackMarketDataProvider } from './fallback-market-data.provider';
 import type { MarketDataProvider } from './market-data-provider.interface';
+import type { MarketQuote } from '../../domain/interfaces/market-quote.interface';
 
 type MockedMarketDataProvider = Omit<
   jest.Mocked<MarketDataProvider>,
@@ -17,10 +18,14 @@ describe('FallbackMarketDataProvider', () => {
   let primary: MockedMarketDataProvider;
   let fallback: jest.Mocked<MarketDataProvider>;
   let provider: FallbackMarketDataProvider;
+  let primaryGetQuote: jest.MockedFunction<MarketDataProvider['getQuote']>;
+  let fallbackGetQuote: jest.MockedFunction<MarketDataProvider['getQuote']>;
 
   beforeEach(() => {
+    primaryGetQuote = jest.fn();
+    fallbackGetQuote = jest.fn();
     primary = {
-      getQuote: jest.fn(),
+      getQuote: primaryGetQuote,
       getQuotes: jest.fn(),
       getName: jest.fn().mockReturnValue('EODHD'),
       getSeedData: jest.fn(),
@@ -28,7 +33,7 @@ describe('FallbackMarketDataProvider', () => {
     } as MockedMarketDataProvider;
 
     fallback = {
-      getQuote: jest.fn(),
+      getQuote: fallbackGetQuote,
       getName: jest.fn().mockReturnValue('Mock'),
     } as unknown as jest.Mocked<MarketDataProvider>;
 
@@ -49,8 +54,8 @@ describe('FallbackMarketDataProvider', () => {
       const result = await provider.getQuote('AAPL');
 
       expect(result).toBe(expected);
-      expect(primary.getQuote).toHaveBeenCalledWith('AAPL');
-      expect(fallback.getQuote).not.toHaveBeenCalled();
+      expect(primaryGetQuote).toHaveBeenCalledWith('AAPL');
+      expect(fallbackGetQuote).not.toHaveBeenCalled();
     });
 
     it('falls back to mock when primary fails', async () => {
@@ -67,8 +72,8 @@ describe('FallbackMarketDataProvider', () => {
       const result = await provider.getQuote('AAPL');
 
       expect(result).toBe(expected);
-      expect(primary.getQuote).toHaveBeenCalledWith('AAPL');
-      expect(fallback.getQuote).toHaveBeenCalledWith('AAPL');
+      expect(primaryGetQuote).toHaveBeenCalledWith('AAPL');
+      expect(fallbackGetQuote).toHaveBeenCalledWith('AAPL');
     });
 
     it('rethrows when both primary and fallback fail', async () => {
@@ -86,11 +91,17 @@ describe('FallbackMarketDataProvider', () => {
       const quoteA = {
         symbol: 'AAPL',
         price: 150,
-      } as any;
+        currency: 'USD',
+        timestamp: new Date(),
+        exchange: 'EODHD',
+      } satisfies MarketQuote;
       const quoteB = {
         symbol: 'MSFT',
         price: 300,
-      } as any;
+        currency: 'USD',
+        timestamp: new Date(),
+        exchange: 'EODHD',
+      } satisfies MarketQuote;
       primary.getQuote
         .mockResolvedValueOnce(quoteA)
         .mockResolvedValueOnce(quoteB);
@@ -98,12 +109,24 @@ describe('FallbackMarketDataProvider', () => {
       const results = await provider.getQuotes(['AAPL', 'MSFT']);
 
       expect(results).toEqual([quoteA, quoteB]);
-      expect(fallback.getQuote).not.toHaveBeenCalled();
+      expect(fallbackGetQuote).not.toHaveBeenCalled();
     });
 
     it('falls back per-symbol when primary fails for some symbols', async () => {
-      const quoteA = { symbol: 'AAPL', price: 150 } as any;
-      const quoteB = { symbol: 'MSFT', price: 290 } as any;
+      const quoteA = {
+        symbol: 'AAPL',
+        price: 150,
+        currency: 'USD',
+        timestamp: new Date(),
+        exchange: 'EODHD',
+      } satisfies MarketQuote;
+      const quoteB = {
+        symbol: 'MSFT',
+        price: 290,
+        currency: 'USD',
+        timestamp: new Date(),
+        exchange: 'MOCK',
+      } satisfies MarketQuote;
       primary.getQuote
         .mockResolvedValueOnce(quoteA)
         .mockRejectedValueOnce(new Error('Not found'));
@@ -134,14 +157,24 @@ describe('FallbackMarketDataProvider', () => {
 
   describe('getSeedData', () => {
     it('delegates to primary', () => {
-      const seedData = [{ symbol: 'AAPL', name: 'Apple' }] as any;
+      const seedData = [
+        {
+          symbol: 'AAPL',
+          name: 'Apple',
+          currency: 'USD',
+          close: 150,
+        },
+      ];
       primary.getSeedData.mockReturnValue(seedData);
 
       expect(provider.getSeedData()).toBe(seedData);
     });
 
     it('returns empty array when primary has no getSeedData', () => {
-      delete (primary as any).getSeedData;
+      const optionalPrimary = primary as unknown as {
+        getSeedData?: MarketDataProvider['getSeedData'];
+      };
+      delete optionalPrimary.getSeedData;
 
       expect(provider.getSeedData()).toEqual([]);
     });
@@ -156,7 +189,10 @@ describe('FallbackMarketDataProvider', () => {
     });
 
     it('returns undefined when primary has no schedule', () => {
-      delete (primary as any).getRefreshSchedule;
+      const optionalPrimary = primary as unknown as {
+        getRefreshSchedule?: MarketDataProvider['getRefreshSchedule'];
+      };
+      delete optionalPrimary.getRefreshSchedule;
 
       expect(provider.getRefreshSchedule()).toBeUndefined();
     });

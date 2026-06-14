@@ -13,6 +13,10 @@ export class Friendship {
 
   @Prop({ required: true, enum: ['pending', 'accepted'] })
   status!: string;
+
+  createdAt?: Date;
+
+  updatedAt?: Date;
 }
 
 export const FriendshipSchema = SchemaFactory.createForClass(Friendship);

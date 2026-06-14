@@ -42,9 +42,22 @@ describe('MarketUpdateWriterService', () => {
     expect(snapshotModel.insertMany).toHaveBeenCalledWith([
       { symbol: 'COPEC.SN', price: 120, source: 'eodhd' },
     ]);
-    expect(
-      stockModel.bulkWrite.mock.calls[0][0][0].updateOne.update.$set,
-    ).toMatchObject({
+    const calls = stockModel.bulkWrite.mock.calls as unknown as Array<
+      [
+        Array<{
+          updateOne: {
+            update: {
+              $set: {
+                close: number;
+                dayChangePercentage: number;
+                source: string;
+              };
+            };
+          };
+        }>,
+      ]
+    >;
+    expect(calls[0][0][0].updateOne.update.$set).toMatchObject({
       close: 120,
       dayChangePercentage: 20,
       source: 'eodhd',

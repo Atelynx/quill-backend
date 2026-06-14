@@ -6,19 +6,19 @@ const query = <T>(value: T) => ({ exec: jest.fn().mockResolvedValue(value) });
 
 describe('OrdersService edge cases', () => {
   let service: OrdersService;
-  let orderModel: any;
-  let userModel: any;
-  let stockModel: any;
+  let orderModel: { create: jest.Mock; find: jest.Mock };
+  let userModel: { findById: jest.Mock };
+  let stockModel: { findOne: jest.Mock };
 
   beforeEach(() => {
     orderModel = { create: jest.fn(), find: jest.fn() };
     userModel = { findById: jest.fn() };
     stockModel = { findOne: jest.fn() };
     service = new OrdersService(
-      orderModel,
-      userModel,
+      orderModel as never,
+      userModel as never,
       { findOne: jest.fn() } as never,
-      stockModel,
+      stockModel as never,
       { calculate: jest.fn() } as never,
       { executeMarketOrder: jest.fn() } as never,
       { getRate: jest.fn() } as never,

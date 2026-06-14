@@ -12,6 +12,7 @@ import { Model } from 'mongoose';
 import { JwtAuthGuard } from '../../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../../common/guards/roles.guard';
 import { Roles } from '../../../../common/decorators/roles.decorator';
+import { ParseObjectIdPipe } from '../../../../common/pipes/parse-object-id.pipe';
 import { AdminConfigService } from '../../application/services/admin-config.service';
 import {
   ConfigSnapshot,
@@ -35,7 +36,7 @@ export class AdminSnapshotsController {
   }
 
   @Get(':id')
-  async getOne(@Param('id') id: string) {
+  async getOne(@Param('id', ParseObjectIdPipe) id: string) {
     const snapshot = await this.snapshotModel.findById(id).exec();
     if (!snapshot) {
       throw new NotFoundException('Snapshot no encontrado.');
@@ -49,7 +50,7 @@ export class AdminSnapshotsController {
   }
 
   @Post(':id/restore')
-  async restore(@Param('id') id: string) {
+  async restore(@Param('id', ParseObjectIdPipe) id: string) {
     return this.adminConfigService.restoreSnapshot(id);
   }
 }

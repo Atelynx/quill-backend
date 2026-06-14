@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import Decimal from 'decimal.js';
 import { Model } from 'mongoose';
-import type { MarketDataProvider } from '../../infrastructure/providers/market-data-provider.interface';
+import type {
+  MarketDataProvider,
+  StockSeed,
+} from '../../infrastructure/providers/market-data-provider.interface';
 import { seedStocks } from '../../domain/constants/seed-stocks';
 import {
   PriceSnapshot,
@@ -44,10 +47,13 @@ export class MarketSeedService {
     const existingStocks = await this.stockModel
       .find({ symbol: { $in: symbols } })
       .select('symbol')
-      .lean()
+      .lean<Array<Pick<Stock, 'symbol'>>>()
       .exec();
+    const typedExistingStocks = existingStocks as unknown as Array<
+      Pick<Stock, 'symbol'>
+    >;
     const existingSymbols = new Set(
-      existingStocks.map((stock) => stock.symbol.toUpperCase()),
+      typedExistingStocks.map((stock) => stock.symbol.toUpperCase()),
     );
     const missingStocks = seedData.filter(
       (stock) => !existingSymbols.has(stock.symbol),
@@ -77,7 +83,7 @@ export class MarketSeedService {
    * Falls back to hardcoded mock stocks only if the provider
    * does not implement getSeedData() at all.
    */
-  private resolveSeedStocks() {
+  private resolveSeedStocks(): StockSeed[] {
     const providerSeedData = this.provider.getSeedData?.();
 
     if (providerSeedData !== undefined) {

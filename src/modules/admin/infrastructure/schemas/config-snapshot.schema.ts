@@ -6,7 +6,7 @@ export type ConfigSnapshotDocument = HydratedDocument<ConfigSnapshot>;
 @Schema({ collection: 'admin_config_snapshots', timestamps: true })
 export class ConfigSnapshot {
   @Prop({ required: true, type: SchemaTypes.Mixed })
-  configs!: Record<string, any>;
+  configs!: Record<string, unknown>;
 
   @Prop()
   name?: string;

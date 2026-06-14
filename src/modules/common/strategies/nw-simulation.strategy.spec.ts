@@ -63,7 +63,6 @@ describe('NoiseWaveSimulationStrategy', () => {
       new Decimal(0),
     );
 
-    const diff1 = Math.abs(r1.toNumber() - 100);
     const diff2 = Math.abs(r2.toNumber() - 100);
     expect(diff2).toBeGreaterThan(0);
   });

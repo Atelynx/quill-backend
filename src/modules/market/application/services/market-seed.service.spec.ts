@@ -2,8 +2,22 @@ import { ConfigService } from '@nestjs/config';
 import { MarketSeedService } from './market-seed.service';
 import { Logger } from '@nestjs/common';
 
+interface MarketSeedInternals {
+  logger: Logger;
+  resolveSeedStocks(): Array<Record<string, unknown>>;
+  prepareSeedDocuments(
+    stocks: Array<{
+      symbol: string;
+      name: string;
+      currency: string;
+      close: number;
+    }>,
+  ): Array<Record<string, unknown>>;
+}
+
 describe('MarketSeedService', () => {
   let service: MarketSeedService;
+  let internals: MarketSeedInternals;
   let stockModel: { find: jest.Mock; insertMany: jest.Mock };
   let snapshotModel: { insertMany: jest.Mock };
   let provider: { getName: jest.Mock; getSeedData: jest.Mock };
@@ -29,6 +43,7 @@ describe('MarketSeedService', () => {
       provider as never,
       configService as unknown as ConfigService,
     );
+    internals = service as unknown as MarketSeedInternals;
   });
   beforeAll(() => {
     Logger.overrideLogger(false);
@@ -96,7 +111,9 @@ describe('MarketSeedService', () => {
       await service.seedInitialStocks();
 
       expect(snapshotModel.insertMany).toHaveBeenCalled();
-      const snapshots = snapshotModel.insertMany.mock.calls[0][0];
+      const calls = snapshotModel.insertMany.mock
+        .calls as unknown as unknown[][];
+      const snapshots = calls[0][0] as Array<Record<string, unknown>>;
       expect(snapshots).toHaveLength(24);
       expect(snapshots[0]).toMatchObject({
         symbol: 'AAPL',
@@ -117,7 +134,7 @@ describe('MarketSeedService', () => {
           }),
         }),
       });
-      const logSpy = jest.spyOn((service as any).logger, 'log');
+      const logSpy = jest.spyOn(internals.logger, 'log');
 
       await service.seedInitialStocks();
 
@@ -131,19 +148,19 @@ describe('MarketSeedService', () => {
   describe('resolveSeedStocks', () => {
     it('returns provider seed data when available', () => {
       provider.getSeedData.mockReturnValue([{ symbol: 'TEST', close: 100 }]);
-      const result = (service as any).resolveSeedStocks();
+      const result = internals.resolveSeedStocks();
       expect(result).toEqual([{ symbol: 'TEST', close: 100 }]);
     });
 
     it('returns empty array when provider returns empty array', () => {
       provider.getSeedData.mockReturnValue([]);
-      const result = (service as any).resolveSeedStocks();
+      const result = internals.resolveSeedStocks();
       expect(result).toEqual([]);
     });
 
     it('falls back to hardcoded seed stocks when provider has no getSeedData', () => {
       provider.getSeedData.mockReturnValue(undefined);
-      const result = (service as any).resolveSeedStocks();
+      const result = internals.resolveSeedStocks();
       expect(result.length).toBeGreaterThan(0);
       expect(result[0]).toHaveProperty('symbol');
     });
@@ -151,7 +168,7 @@ describe('MarketSeedService', () => {
 
   describe('prepareSeedDocuments', () => {
     it('normalizes stock documents with defaults', () => {
-      const docs = (service as any).prepareSeedDocuments([
+      const docs = internals.prepareSeedDocuments([
         { symbol: 'AAPL', name: 'Apple', currency: 'USD', close: 150 },
       ]);
       expect(docs[0]).toMatchObject({

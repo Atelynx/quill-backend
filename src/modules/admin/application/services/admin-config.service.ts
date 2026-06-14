@@ -10,62 +10,15 @@ import { Model, Types } from 'mongoose';
 import {
   AdminConfig,
   AdminConfigDocument,
-} from '../../infrastructure/schemas/admin-config.schema';
+ } from '../../infrastructure/schemas/admin-config.schema';
 import {
   ConfigSnapshot,
   ConfigSnapshotDocument,
 } from '../../infrastructure/schemas/config-snapshot.schema';
+import { validateAdminConfigValue } from './admin-config-value.validation';
+import { SEED_CONFIGS } from '../../infrastructure/seed/seed.type';
 
-const SEED_CONFIGS: Array<{
-  key: string;
-  envKey: string;
-  defaultValue: any;
-  name: string;
-  tags: string[];
-}> = [
-  {
-    key: 'COMMISSION_RATE',
-    envKey: 'COMMISSION_RATE',
-    defaultValue: 0.005,
-    name: 'Comisión de trading',
-    tags: ['trading', 'fees'],
-  },
-  {
-    key: 'INITIAL_BALANCE',
-    envKey: 'INITIAL_BALANCE',
-    defaultValue: 100000,
-    name: 'Balance inicial',
-    tags: ['users', 'registration'],
-  },
-  {
-    key: 'MARKET_HOURS_OPEN',
-    envKey: 'MARKET_HOURS_OPEN',
-    defaultValue: '09:30',
-    name: 'Horario apertura mercado',
-    tags: ['market', 'hours'],
-  },
-  {
-    key: 'MARKET_HOURS_CLOSED',
-    envKey: 'MARKET_HOURS_CLOSED',
-    defaultValue: '16:00',
-    name: 'Horario cierre mercado',
-    tags: ['market', 'hours'],
-  },
-  {
-    key: 'MARKET_PROVIDER',
-    envKey: 'MARKET_PROVIDER',
-    defaultValue: 'mock',
-    name: 'Proveedor de datos de mercado',
-    tags: ['market', 'provider'],
-  },
-  {
-    key: 'SIMULATION_STRATEGY',
-    envKey: 'SIMULATION_STRATEGY',
-    defaultValue: 'flat',
-    name: 'Estrategia de simulación',
-    tags: ['market', 'simulation'],
-  },
-];
+
 
 @Injectable()
 export class AdminConfigService implements OnModuleInit {
@@ -77,18 +30,25 @@ export class AdminConfigService implements OnModuleInit {
     @InjectModel(ConfigSnapshot.name)
     private readonly snapshotModel: Model<ConfigSnapshotDocument>,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   async onModuleInit(): Promise<void> {
+
+
     for (const config of SEED_CONFIGS) {
       const exists = await this.adminConfigModel
         .exists({ key: config.key, inUse: true })
         .exec();
 
       if (!exists) {
-        const value = config.envKey
-          ? this.configService.get(config.envKey, config.defaultValue)
-          : config.defaultValue;
+
+        // this.logger.log(`Key ${config.key} is not found in DB, attempting to create a new and store it`);
+
+        const value = this.configService.get<string | number>(
+          config.key,
+          config.defaultValue,
+        )
+
 
         await this.adminConfigModel.create({
           key: config.key,
@@ -105,7 +65,7 @@ export class AdminConfigService implements OnModuleInit {
     }
   }
 
-  async get(key: string): Promise<any> {
+  async get<T>(key: string): Promise<T | null> {
     const doc = await this.adminConfigModel
       .findOneAndUpdate(
         { key, inUse: true },
@@ -114,7 +74,7 @@ export class AdminConfigService implements OnModuleInit {
       )
       .exec();
 
-    return doc?.value ?? null;
+    return doc ? (doc.value as T) : null;
   }
 
   async getFull(key: string): Promise<AdminConfigDocument | null> {
@@ -129,7 +89,7 @@ export class AdminConfigService implements OnModuleInit {
 
   async set(
     key: string,
-    value: any,
+    value: unknown,
     options?: {
       name?: string;
       tags?: string[];
@@ -137,6 +97,8 @@ export class AdminConfigService implements OnModuleInit {
       createSnapshot?: boolean;
     },
   ): Promise<AdminConfigDocument> {
+    validateAdminConfigValue(key, value);
+
     await this.adminConfigModel
       .updateMany({ key }, { $set: { inUse: false } })
       .exec();
@@ -148,7 +110,9 @@ export class AdminConfigService implements OnModuleInit {
         name: options?.name,
         tags: options?.tags,
         inUse: true,
-        updatedBy: options?.updatedBy as any,
+        updatedBy: options?.updatedBy
+          ? new Types.ObjectId(options.updatedBy)
+          : undefined,
       },
     ]);
 
@@ -184,7 +148,7 @@ export class AdminConfigService implements OnModuleInit {
       .lean()
       .exec();
 
-    const configs: Record<string, any> = {};
+    const configs: Record<string, unknown> = {};
     for (const c of activeConfigs) {
       configs[c.key] = c.value;
     }
@@ -193,9 +157,7 @@ export class AdminConfigService implements OnModuleInit {
       {
         configs,
         name: name ?? `Manual · ${new Date().toISOString()}`,
-        createdBy: createdBy
-          ? (new Types.ObjectId(createdBy) as any)
-          : undefined,
+        createdBy: createdBy ? new Types.ObjectId(createdBy) : undefined,
       },
     ]);
 
