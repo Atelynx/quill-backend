@@ -14,6 +14,7 @@ describe('OrdersService', () => {
   let service: OrdersService;
   let orderModel: {
     create: jest.Mock;
+    findOneAndUpdate: jest.Mock;
   };
   let userModel: {
     findById: jest.Mock;
@@ -36,6 +37,7 @@ describe('OrdersService', () => {
   beforeEach(() => {
     orderModel = {
       create: jest.fn(),
+      findOneAndUpdate: jest.fn(),
     };
     userModel = {
       findById: jest.fn(),
@@ -318,5 +320,100 @@ describe('OrdersService', () => {
       availableBalance: 49,
       reservedBalance: 101,
     });
+  });
+
+  it('cancela una LIMIT BUY pendiente y libera el saldo reservado', async () => {
+    const userId = new Types.ObjectId().toString();
+    const orderId = new Types.ObjectId().toString();
+    const order = {
+      status: 'PENDING',
+      side: 'BUY',
+      reservedAmount: 202.5,
+      save: jest.fn(),
+    };
+    const user = {
+      availableBalance: 797.5,
+      reservedBalance: 202.5,
+      save: jest.fn(),
+    };
+    orderModel.findOneAndUpdate.mockResolvedValue(order);
+    userModel.findById.mockReturnValue(createExecQuery(user));
+
+    await expect(service.cancelOrder(userId, orderId)).resolves.toBe(order);
+
+    expect(orderModel.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: new Types.ObjectId(orderId),
+        userId: new Types.ObjectId(userId),
+      },
+      { $currentDate: { updatedAt: true } },
+      { returnDocument: 'after', session },
+    );
+    expect(order.status).toBe('CANCELLED');
+    expect(user).toMatchObject({
+      availableBalance: 1000,
+      reservedBalance: 0,
+    });
+    expect(user.save).toHaveBeenCalledWith({ session });
+    expect(order.save).toHaveBeenCalledWith({ session });
+  });
+
+  it('cancela una LIMIT SELL pendiente y libera las acciones reservadas', async () => {
+    const order = {
+      status: 'PENDING',
+      side: 'SELL',
+      symbol: 'AAPL',
+      quantity: 3,
+      save: jest.fn(),
+    };
+    const position = {
+      reservedQuantity: 5,
+      save: jest.fn(),
+    };
+    orderModel.findOneAndUpdate.mockResolvedValue(order);
+    positionModel.findOne.mockReturnValue(createExecQuery(position));
+
+    await service.cancelOrder(
+      new Types.ObjectId().toString(),
+      new Types.ObjectId().toString(),
+    );
+
+    expect(order.status).toBe('CANCELLED');
+    expect(position.reservedQuantity).toBe(2);
+    expect(position.save).toHaveBeenCalledWith({ session });
+  });
+
+  it('mantiene idempotente la cancelacion de una orden ya cancelada', async () => {
+    const order = {
+      status: 'CANCELLED',
+      side: 'BUY',
+      save: jest.fn(),
+    };
+    orderModel.findOneAndUpdate.mockResolvedValue(order);
+
+    await expect(
+      service.cancelOrder(
+        new Types.ObjectId().toString(),
+        new Types.ObjectId().toString(),
+      ),
+    ).resolves.toBe(order);
+
+    expect(userModel.findById).not.toHaveBeenCalled();
+    expect(positionModel.findOne).not.toHaveBeenCalled();
+    expect(order.save).not.toHaveBeenCalled();
+  });
+
+  it('rechaza cancelar una orden ejecutada', async () => {
+    orderModel.findOneAndUpdate.mockResolvedValue({
+      status: 'EXECUTED',
+      side: 'BUY',
+    });
+
+    await expect(
+      service.cancelOrder(
+        new Types.ObjectId().toString(),
+        new Types.ObjectId().toString(),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

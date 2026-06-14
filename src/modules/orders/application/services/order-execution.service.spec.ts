@@ -505,18 +505,40 @@ describe('executeMarketOrder', () => {
   it('lanza BadRequestException para SELL cuando la cantidad es insuficiente', async () => {
     cacheService.get.mockResolvedValue(100);
     userModel.findById.mockReturnValue(query(baseUser()));
-    positionModel.findOne.mockReturnValue(query({ quantity: 2 }));
+    positionModel.findOne.mockReturnValue(
+      query({ quantity: 2, reservedQuantity: 0 }),
+    );
 
     await expect(
       service.executeMarketOrder(userId, 'AAPL', 'SELL', 5),
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('rechaza SELL cuando las acciones disponibles estan reservadas', async () => {
+    cacheService.get.mockResolvedValue(100);
+    userModel.findById.mockReturnValue(query(baseUser()));
+    positionModel.findOne.mockReturnValue(
+      query({ quantity: 10, reservedQuantity: 7 }),
+    );
+
+    await expect(
+      service.executeMarketOrder(userId, 'AAPL', 'SELL', 5),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(orderModel.create).not.toHaveBeenCalled();
+    expect(tradeModel.create).not.toHaveBeenCalled();
+  });
+
   it('SELL parcial mantiene la posicion si aun quedan acciones', async () => {
     cacheService.get.mockResolvedValue(100);
     const user = baseUser();
     userModel.findById.mockReturnValue(query(user));
-    const position = { quantity: 5, save: jest.fn(), deleteOne: jest.fn() };
+    const position = {
+      quantity: 5,
+      reservedQuantity: 0,
+      save: jest.fn(),
+      deleteOne: jest.fn(),
+    };
     positionModel.findOne.mockReturnValue(query(position));
 
     await service.executeMarketOrder(userId, 'AAPL', 'SELL', 3);
@@ -547,7 +569,12 @@ describe('executeMarketOrder', () => {
     cacheService.get.mockResolvedValue(100);
     const user = baseUser();
     userModel.findById.mockReturnValue(query(user));
-    const position = { quantity: 5, save: jest.fn(), deleteOne: jest.fn() };
+    const position = {
+      quantity: 5,
+      reservedQuantity: 0,
+      save: jest.fn(),
+      deleteOne: jest.fn(),
+    };
     positionModel.findOne.mockReturnValue(query(position));
 
     await service.executeMarketOrder(userId, 'AAPL', 'SELL', 5);

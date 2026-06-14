@@ -160,7 +160,7 @@ describe('MarketService', () => {
     });
   });
 
-  it.each([
+  it.each<[string, Partial<Record<'order' | 'position' | 'trade', boolean>>]>([
     ['una orden pendiente', { order: true }],
     ['una posición', { position: true }],
     ['un trade', { trade: true }],

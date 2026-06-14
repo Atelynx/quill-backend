@@ -295,4 +295,60 @@ describe('Quill API (e2e)', () => {
       quantity: 2,
     });
   });
+
+  it('cancela una orden LIMIT BUY y libera el saldo reservado', async () => {
+    const credentials = {
+      fullName: 'Camila Rojas',
+      email: 'camila.cancel@quill.dev',
+      password: 'Password123',
+    };
+    await testContext!.connection.collection('stocks').insertOne({
+      symbol: 'E2ECANCEL',
+      name: 'Acción cancelación E2E',
+      currency: 'CLP',
+      close: 1000,
+      previousClose: 1000,
+      dayChangePercentage: 0,
+      source: 'admin',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await request(httpServer)
+      .post('/api/auth/register')
+      .send(credentials)
+      .expect(201);
+    const loginResponse = await request(httpServer)
+      .post('/api/auth/login')
+      .send({ email: credentials.email, password: credentials.password })
+      .expect(201);
+    const token = (loginResponse.body as LoginResponse).accessToken;
+
+    const orderResponse = await request(httpServer)
+      .post('/api/orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        symbol: 'E2ECANCEL',
+        side: 'BUY',
+        quantity: 2,
+        limitPrice: 900,
+      })
+      .expect(201);
+    const order = orderResponse.body as OrderResponse & { _id: string };
+
+    const cancelResponse = await request(httpServer)
+      .patch(`/api/orders/${order._id}/cancel`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(cancelResponse.body).toMatchObject({ status: 'CANCELLED' });
+
+    const portfolioResponse = await request(httpServer)
+      .get('/api/portfolio/summary')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(portfolioResponse.body).toMatchObject({
+      availableBalance: 100000,
+      reservedBalance: 0,
+      totalEquity: 100000,
+    });
+  });
 });

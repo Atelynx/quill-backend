@@ -74,7 +74,7 @@ describe('PortfolioService', () => {
     expect(summary.reservedBalance).toBe(100);
     expect(summary.investedValue).toBe(1300);
     expect(summary.unrealizedProfitLoss).toBe(50);
-    expect(summary.totalEquity).toBe(1800);
+    expect(summary.totalEquity).toBe(1900);
     expect(summary.positions).toEqual([
       {
         symbol: 'AAPL',

@@ -3,6 +3,8 @@ import {
   Body,
   Controller,
   Get,
+  Param,
+  Patch,
   PipeTransform,
   Post,
   Query,
@@ -11,6 +13,7 @@ import {
 import { CurrentUser } from '../../../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../../../common/guards/jwt-auth.guard';
 import type { JwtPayload } from '../../../../common/interfaces/jwt-payload.interface';
+import { ParseObjectIdPipe } from '../../../../common/pipes/parse-object-id.pipe';
 import { OrdersService } from '../../application/services/orders.service';
 import { CreateOrderDto } from '../dto/create-order.dto';
 
@@ -45,6 +48,14 @@ export class OrdersController {
   @Post()
   createOrder(@CurrentUser() payload: JwtPayload, @Body() dto: CreateOrderDto) {
     return this.ordersService.createOrder(payload.sub, dto);
+  }
+
+  @Patch(':id/cancel')
+  cancelOrder(
+    @CurrentUser() payload: JwtPayload,
+    @Param('id', ParseObjectIdPipe) orderId: string,
+  ) {
+    return this.ordersService.cancelOrder(payload.sub, orderId);
   }
 
   @Get()

@@ -494,7 +494,10 @@ export class OrderExecutionService {
             .session(session)
             .exec();
 
-          if (!position || position.quantity < quantity) {
+          if (
+            !position ||
+            position.quantity - (position.reservedQuantity ?? 0) < quantity
+          ) {
             throw new BadRequestException(
               'No tienes suficientes acciones para vender.',
             );

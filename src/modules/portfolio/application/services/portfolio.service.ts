@@ -110,6 +110,7 @@ export class PortfolioService {
       reservedBalance: user.reservedBalance,
       investedValue: investedValueCLP.toDecimalPlaces(2).toNumber(),
       totalEquity: new Decimal(user.availableBalance)
+        .plus(user.reservedBalance)
         .plus(investedValueCLP)
         .toDecimalPlaces(2)
         .toNumber(),

@@ -178,4 +178,77 @@ export class OrdersService {
 
     return this.orderModel.find(filter).sort({ createdAt: -1 }).lean().exec();
   }
+
+  async cancelOrder(userId: string, orderId: string) {
+    const session = await this.connection.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        const order = await this.orderModel.findOneAndUpdate(
+          {
+            _id: new Types.ObjectId(orderId),
+            userId: new Types.ObjectId(userId),
+          },
+          { $currentDate: { updatedAt: true } },
+          { returnDocument: 'after', session },
+        );
+
+        if (!order) {
+          throw new NotFoundException('Orden no encontrada.');
+        }
+        if (order.status === 'CANCELLED') {
+          return order;
+        }
+        if (order.status !== 'PENDING') {
+          throw new BadRequestException(
+            'Solo se pueden cancelar órdenes pendientes.',
+          );
+        }
+
+        if (order.side === 'BUY') {
+          const user = await this.userModel
+            .findById(userId)
+            .session(session)
+            .exec();
+          if (!user) {
+            throw new NotFoundException('Usuario no encontrado.');
+          }
+
+          const releasableAmount = Decimal.min(
+            user.reservedBalance,
+            order.reservedAmount,
+          ).toDecimalPlaces(2);
+          user.reservedBalance = new Decimal(user.reservedBalance)
+            .minus(releasableAmount)
+            .toDecimalPlaces(2)
+            .toNumber();
+          user.availableBalance = new Decimal(user.availableBalance)
+            .plus(releasableAmount)
+            .toDecimalPlaces(2)
+            .toNumber();
+          await user.save({ session });
+        } else {
+          const position = await this.positionModel
+            .findOne({
+              userId: new Types.ObjectId(userId),
+              symbol: order.symbol,
+            })
+            .session(session)
+            .exec();
+          if (position) {
+            position.reservedQuantity = Math.max(
+              0,
+              (position.reservedQuantity ?? 0) - order.quantity,
+            );
+            await position.save({ session });
+          }
+        }
+
+        order.status = 'CANCELLED';
+        await order.save({ session });
+        return order;
+      });
+    } finally {
+      await session.endSession();
+    }
+  }
 }
