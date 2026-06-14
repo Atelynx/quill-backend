@@ -141,10 +141,14 @@ export class OrderExecutionService {
     const session = await this.connection.startSession();
     try {
       await session.withTransaction(async () => {
-        const [liveOrder, user] = await Promise.all([
-          this.orderModel.findById(order.id).session(session).exec(),
-          this.userModel.findById(order.userId).session(session).exec(),
-        ]);
+        const liveOrder = await this.orderModel
+          .findById(order.id)
+          .session(session)
+          .exec();
+        const user = await this.userModel
+          .findById(order.userId)
+          .session(session)
+          .exec();
 
         if (!liveOrder || liveOrder.status !== 'PENDING' || !user) {
           return;
@@ -178,6 +182,21 @@ export class OrderExecutionService {
         const executedAt = new Date();
 
         if (liveOrder.side === 'BUY') {
+          const totalCostCLP = new Decimal(grossAmountCLP)
+            .plus(commissionCLP)
+            .toDecimalPlaces(2);
+          const totalFunds = new Decimal(user.availableBalance).plus(
+            liveOrder.reservedAmount,
+          );
+          const hasValidReservation = new Decimal(
+            user.reservedBalance,
+          ).greaterThanOrEqualTo(liveOrder.reservedAmount);
+
+          if (!hasValidReservation || totalFunds.lessThan(totalCostCLP)) {
+            await this.cancelUnfundedBuyOrder(session, user, liveOrder);
+            return;
+          }
+
           await this.processBuyOrder(
             session,
             user,
@@ -212,6 +231,30 @@ export class OrderExecutionService {
     } finally {
       await session.endSession();
     }
+  }
+
+  private async cancelUnfundedBuyOrder(
+    session: ClientSession,
+    user: UserDocument,
+    order: OrderDocument,
+  ): Promise<void> {
+    const releasableAmount = Decimal.min(
+      user.reservedBalance,
+      order.reservedAmount,
+    ).toDecimalPlaces(2);
+
+    user.reservedBalance = new Decimal(user.reservedBalance)
+      .minus(releasableAmount)
+      .toDecimalPlaces(2)
+      .toNumber();
+    user.availableBalance = new Decimal(user.availableBalance)
+      .plus(releasableAmount)
+      .toDecimalPlaces(2)
+      .toNumber();
+    order.status = 'CANCELLED';
+
+    await user.save({ session });
+    await order.save({ session });
   }
 
   private async processBuyOrder(
@@ -374,6 +417,15 @@ export class OrderExecutionService {
 
         if (!user) {
           throw new NotFoundException('Usuario no encontrado.');
+        }
+
+        const lockedStock = await this.stockModel.findOneAndUpdate(
+          { symbol },
+          { $currentDate: { updatedAt: true } },
+          { returnDocument: 'after', session },
+        );
+        if (!lockedStock) {
+          throw new NotFoundException('La acción solicitada no existe.');
         }
 
         const executedAt = new Date();
@@ -555,27 +607,25 @@ export class OrderExecutionService {
             .toDecimalPlaces(2)
             .toNumber();
 
-    await Promise.all([
-      user.save({ session }),
-      order.save({ session }),
-      this.tradeModel.create(
-        [
-          {
-            userId: new Types.ObjectId(user.id),
-            orderId: new Types.ObjectId(order.id),
-            symbol: order.symbol,
-            side: order.side,
-            quantity: order.quantity,
-            executionPrice: marketPrice,
-            grossAmount,
-            commissionAmount,
-            netAmount,
-            executedAt,
-          },
-        ],
-        { session },
-      ),
-    ]);
+    await user.save({ session });
+    await order.save({ session });
+    await this.tradeModel.create(
+      [
+        {
+          userId: new Types.ObjectId(user.id),
+          orderId: new Types.ObjectId(order.id),
+          symbol: order.symbol,
+          side: order.side,
+          quantity: order.quantity,
+          executionPrice: marketPrice,
+          grossAmount,
+          commissionAmount,
+          netAmount,
+          executedAt,
+        },
+      ],
+      { session },
+    );
   }
 
   private async getValidRate(currency: string): Promise<number> {

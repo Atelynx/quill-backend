@@ -20,9 +20,7 @@ import { UpdateStockPriceDto } from '../dto/update-stock-price.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
 export class AdminStockController {
-  constructor(
-    private readonly marketService: MarketService,
-  ) {}
+  constructor(private readonly marketService: MarketService) {}
 
   @Get()
   async findAll(

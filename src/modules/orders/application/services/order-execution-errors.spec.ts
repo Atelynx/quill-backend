@@ -47,6 +47,7 @@ describe('OrderExecutionService error paths', () => {
             exec: jest.fn().mockResolvedValue({ currency: 'CLP' }),
           }),
         }),
+        findOneAndUpdate: jest.fn().mockResolvedValue({ symbol: 'AAPL' }),
       } as never,
       { create: jest.fn() } as never,
       { calculate: jest.fn().mockResolvedValue(1) } as never,

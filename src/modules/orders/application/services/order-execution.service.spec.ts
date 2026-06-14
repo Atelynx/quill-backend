@@ -50,7 +50,7 @@ describe('OrderExecutionService', () => {
   let orderModel: ModelMock;
   let userModel: { findById: jest.Mock };
   let positionModel: { findOne: jest.Mock; create: jest.Mock };
-  let stockModel: { findOne: jest.Mock };
+  let stockModel: { findOne: jest.Mock; findOneAndUpdate: jest.Mock };
   let tradeModel: { create: jest.Mock };
   let commissionService: { calculate: jest.Mock };
   let currencyRateService: { getRate: jest.Mock };
@@ -67,7 +67,10 @@ describe('OrderExecutionService', () => {
     orderModel = { find: jest.fn(), findById: jest.fn() };
     userModel = { findById: jest.fn() };
     positionModel = { findOne: jest.fn(), create: jest.fn() };
-    stockModel = { findOne: jest.fn() };
+    stockModel = {
+      findOne: jest.fn(),
+      findOneAndUpdate: jest.fn().mockResolvedValue({ symbol: 'AAPL' }),
+    };
     stockModel.findOne.mockReturnValue({
       lean: jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue({ currency: 'CLP' }),
@@ -186,7 +189,7 @@ describe('OrderExecutionService', () => {
     );
   });
 
-  it('convierte una orden extranjera con una tasa valida', async () => {
+  it('cancela una compra extranjera si la variacion cambiaria supera los fondos', async () => {
     const currentOrder = order('BUY', { symbol: 'AAPL.US' });
     const user = {
       id: currentOrder.userId.toString(),
@@ -204,7 +207,14 @@ describe('OrderExecutionService', () => {
     await executeWith(currentOrder, 1, currentOrder, 'USD');
 
     expect(currencyRateService.getRate).toHaveBeenCalledWith('USDCLP');
-    expect(user.availableBalance).toBe(-599.5);
+    expect(user).toMatchObject({
+      availableBalance: 1202.5,
+      reservedBalance: 0,
+    });
+    expect(currentOrder.status).toBe('CANCELLED');
+    expect(currentOrder.save).toHaveBeenCalledWith({ session });
+    expect(positionModel.create).not.toHaveBeenCalled();
+    expect(tradeModel.create).not.toHaveBeenCalled();
   });
 
   it.each([null, { rate: 0 }, { rate: -1 }, { rate: Number.NaN }])(
@@ -320,7 +330,7 @@ describe('OrderExecutionService', () => {
 describe('executeMarketOrder', () => {
   let service: ServiceInternals;
   let cacheService: { get: jest.Mock };
-  let stockModel: { findOne: jest.Mock };
+  let stockModel: { findOne: jest.Mock; findOneAndUpdate: jest.Mock };
   let session: { withTransaction: jest.Mock; endSession: jest.Mock };
   let orderModel: { find: jest.Mock; findById: jest.Mock; create: jest.Mock };
   let userModel: { findById: jest.Mock };
@@ -346,7 +356,10 @@ describe('executeMarketOrder', () => {
       ),
       endSession: jest.fn().mockResolvedValue(undefined),
     };
-    stockModel = { findOne: jest.fn() };
+    stockModel = {
+      findOne: jest.fn(),
+      findOneAndUpdate: jest.fn().mockResolvedValue({ symbol: 'AAPL' }),
+    };
     orderModel = {
       find: jest.fn(),
       findById: jest.fn(),

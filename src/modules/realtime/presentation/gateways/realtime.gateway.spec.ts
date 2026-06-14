@@ -4,6 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Server, Socket } from 'socket.io';
 import { WsException } from '@nestjs/websockets';
 import { RealtimeGateway } from './realtime.gateway';
+import { UsersService } from '../../../users/application/services/users.service';
 
 interface GatewayInternals {
   server: Server;
@@ -14,6 +15,7 @@ describe('RealtimeGateway', () => {
   let gateway: RealtimeGateway;
   let internals: GatewayInternals;
   let jwtService: { verifyAsync: jest.Mock };
+  let usersService: { findById: jest.Mock };
   const serverTo = jest.fn().mockReturnThis();
   const serverEmit = jest.fn();
 
@@ -26,11 +28,13 @@ describe('RealtimeGateway', () => {
     serverTo.mockClear();
     serverEmit.mockClear();
     jwtService = { verifyAsync: jest.fn() };
+    usersService = { findById: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RealtimeGateway,
         { provide: JwtService, useValue: jwtService },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -75,11 +79,25 @@ describe('RealtimeGateway', () => {
       if (socket.handshake) {
         socket.handshake.auth = { token: 'valid-token' };
       }
-      jwtService.verifyAsync.mockResolvedValue({ sub: 'user-123' });
+      jwtService.verifyAsync.mockResolvedValue({
+        sub: 'user-123',
+        tokenVersion: 2,
+      });
+      usersService.findById.mockResolvedValue({
+        id: 'user-123',
+        email: 'user@quill.dev',
+        role: 'investor',
+        tokenVersion: 2,
+      });
 
       await gateway.handleConnection(socket as Socket);
 
-      expect(socketData.user).toEqual({ sub: 'user-123' });
+      expect(socketData.user).toEqual({
+        sub: 'user-123',
+        email: 'user@quill.dev',
+        role: 'investor',
+        tokenVersion: 2,
+      });
       expect(socket.join).toHaveBeenCalledWith('user:user-123');
       expect(socket.disconnect).not.toHaveBeenCalled();
     });
@@ -88,12 +106,40 @@ describe('RealtimeGateway', () => {
       if (socket.handshake) {
         socket.handshake.query = { token: 'query-token' };
       }
-      jwtService.verifyAsync.mockResolvedValue({ sub: 'user-456' });
+      jwtService.verifyAsync.mockResolvedValue({
+        sub: 'user-456',
+        tokenVersion: 1,
+      });
+      usersService.findById.mockResolvedValue({
+        id: 'user-456',
+        email: 'user@quill.dev',
+        role: 'investor',
+        tokenVersion: 1,
+      });
 
       await gateway.handleConnection(socket as Socket);
 
       expect(jwtService.verifyAsync).toHaveBeenCalledWith('query-token');
       expect(socket.join).toHaveBeenCalledWith('user:user-456');
+    });
+
+    it('disconnects when token has been revoked', async () => {
+      if (socket.handshake) {
+        socket.handshake.auth = { token: 'revoked-token' };
+      }
+      jwtService.verifyAsync.mockResolvedValue({
+        sub: 'user-123',
+        tokenVersion: 1,
+      });
+      usersService.findById.mockResolvedValue({
+        id: 'user-123',
+        tokenVersion: 2,
+      });
+
+      await gateway.handleConnection(socket as Socket);
+
+      expect(socket.disconnect).toHaveBeenCalled();
+      expect(socket.join).not.toHaveBeenCalled();
     });
   });
 

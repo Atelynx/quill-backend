@@ -45,6 +45,7 @@ interface MutableDocumentMock {
   username?: string;
   email?: string;
   passwordHash?: string;
+  tokenVersion?: number;
   watchlist?: string[];
   status?: string;
   save: jest.Mock;
@@ -334,10 +335,11 @@ describe('UsersService', () => {
   });
 
   describe('changePassword', () => {
-    it('cambia la contraseña si la actual es correcta', async () => {
+    it('cambia la contraseña e invalida los tokens anteriores', async () => {
       const user = {
         _id: 'user-1',
         passwordHash: 'old-hash',
+        tokenVersion: 4,
         save: jest.fn().mockResolvedValue(true),
       } satisfies MutableDocumentMock;
       userModel.findById.mockReturnValue(createExecQuery(user));
@@ -348,6 +350,7 @@ describe('UsersService', () => {
 
       expect(bcrypt.hash).toHaveBeenCalledWith('new-pass-long', 10);
       expect(user.passwordHash).toBe('new-hash');
+      expect(user.tokenVersion).toBe(5);
       expect(user.save).toHaveBeenCalled();
     });
 

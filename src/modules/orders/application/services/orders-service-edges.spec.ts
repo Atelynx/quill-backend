@@ -2,19 +2,30 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { OrdersService } from './orders.service';
 
-const query = <T>(value: T) => ({ exec: jest.fn().mockResolvedValue(value) });
+const query = <T>(value: T) => ({
+  session: jest.fn().mockReturnThis(),
+  exec: jest.fn().mockResolvedValue(value),
+});
 
 describe('OrdersService edge cases', () => {
   let service: OrdersService;
   let orderModel: { create: jest.Mock; find: jest.Mock };
   let userModel: { findById: jest.Mock };
-  let stockModel: { findOne: jest.Mock };
+  let stockModel: { findOneAndUpdate: jest.Mock };
 
   beforeEach(() => {
     orderModel = { create: jest.fn(), find: jest.fn() };
     userModel = { findById: jest.fn() };
-    stockModel = { findOne: jest.fn() };
+    stockModel = { findOneAndUpdate: jest.fn() };
     service = new OrdersService(
+      {
+        startSession: jest.fn().mockResolvedValue({
+          withTransaction: jest.fn((callback: () => Promise<unknown>) =>
+            callback(),
+          ),
+          endSession: jest.fn(),
+        }),
+      } as never,
       orderModel as never,
       userModel as never,
       { findOne: jest.fn() } as never,
@@ -34,20 +45,20 @@ describe('OrdersService edge cases', () => {
       limitPrice: 10,
     };
     userModel.findById.mockReturnValueOnce(query(null));
-    stockModel.findOne.mockReturnValueOnce(query({ symbol: 'AAPL' }));
+    stockModel.findOneAndUpdate.mockResolvedValueOnce({ symbol: 'AAPL' });
 
     await expect(service.createOrder(userId, dto)).rejects.toBeInstanceOf(
       NotFoundException,
     );
 
     userModel.findById.mockReturnValueOnce(query({ availableBalance: 100 }));
-    stockModel.findOne.mockReturnValueOnce(query(null));
+    stockModel.findOneAndUpdate.mockResolvedValueOnce(null);
     await expect(service.createOrder(userId, dto)).rejects.toBeInstanceOf(
       NotFoundException,
     );
 
     userModel.findById.mockReturnValueOnce(query({ availableBalance: 100 }));
-    stockModel.findOne.mockReturnValueOnce(query({ symbol: 'AAPL' }));
+    stockModel.findOneAndUpdate.mockResolvedValueOnce({ symbol: 'AAPL' });
     await expect(
       service.createOrder(userId, { ...dto, quantity: 0.9 }),
     ).rejects.toBeInstanceOf(BadRequestException);

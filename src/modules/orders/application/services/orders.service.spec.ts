@@ -5,6 +5,7 @@ import { OrdersService } from './orders.service';
 
 function createExecQuery<T>(value: T) {
   return {
+    session: jest.fn().mockReturnThis(),
     exec: jest.fn().mockResolvedValue(value),
   };
 }
@@ -21,7 +22,7 @@ describe('OrdersService', () => {
     findOne: jest.Mock;
   };
   let stockModel: {
-    findOne: jest.Mock;
+    findOneAndUpdate: jest.Mock;
   };
   let commissionService: {
     calculate: jest.Mock;
@@ -29,6 +30,8 @@ describe('OrdersService', () => {
   let currencyRateService: {
     getRate: jest.Mock;
   };
+  let session: { withTransaction: jest.Mock; endSession: jest.Mock };
+  let connection: { startSession: jest.Mock };
 
   beforeEach(() => {
     orderModel = {
@@ -41,7 +44,7 @@ describe('OrdersService', () => {
       findOne: jest.fn(),
     };
     stockModel = {
-      findOne: jest.fn(),
+      findOneAndUpdate: jest.fn(),
     };
     commissionService = {
       calculate: jest.fn(),
@@ -49,8 +52,18 @@ describe('OrdersService', () => {
     currencyRateService = {
       getRate: jest.fn(),
     };
+    session = {
+      withTransaction: jest.fn((callback: () => Promise<unknown>) =>
+        callback(),
+      ),
+      endSession: jest.fn(),
+    };
+    connection = {
+      startSession: jest.fn().mockResolvedValue(session),
+    };
 
     service = new OrdersService(
+      connection as never,
       orderModel as never,
       userModel as never,
       positionModel as never,
@@ -69,16 +82,14 @@ describe('OrdersService', () => {
     };
 
     userModel.findById.mockReturnValue(createExecQuery(user));
-    stockModel.findOne.mockReturnValue(
-      createExecQuery({
-        symbol: 'AAPL',
-      }),
-    );
+    stockModel.findOneAndUpdate.mockResolvedValue({ symbol: 'AAPL' });
     commissionService.calculate.mockResolvedValue(2.5);
-    orderModel.create.mockResolvedValue({
-      id: 'order-1',
-      status: 'PENDING',
-    });
+    orderModel.create.mockResolvedValue([
+      {
+        id: 'order-1',
+        status: 'PENDING',
+      },
+    ]);
 
     const result = await service.createOrder(new Types.ObjectId().toString(), {
       symbol: 'aapl',
@@ -89,16 +100,24 @@ describe('OrdersService', () => {
 
     expect(user.availableBalance).toBe(797.5);
     expect(user.reservedBalance).toBe(202.5);
-    expect(user.save).toHaveBeenCalled();
+    expect(user.save).toHaveBeenCalledWith({ session });
+    expect(stockModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { symbol: 'AAPL' },
+      { $currentDate: { updatedAt: true } },
+      { returnDocument: 'after', session },
+    );
     expect(orderModel.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        symbol: 'AAPL',
-        side: 'BUY',
-        quantity: 2,
-        limitPrice: 100,
-        status: 'PENDING',
-        reservedAmount: 202.5,
-      }),
+      [
+        expect.objectContaining({
+          symbol: 'AAPL',
+          side: 'BUY',
+          quantity: 2,
+          limitPrice: 100,
+          status: 'PENDING',
+          reservedAmount: 202.5,
+        }),
+      ],
+      { session },
     );
     expect(result).toEqual({
       id: 'order-1',
@@ -114,9 +133,9 @@ describe('OrdersService', () => {
     };
 
     userModel.findById.mockReturnValue(createExecQuery(user));
-    stockModel.findOne.mockReturnValue(createExecQuery({ symbol: 'ROUND.SN' }));
+    stockModel.findOneAndUpdate.mockResolvedValue({ symbol: 'ROUND.SN' });
     commissionService.calculate.mockResolvedValue(0.16);
-    orderModel.create.mockResolvedValue({ id: 'order-round' });
+    orderModel.create.mockResolvedValue([{ id: 'order-round' }]);
 
     await service.createOrder(new Types.ObjectId().toString(), {
       symbol: 'round.sn',
@@ -128,11 +147,14 @@ describe('OrdersService', () => {
     expect(user.availableBalance).toBe(68.83);
     expect(user.reservedBalance).toBe(31.17);
     expect(orderModel.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        symbol: 'ROUND.SN',
-        quantity: 3,
-        reservedAmount: 31.17,
-      }),
+      [
+        expect.objectContaining({
+          symbol: 'ROUND.SN',
+          quantity: 3,
+          reservedAmount: 31.17,
+        }),
+      ],
+      { session },
     );
   });
 
@@ -150,9 +172,9 @@ describe('OrdersService', () => {
         reservedBalance: 0,
       }),
     );
-    stockModel.findOne.mockReturnValue(createExecQuery({ symbol: 'SELL.SN' }));
+    stockModel.findOneAndUpdate.mockResolvedValue({ symbol: 'SELL.SN' });
     positionModel.findOne.mockReturnValue(createExecQuery(position));
-    orderModel.create.mockResolvedValue({ id: 'order-sell' });
+    orderModel.create.mockResolvedValue([{ id: 'order-sell' }]);
 
     await service.createOrder(new Types.ObjectId().toString(), {
       symbol: 'sell.sn',
@@ -162,14 +184,17 @@ describe('OrdersService', () => {
     });
 
     expect(position.reservedQuantity).toBe(4);
-    expect(position.save).toHaveBeenCalled();
+    expect(position.save).toHaveBeenCalledWith({ session });
     expect(orderModel.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        symbol: 'SELL.SN',
-        side: 'SELL',
-        quantity: 3,
-        reservedAmount: 0,
-      }),
+      [
+        expect.objectContaining({
+          symbol: 'SELL.SN',
+          side: 'SELL',
+          quantity: 3,
+          reservedAmount: 0,
+        }),
+      ],
+      { session },
     );
   });
 
@@ -181,11 +206,7 @@ describe('OrdersService', () => {
         save: jest.fn(),
       }),
     );
-    stockModel.findOne.mockReturnValue(
-      createExecQuery({
-        symbol: 'AAPL',
-      }),
-    );
+    stockModel.findOneAndUpdate.mockResolvedValue({ symbol: 'AAPL' });
     commissionService.calculate.mockResolvedValue(1);
 
     const createOrderDto: CreateOrderDto = {
@@ -211,11 +232,7 @@ describe('OrdersService', () => {
         save: jest.fn(),
       }),
     );
-    stockModel.findOne.mockReturnValue(
-      createExecQuery({
-        symbol: 'AAPL',
-      }),
-    );
+    stockModel.findOneAndUpdate.mockResolvedValue({ symbol: 'AAPL' });
     positionModel.findOne.mockReturnValue(
       createExecQuery({
         quantity: 3,
@@ -233,5 +250,73 @@ describe('OrdersService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(orderModel.create).not.toHaveBeenCalled();
+  });
+
+  it('propaga el fallo de creación dentro de la transacción', async () => {
+    const user = {
+      availableBalance: 1000,
+      reservedBalance: 0,
+      save: jest.fn(),
+    };
+    userModel.findById.mockReturnValue(createExecQuery(user));
+    stockModel.findOneAndUpdate.mockResolvedValue({ symbol: 'AAPL' });
+    commissionService.calculate.mockResolvedValue(1);
+    orderModel.create.mockRejectedValue(new Error('database failure'));
+
+    await expect(
+      service.createOrder(new Types.ObjectId().toString(), {
+        symbol: 'AAPL',
+        side: 'BUY',
+        quantity: 1,
+        limitPrice: 100,
+      }),
+    ).rejects.toThrow('database failure');
+
+    expect(session.withTransaction).toHaveBeenCalled();
+    expect(user.save).toHaveBeenCalledWith({ session });
+    expect(session.endSession).toHaveBeenCalled();
+  });
+
+  it('rechaza una reserva concurrente cuando el saldo solo cubre una orden', async () => {
+    const user = {
+      availableBalance: 150,
+      reservedBalance: 0,
+      save: jest.fn(),
+    };
+    userModel.findById.mockReturnValue(createExecQuery(user));
+    stockModel.findOneAndUpdate.mockResolvedValue({ symbol: 'AAPL' });
+    commissionService.calculate.mockResolvedValue(1);
+    orderModel.create.mockResolvedValue([{ id: 'order-1' }]);
+    connection.startSession.mockImplementation(() =>
+      Promise.resolve({
+        withTransaction: jest.fn((callback: () => Promise<unknown>) =>
+          callback(),
+        ),
+        endSession: jest.fn(),
+      }),
+    );
+
+    const dto: CreateOrderDto = {
+      symbol: 'AAPL',
+      side: 'BUY',
+      quantity: 1,
+      limitPrice: 100,
+    };
+    const userId = new Types.ObjectId().toString();
+    const results = await Promise.allSettled([
+      service.createOrder(userId, { ...dto }),
+      service.createOrder(userId, { ...dto }),
+    ]);
+
+    expect(results.filter(({ status }) => status === 'fulfilled')).toHaveLength(
+      1,
+    );
+    expect(results.filter(({ status }) => status === 'rejected')).toHaveLength(
+      1,
+    );
+    expect(user).toMatchObject({
+      availableBalance: 49,
+      reservedBalance: 101,
+    });
   });
 });

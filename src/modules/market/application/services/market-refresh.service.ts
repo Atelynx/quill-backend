@@ -42,7 +42,9 @@ export class MarketRefreshService {
 
     this.isRefreshing = true;
     try {
-      const stocks = await this.stockModel.find({ source: { $ne: 'admin' } }).exec();
+      const stocks = await this.stockModel
+        .find({ source: { $ne: 'admin' } })
+        .exec();
       const providerName = this.provider.getName().toLowerCase();
 
       if (!stocks.length) {

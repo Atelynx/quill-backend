@@ -1,7 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { OrderExecutionService } from '../src/modules/orders/application/services/order-execution.service';
-import { MockMarketDataProvider } from '../src/modules/market/infrastructure/providers/mock-market-data.provider';
 import {
   createTestApp,
   destroyTestApp,
@@ -59,6 +58,10 @@ interface TradeResponse {
   symbol: string;
   side: 'BUY' | 'SELL';
   quantity: number;
+}
+
+interface OrderExecutionServiceTestApi {
+  isMarketOpen(): Promise<boolean>;
 }
 
 function getHttpServer(app: INestApplication): Parameters<typeof request>[0] {
@@ -193,12 +196,26 @@ describe('Quill API (e2e)', () => {
     const loginBody = loginResponse.body as LoginResponse;
 
     const token = loginBody.accessToken;
+    await testContext!.connection.collection('stocks').insertOne({
+      symbol: 'E2ECLP',
+      name: 'Acción CLP E2E',
+      currency: 'CLP',
+      close: 1000,
+      previousClose: 1000,
+      dayChangePercentage: 0,
+      source: 'admin',
+      baseVolatility: 0,
+      baseDrift: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
     const quotesResponse = await request(httpServer)
       .get('/api/market/stocks')
       .expect(200);
     const quotes = quotesResponse.body as StockQuoteResponse[];
     const targetQuote = quotes.find(
-      (quote) => quote.symbol === 'TSLA' && quote.currency === 'CLP',
+      (quote) => quote.symbol === 'E2ECLP' && quote.currency === 'CLP',
     );
 
     expect(targetQuote).toBeDefined();
@@ -225,16 +242,13 @@ describe('Quill API (e2e)', () => {
       status: 'PENDING',
     });
 
-    const marketProvider = app.get(MockMarketDataProvider);
-    jest
-      .spyOn(marketProvider, 'generateNextPrice')
-      .mockImplementation((stock) =>
-        stock.symbol === targetQuote.symbol
-          ? Number((targetQuote.close - 1).toFixed(2))
-          : stock.close,
-      );
-
     const executionService = app.get(OrderExecutionService);
+    jest
+      .spyOn(
+        executionService as unknown as OrderExecutionServiceTestApi,
+        'isMarketOpen',
+      )
+      .mockResolvedValue(true);
     await executionService.handleMarketTick();
 
     const executedOrdersResponse = await request(httpServer)

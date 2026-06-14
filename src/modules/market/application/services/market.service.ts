@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model } from 'mongoose';
 import { PRICE_UPDATE_EVENT } from '../../domain/constants/events';
 import {
   PriceSnapshot,
@@ -22,6 +22,18 @@ import { CacheService } from '../../../system/application/services/cache/cache.s
 import { MarketRefreshService } from './market-refresh.service';
 import { MarketSeedService } from './market-seed.service';
 import Decimal from 'decimal.js';
+import {
+  Order,
+  OrderDocument,
+} from '../../../orders/infrastructure/schemas/order.schema';
+import {
+  Position,
+  PositionDocument,
+} from '../../../portfolio/infrastructure/schemas/position.schema';
+import {
+  Trade,
+  TradeDocument,
+} from '../../../trades/infrastructure/schemas/trade.schema';
 
 @Injectable()
 export class MarketService implements OnModuleInit {
@@ -30,6 +42,13 @@ export class MarketService implements OnModuleInit {
     private readonly stockModel: Model<StockDocument>,
     @InjectModel(PriceSnapshot.name)
     private readonly snapshotModel: Model<PriceSnapshotDocument>,
+    @InjectModel(Order.name)
+    private readonly orderModel: Model<OrderDocument>,
+    @InjectModel(Position.name)
+    private readonly positionModel: Model<PositionDocument>,
+    @InjectModel(Trade.name)
+    private readonly tradeModel: Model<TradeDocument>,
+    @InjectConnection() private readonly connection: Connection,
     private readonly configService: ConfigService,
     private readonly marketRefreshService: MarketRefreshService,
     private readonly marketSeedService: MarketSeedService,
@@ -137,9 +156,15 @@ export class MarketService implements OnModuleInit {
     }
 
     const previousClose = stock.close;
-    const dayChangePercentage = previousClose > 0
-      ? new Decimal(price).minus(previousClose).dividedBy(previousClose).times(100).toDecimalPlaces(2).toNumber()
-      : 0;
+    const dayChangePercentage =
+      previousClose > 0
+        ? new Decimal(price)
+            .minus(previousClose)
+            .dividedBy(previousClose)
+            .times(100)
+            .toDecimalPlaces(2)
+            .toNumber()
+        : 0;
 
     stock.close = price;
     stock.previousClose = previousClose;
@@ -153,11 +178,18 @@ export class MarketService implements OnModuleInit {
     });
 
     const ttl = 86400 * 1000;
-    await this.cacheService.set(`market:${upper}`, { symbol: upper, price, updatedAt: new Date().toISOString() }, ttl);
+    await this.cacheService.set(
+      `market:${upper}`,
+      { symbol: upper, price, updatedAt: new Date().toISOString() },
+      ttl,
+    );
     await this.cacheService.set(`stock:${upper}:base_price`, price, ttl);
     await this.cacheService.set(`stock:${upper}:live_price`, price, ttl);
 
-    const updated = await this.stockModel.findOne({ symbol: upper }).lean().exec();
+    const updated = await this.stockModel
+      .findOne({ symbol: upper })
+      .lean()
+      .exec();
     this.eventEmitter.emit(PRICE_UPDATE_EVENT, [updated]);
 
     return updated;
@@ -178,7 +210,7 @@ export class MarketService implements OnModuleInit {
       throw new ConflictException(`El símbolo "${upper}" ya existe.`);
     }
 
-    const [stock] = await this.stockModel.create([
+    await this.stockModel.create([
       {
         symbol: upper,
         name: dto.name,
@@ -199,11 +231,18 @@ export class MarketService implements OnModuleInit {
     });
 
     const ttl = 86400 * 1000;
-    await this.cacheService.set(`market:${upper}`, { symbol: upper, price: dto.close, updatedAt: new Date().toISOString() }, ttl);
+    await this.cacheService.set(
+      `market:${upper}`,
+      { symbol: upper, price: dto.close, updatedAt: new Date().toISOString() },
+      ttl,
+    );
     await this.cacheService.set(`stock:${upper}:base_price`, dto.close, ttl);
     await this.cacheService.set(`stock:${upper}:live_price`, dto.close, ttl);
 
-    const created = await this.stockModel.findOne({ symbol: upper }).lean().exec();
+    const created = await this.stockModel
+      .findOne({ symbol: upper })
+      .lean()
+      .exec();
     this.eventEmitter.emit(PRICE_UPDATE_EVENT, [created]);
 
     return created;
@@ -211,16 +250,50 @@ export class MarketService implements OnModuleInit {
 
   async deleteStock(symbol: string) {
     const upper = symbol.toUpperCase();
-    const stock = await this.stockModel.findOne({ symbol: upper }).exec();
+    const session = await this.connection.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const stock = await this.stockModel.findOneAndUpdate(
+          { symbol: upper },
+          { $currentDate: { updatedAt: true } },
+          { returnDocument: 'after', session },
+        );
 
-    if (!stock) {
-      throw new NotFoundException(`Stock "${upper}" no encontrado.`);
+        if (!stock) {
+          throw new NotFoundException(`Stock "${upper}" no encontrado.`);
+        }
+        if (stock.source && stock.source !== 'admin') {
+          throw new ForbiddenException(
+            'No se puede eliminar un stock administrado por el proveedor.',
+          );
+        }
+
+        const pendingOrder = await this.orderModel
+          .exists({ symbol: upper, status: 'PENDING' })
+          .session(session)
+          .exec();
+        const position = await this.positionModel
+          .exists({ symbol: upper })
+          .session(session)
+          .exec();
+        const trade = await this.tradeModel
+          .exists({ symbol: upper })
+          .session(session)
+          .exec();
+
+        if (pendingOrder || position || trade) {
+          throw new ConflictException(
+            `Stock "${upper}" posee referencias financieras y no puede eliminarse.`,
+          );
+        }
+
+        await this.stockModel
+          .deleteOne({ symbol: upper })
+          .session(session)
+          .exec();
+      });
+    } finally {
+      await session.endSession();
     }
-
-    if (stock.source && stock.source !== 'admin') {
-      throw new ForbiddenException('No se puede eliminar un stock administrado por el proveedor.');
-    }
-
-    await this.stockModel.deleteOne({ symbol: upper }).exec();
   }
 }

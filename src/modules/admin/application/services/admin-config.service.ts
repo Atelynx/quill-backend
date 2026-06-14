@@ -10,15 +10,13 @@ import { Model, Types } from 'mongoose';
 import {
   AdminConfig,
   AdminConfigDocument,
- } from '../../infrastructure/schemas/admin-config.schema';
+} from '../../infrastructure/schemas/admin-config.schema';
 import {
   ConfigSnapshot,
   ConfigSnapshotDocument,
 } from '../../infrastructure/schemas/config-snapshot.schema';
 import { validateAdminConfigValue } from './admin-config-value.validation';
 import { SEED_CONFIGS } from '../../infrastructure/seed/seed.type';
-
-
 
 @Injectable()
 export class AdminConfigService implements OnModuleInit {
@@ -30,25 +28,21 @@ export class AdminConfigService implements OnModuleInit {
     @InjectModel(ConfigSnapshot.name)
     private readonly snapshotModel: Model<ConfigSnapshotDocument>,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   async onModuleInit(): Promise<void> {
-
-
     for (const config of SEED_CONFIGS) {
       const exists = await this.adminConfigModel
         .exists({ key: config.key, inUse: true })
         .exec();
 
       if (!exists) {
-
         // this.logger.log(`Key ${config.key} is not found in DB, attempting to create a new and store it`);
 
         const value = this.configService.get<string | number>(
           config.key,
           config.defaultValue,
-        )
-
+        );
 
         await this.adminConfigModel.create({
           key: config.key,

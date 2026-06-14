@@ -24,6 +24,9 @@ export class User {
   @Prop({ required: true, default: 'investor', type: String })
   role!: UserRole;
 
+  @Prop({ required: true, default: 0 })
+  tokenVersion!: number;
+
   @Prop({ unique: true, sparse: true, lowercase: true, trim: true })
   username?: string;
 

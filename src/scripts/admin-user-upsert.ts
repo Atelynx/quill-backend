@@ -15,7 +15,9 @@ export async function upsertAdminUser(params: {
   try {
     const usersCollection = mongoose.connection.db!.collection('users');
     const normalizedEmail = email.toLowerCase();
-    const existingUser = await usersCollection.findOne({ email: normalizedEmail });
+    const existingUser = await usersCollection.findOne({
+      email: normalizedEmail,
+    });
 
     if (existingUser) {
       await usersCollection.updateOne(
@@ -31,7 +33,9 @@ export async function upsertAdminUser(params: {
     await usersCollection.insertOne({
       fullName: username ?? 'Admin',
       email: normalizedEmail,
-      username: (username ?? `admin_${Math.random().toString(36).slice(2, 8)}`).toLowerCase(),
+      username: (
+        username ?? `admin_${Math.random().toString(36).slice(2, 8)}`
+      ).toLowerCase(),
       passwordHash,
       role: 'admin',
       availableBalance: 0,

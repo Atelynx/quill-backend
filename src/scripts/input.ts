@@ -1,4 +1,4 @@
-import { createInterface } from "readline";
+import { createInterface } from 'readline';
 
 export function input(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });

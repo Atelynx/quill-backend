@@ -34,7 +34,7 @@ export class AdminUsersController {
   ) {
     const user = await this.userModel.findByIdAndUpdate(
       id,
-      { $set: { role: dto.role } },
+      { $set: { role: dto.role }, $inc: { tokenVersion: 1 } },
       { returnDocument: 'after' },
     );
 

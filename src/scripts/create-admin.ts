@@ -1,6 +1,5 @@
 import * as dotenv from 'dotenv';
 import passwordGenerator from 'generate-password-ts';
-import { createInterface } from 'node:readline';
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { resolveEnvFilePaths } from '../config/env-file-paths';
@@ -8,7 +7,6 @@ import { normalizeMongoDbUri } from '../config/normalize-mongodb-uri';
 import { validateAdminPassword } from './admin-password';
 import { upsertAdminUser } from './admin-user-upsert';
 import { input } from './input';
-
 
 function loadMongoDbUri(): string {
   const envPaths = resolveEnvFilePaths();
@@ -56,7 +54,6 @@ function parseArgs(): {
     password: parsed.password,
   };
 }
-
 
 async function main(): Promise<void> {
   let { email, username, password } = parseArgs();

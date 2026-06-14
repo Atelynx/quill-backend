@@ -95,6 +95,8 @@ describe('AuthService', () => {
       id: 'user-1',
       email: 'ana@quill.dev',
       passwordHash: 'stored-hash',
+      role: 'investor',
+      tokenVersion: 3,
     };
 
     usersService.findByEmail.mockResolvedValue(user);
@@ -118,6 +120,8 @@ describe('AuthService', () => {
     expect(jwtService.sign).toHaveBeenCalledWith({
       sub: 'user-1',
       email: 'ana@quill.dev',
+      role: 'investor',
+      tokenVersion: 3,
     });
     expect(result).toEqual({
       accessToken: 'signed-token',

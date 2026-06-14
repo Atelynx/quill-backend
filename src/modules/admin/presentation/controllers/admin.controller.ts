@@ -1,11 +1,9 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   NotFoundException,
   Param,
-  Post,
   Put,
   UseGuards,
 } from '@nestjs/common';
@@ -17,15 +15,9 @@ import { CurrentUser } from '../../../../common/decorators/current-user.decorato
 import type { JwtPayload } from '../../../../common/interfaces/jwt-payload.interface';
 import { AdminConfigService } from '../../application/services/admin-config.service';
 import { ConfigResponseDto } from '../dto/config-response.dto';
-import { CreateConfigDto } from '../dto/create-config.dto';
 import { UpsertConfigDto } from '../dto/upsert-config.dto';
-import {
-  AdminConfigDocument,
-
-} from '../../infrastructure/schemas/admin-config.schema';
+import { AdminConfigDocument } from '../../infrastructure/schemas/admin-config.schema';
 import { RESTART_REQUIRED_KEYS } from '../../infrastructure/seed/seed.type';
-
-
 
 @Controller('admin/config')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -66,7 +58,8 @@ export class AdminController {
     response.updatedAt = doc.updatedAt!;
 
     if (RESTART_REQUIRED_KEYS.has(doc.key)) {
-      response.effectiveValue = doc.value ?? this.configService.get(doc.key, doc.value);
+      response.effectiveValue =
+        doc.value ?? this.configService.get(doc.key, doc.value);
       response.appliesOn = 'restart';
     }
 

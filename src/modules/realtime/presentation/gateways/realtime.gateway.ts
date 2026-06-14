@@ -13,6 +13,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import type { JwtPayload } from '../../../../common/interfaces/jwt-payload.interface';
+import { UsersService } from '../../../users/application/services/users.service';
 
 interface SubscriptionPayload {
   topic: string;
@@ -43,7 +44,10 @@ export class RealtimeGateway
   @WebSocketServer()
   private server!: Server;
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly usersService: UsersService,
+  ) {}
 
   async handleConnection(socket: Socket): Promise<void> {
     const authToken: unknown = socket.handshake.auth.token;
@@ -60,9 +64,21 @@ export class RealtimeGateway
     }
     try {
       const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
+      if (!Number.isInteger(payload.tokenVersion)) {
+        throw new Error('El token no contiene una versión válida.');
+      }
+      const user = await this.usersService.findById(payload.sub);
+      if ((user.tokenVersion ?? 0) !== payload.tokenVersion) {
+        throw new Error('El token fue revocado.');
+      }
       const socketData = socket.data as Record<string, unknown>;
-      socketData.user = payload;
-      void socket.join(`user:${payload.sub}`);
+      socketData.user = {
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+        tokenVersion: user.tokenVersion ?? 0,
+      };
+      void socket.join(`user:${user.id}`);
     } catch {
       socket.disconnect();
     }

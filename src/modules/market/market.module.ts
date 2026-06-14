@@ -26,12 +26,27 @@ import { NoiseWaveSimulationStrategy } from '../common/strategies/nw-simulation.
 import { StrategyFactory } from '../common/strategies/strategy.factory';
 import { StrategyType } from '../common/strategies/strategy.types';
 import { AdminConfigService } from '../admin/application/services/admin-config.service';
+import {
+  Order,
+  OrderSchema,
+} from '../orders/infrastructure/schemas/order.schema';
+import {
+  Position,
+  PositionSchema,
+} from '../portfolio/infrastructure/schemas/position.schema';
+import {
+  Trade,
+  TradeSchema,
+} from '../trades/infrastructure/schemas/trade.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Stock.name, schema: StockSchema },
       { name: PriceSnapshot.name, schema: PriceSnapshotSchema },
+      { name: Order.name, schema: OrderSchema },
+      { name: Position.name, schema: PositionSchema },
+      { name: Trade.name, schema: TradeSchema },
     ]),
     CommonStrategiesModule,
   ],
@@ -60,17 +75,20 @@ import { AdminConfigService } from '../admin/application/services/admin-config.s
         EodhdMarketDataProvider,
         NoneMarketDataProvider,
         ConfigService,
-        AdminConfigService
+        AdminConfigService,
       ],
       useFactory: async (
         mockProvider: MockMarketDataProvider,
         eodhdProvider: EodhdMarketDataProvider,
         noneProvider: NoneMarketDataProvider,
         configService: ConfigService,
-        adminConfigService: AdminConfigService
+        adminConfigService: AdminConfigService,
       ) => {
-        const adminConfigProviderName = await adminConfigService.get<string>('MARKET_PROVIDER');
-        const providerName = adminConfigProviderName ? adminConfigProviderName : configService.get<string>("MARKET_PROVIDER", 'mock');
+        const adminConfigProviderName =
+          await adminConfigService.get<string>('MARKET_PROVIDER');
+        const providerName = adminConfigProviderName
+          ? adminConfigProviderName
+          : configService.get<string>('MARKET_PROVIDER', 'mock');
 
         if (providerName === 'eodhd') {
           return new FallbackMarketDataProvider(eodhdProvider, mockProvider);
@@ -91,7 +109,7 @@ import { AdminConfigService } from '../admin/application/services/admin-config.s
         FlatMarketSimulationStrategy,
         NoiseWaveSimulationStrategy,
         ConfigService,
-        AdminConfigService
+        AdminConfigService,
       ],
       useFactory: async (
         gbm: GBMMarketSimulationStrategy,
@@ -100,12 +118,13 @@ import { AdminConfigService } from '../admin/application/services/admin-config.s
         configService: ConfigService,
         adminConfigService: AdminConfigService,
       ) => {
-        const strategyConfigProviderName = await adminConfigService.get<string>('SIMULATION_STRATEGY');
-        const strategyName = strategyConfigProviderName ? strategyConfigProviderName : configService.get<string>(
+        const strategyConfigProviderName = await adminConfigService.get<string>(
           'SIMULATION_STRATEGY',
-          'flat',
         );
-   
+        const strategyName = strategyConfigProviderName
+          ? strategyConfigProviderName
+          : configService.get<string>('SIMULATION_STRATEGY', 'flat');
+
         return StrategyFactory.createStrategy(
           strategyName as StrategyType,
           gbm,
@@ -117,4 +136,4 @@ import { AdminConfigService } from '../admin/application/services/admin-config.s
   ],
   exports: [MarketService, MongooseModule, 'MARKET_DATA_PROVIDER'],
 })
-export class MarketModule { }
+export class MarketModule {}
