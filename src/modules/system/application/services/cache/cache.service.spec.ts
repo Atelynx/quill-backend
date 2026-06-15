@@ -19,7 +19,7 @@ jest.mock('ioredis', () => jest.fn(() => mockRedisInstance));
 
 import Redis from 'ioredis';
 import { CacheService } from './cache.service';
-import { Logger } from '@nestjs/common';
+import { Logger, ServiceUnavailableException } from '@nestjs/common';
 
 describe('CacheService', () => {
   let service: CacheService;
@@ -71,6 +71,27 @@ describe('CacheService', () => {
       await service.set('key1', { a: 1 }, 1000);
       const v = await service.get<{ a: number }>('key1');
       expect(v).toEqual({ a: 1 });
+    });
+
+    it('rejects cache operations in production when Redis fails', async () => {
+      mockRedisInstance.connect.mockRejectedValueOnce(
+        new Error('connect fail'),
+      );
+      config = {
+        get: jest.fn((key: string) =>
+          key === 'NODE_ENV' ? 'production' : 'redis://localhost:6379',
+        ),
+      };
+      service = new CacheService(config as ConfigService);
+
+      await service.onModuleInit();
+
+      await expect(service.set('critical', 'value')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      await expect(service.get('critical')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
     });
   });
 
@@ -314,6 +335,28 @@ describe('CacheService', () => {
 
       errorHandler!(new Error('ECONNREFUSED'));
       expect(service.isConnected()).toBe(false);
+    });
+
+    it('does not activate local fallback after a Redis error in production', async () => {
+      let errorHandler: (err: Error) => void;
+      mockRedisInstance.on.mockImplementation(
+        (_event: string, handler: (err: Error) => void) => {
+          errorHandler = handler;
+        },
+      );
+      config = {
+        get: jest.fn((key: string) =>
+          key === 'NODE_ENV' ? 'production' : 'redis://localhost:6379',
+        ),
+      };
+      service = new CacheService(config as ConfigService);
+      await service.onModuleInit();
+
+      errorHandler!(new Error('ECONNREFUSED'));
+
+      await expect(service.get('critical')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
     });
   });
 });

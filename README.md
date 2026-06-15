@@ -13,7 +13,7 @@ Plataforma educativa para simular compra y venta de acciones con capital fictici
 npm install
 docker compose up -d          # MongoDB + Redis
 cp .env.example .env
-npm run dev                   # Backend :3000, Frontend :5173
+npm run start:dev             # Backend :3000, Frontend :5173
 ```
 
 ## Scripts

@@ -1,5 +1,5 @@
 import { DateTime } from 'luxon';
-import { isMarketOpen } from './market-hours';
+import { formatTime, isMarketOpen } from './market-hours';
 
 const inSantiago = (iso: string) =>
   DateTime.fromISO(iso, { zone: 'America/Santiago' });
@@ -27,5 +27,9 @@ describe('isMarketOpen', () => {
     expect(isMarketOpen('09:30', '16:00', inSantiago('2026-06-15T18:00'))).toBe(
       false,
     );
+  });
+
+  it('formatea la hora actual en America/Santiago', () => {
+    expect(formatTime(new Date('2026-06-15T15:30:00.000Z'))).toBe('11:30');
   });
 });

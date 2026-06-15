@@ -26,13 +26,18 @@ export class HealthService {
       this.configService.get<string>('NODE_ENV', 'development') ===
       'production';
     const ready = mongodbUp && (redisUp || !redisRequired);
+    const redisStatus = redisUp
+      ? 'up'
+      : redisRequired
+        ? 'unavailable'
+        : 'fallback';
 
     return {
       status: ready ? (redisUp ? 'ok' : 'degraded') : 'error',
       ready,
       services: {
         mongodb: mongodbUp ? 'up' : 'down',
-        redis: redisUp ? 'up' : 'fallback',
+        redis: redisStatus,
       },
       timestamp: new Date().toISOString(),
     };

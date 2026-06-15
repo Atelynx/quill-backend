@@ -57,7 +57,7 @@ describe('HealthService', () => {
       ready: false,
       services: {
         mongodb: 'down',
-        redis: 'fallback',
+        redis: 'unavailable',
       },
     });
   });
@@ -74,7 +74,7 @@ describe('HealthService', () => {
       ready: false,
       services: {
         mongodb: 'up',
-        redis: 'fallback',
+        redis: 'unavailable',
       },
     });
   });

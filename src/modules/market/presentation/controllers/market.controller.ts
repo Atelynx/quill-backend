@@ -39,6 +39,7 @@ export class MarketController {
       openTime: effectiveOpenTime,
       closeTime: effectiveCloseTime,
       currentTime: formatTime(new Date()),
+      timezone: 'America/Santiago',
     };
   }
 

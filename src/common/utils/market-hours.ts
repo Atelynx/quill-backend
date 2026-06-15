@@ -29,6 +29,5 @@ export function isMarketOpen(
 }
 
 export function formatTime(date: Date): string {
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return DateTime.fromJSDate(date).setZone(MARKET_TIME_ZONE).toFormat('HH:mm');
 }

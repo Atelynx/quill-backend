@@ -7,17 +7,16 @@ import { UsersModule } from '../users/users.module';
 import { AuthService } from './application/services/auth.service';
 import { JwtStrategy } from './infrastructure/strategies/jwt.strategy';
 import { AuthController } from './presentation/controllers/auth.controller';
+import { createAuthThrottlerOptions } from './infrastructure/config/auth-throttler.config';
 
 @Module({
   imports: [
     UsersModule,
     PassportModule,
-    ThrottlerModule.forRoot([
-      {
-        ttl: 60000,
-        limit: 100,
-      },
-    ]),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: createAuthThrottlerOptions,
+    }),
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({

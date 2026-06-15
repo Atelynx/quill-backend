@@ -12,7 +12,11 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.boolean().default(true),
   }),
   MONGODB_URI: Joi.string().required(),
-  REDIS_URL: Joi.string().default('redis://localhost:6379'),
+  REDIS_URL: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().uri().required(),
+    otherwise: Joi.string().uri().default('redis://localhost:6379'),
+  }),
   JWT_SECRET: Joi.when('NODE_ENV', {
     is: 'production',
     then: Joi.string()

@@ -12,42 +12,40 @@ import {
   deserializeCacheValue,
   serializeCacheValue,
 } from './bounded-memory-cache';
-const FALLBACK_MAX_ENTRIES = 1000;
+import { CacheFallbackPolicy } from './cache-fallback-policy';
+import { createRedisClient } from './create-redis-client';
 
 @Injectable()
 export class CacheService
   implements OnModuleInit, OnModuleDestroy, CacheManagerStore
 {
   private readonly logger = new Logger(CacheService.name);
-  private readonly fallbackStore = new BoundedMemoryCache(FALLBACK_MAX_ENTRIES);
+  private readonly fallbackStore = new BoundedMemoryCache(1000);
   private redis: Redis | null = null;
   private connected = false;
   private fallbackWarningShown = false;
+  private readonly fallbackPolicy: CacheFallbackPolicy;
   readonly name = 'hybrid-redis-cache';
-  readonly opts: any = {};
-  constructor(private readonly configService: ConfigService) {}
+  readonly opts: Record<string, unknown> = {};
+  constructor(private readonly configService: ConfigService) {
+    this.fallbackPolicy = new CacheFallbackPolicy(configService);
+  }
 
   async onModuleInit(): Promise<void> {
     const url = this.configService.get<string>('REDIS_URL');
-    if (!url) return;
+    if (!url) {
+      this.handleRedisUnavailable('Redis no está configurado.');
+      return;
+    }
     try {
-      this.redis = new Redis(url, {
-        lazyConnect: true,
-        connectTimeout: 3000,
-        maxRetriesPerRequest: 1,
-        enableOfflineQueue: false,
-        retryStrategy: () => null,
-      });
-      this.redis.on('error', (error) => {
-        this.activateFallback(`Redis no disponible: ${error.message}`);
+      this.redis = createRedisClient(url, (error) => {
+        this.handleRedisUnavailable(`Redis no disponible: ${error.message}`);
       });
       await this.redis.connect();
       await this.redis.ping();
       this.connected = true;
     } catch {
-      this.activateFallback(
-        'Redis no pudo inicializarse. Se usara cache en memoria.',
-      );
+      this.handleRedisUnavailable('Redis no pudo inicializarse.');
     }
   }
 
@@ -70,14 +68,16 @@ export class CacheService
       }
       return;
     }
+    this.fallbackPolicy.assertAllowed();
     this.fallbackStore.set(key, stringValue, ttl);
   }
 
   async get<T>(key: string): Promise<T | undefined> {
-    const rawValue =
-      this.connected && this.redis
-        ? await this.redis.get(key)
-        : this.fallbackStore.get(key);
+    if (!this.connected || !this.redis) {
+      this.fallbackPolicy.assertAllowed();
+      return deserializeCacheValue<T>(this.fallbackStore.get(key));
+    }
+    const rawValue = await this.redis.get(key);
     return deserializeCacheValue<T>(rawValue);
   }
 
@@ -86,6 +86,7 @@ export class CacheService
       await this.redis.del(key);
       return;
     }
+    this.fallbackPolicy.assertAllowed();
     this.fallbackStore.delete(key);
   }
 
@@ -96,27 +97,27 @@ export class CacheService
   }
 
   async reset(): Promise<void> {
-    this.fallbackStore.clear();
     if (this.connected && this.redis) {
       await this.redis.flushall();
+      return;
     }
+    this.fallbackPolicy.assertAllowed();
+    this.fallbackStore.clear();
   }
 
   async clear(): Promise<void> {
     return this.reset();
   }
-
   async ttl(key: string): Promise<number> {
-    return this.connected && this.redis
-      ? this.redis.pttl(key)
-      : this.fallbackStore.ttl(key);
+    if (this.connected && this.redis) return this.redis.pttl(key);
+    this.fallbackPolicy.assertAllowed();
+    return this.fallbackStore.ttl(key);
   }
 
   async mget(...keys: string[]): Promise<unknown[]> {
     return Promise.all(keys.map((key) => this.get(key)));
   }
-
-  async mset(data: Record<string, any>, ttl?: number): Promise<void> {
+  async mset(data: Record<string, unknown>, ttl?: number): Promise<void> {
     await Promise.all(
       Object.entries(data).map(([key, value]) => this.set(key, value, ttl)),
     );
@@ -128,21 +129,21 @@ export class CacheService
 
   async keys(): Promise<string[]> {
     if (this.connected && this.redis) return this.redis.keys('*');
+    this.fallbackPolicy.assertAllowed();
     return Array.from(this.fallbackStore.keys());
   }
 
   isConnected(): boolean {
     return this.connected;
   }
-
-  private activateFallback(message: string): void {
+  private handleRedisUnavailable(message: string): void {
     this.connected = false;
     if (this.redis) {
       this.redis.disconnect(false);
       this.redis = null;
     }
     if (!this.fallbackWarningShown) {
-      this.logger.warn(message);
+      this.fallbackPolicy.logUnavailable(this.logger, message);
       this.fallbackWarningShown = true;
     }
   }
