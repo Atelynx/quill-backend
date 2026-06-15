@@ -417,6 +417,35 @@ describe('UsersService', () => {
       expect(result).toBe(user);
     });
 
+    it('normaliza y deduplica simbolos antes de persistir', async () => {
+      const user = {
+        _id: 'user-1',
+        watchlist: ['aapl', 'AAPL'],
+        save: jest.fn().mockResolvedValue(true),
+      } satisfies MutableDocumentMock;
+      userModel.findById.mockReturnValue(createExecQuery(user));
+
+      await service.addToWatchlist('user-1', ['msft', 'MSFT', 'AAPL']);
+
+      expect(user.watchlist).toEqual(['AAPL', 'MSFT']);
+      expect(user.save).toHaveBeenCalled();
+    });
+
+    it('rechaza agregar simbolos cuando la watchlist supera el maximo', async () => {
+      const user = {
+        _id: 'user-1',
+        watchlist: Array.from({ length: 50 }, (_, index) => `SYM${index}`),
+        save: jest.fn(),
+      } satisfies MutableDocumentMock;
+      userModel.findById.mockReturnValue(createExecQuery(user));
+
+      await expect(
+        service.addToWatchlist('user-1', ['EXTRA']),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(user.save).not.toHaveBeenCalled();
+    });
+
     it('elimina un simbolo del watchlist', async () => {
       const user = {
         _id: 'user-1',

@@ -71,6 +71,10 @@ describe('PortfolioService', () => {
 
     const summary = await service.getSummary(new Types.ObjectId().toString());
 
+    expect(stockModel.find).toHaveBeenCalledWith(
+      { symbol: { $in: ['AAPL', 'MSFT'] } },
+      { symbol: 1, close: 1, currency: 1 },
+    );
     expect(summary.availableBalance).toBe(500);
     expect(summary.reservedBalance).toBe(100);
     expect(summary.investedValue).toBe(1300);
@@ -96,6 +100,46 @@ describe('PortfolioService', () => {
         unrealizedProfitLoss: -50,
       },
     ]);
+  });
+
+  it('no consulta acciones cuando el portafolio no tiene posiciones activas', async () => {
+    const positionModel = {
+      find: jest.fn().mockReturnValue(
+        createLeanQuery([
+          {
+            symbol: 'OLD',
+            quantity: 0,
+            reservedQuantity: 0,
+            averageCost: 100,
+          },
+        ]),
+      ),
+    };
+    const stockModel = {
+      find: jest.fn(),
+    };
+    const usersService = {
+      findById: jest.fn().mockResolvedValue({
+        availableBalance: 500,
+        reservedBalance: 100,
+      }),
+    };
+    const service = new PortfolioService(
+      positionModel as never,
+      stockModel as never,
+      usersService as never,
+      { getRate: jest.fn() } as never,
+    );
+
+    const summary = await service.getSummary(new Types.ObjectId().toString());
+
+    expect(stockModel.find).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({
+      investedValue: 0,
+      totalEquity: 600,
+      unrealizedProfitLoss: 0,
+      positions: [],
+    });
   });
 
   it('convierte valores USD a CLP para los totales del portafolio', async () => {

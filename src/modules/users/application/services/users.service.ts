@@ -26,6 +26,8 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+const MAX_WATCHLIST_SYMBOLS = 50;
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -183,14 +185,28 @@ export class UsersService {
 
   async addToWatchlist(id: string, symbols: string[]): Promise<UserDocument> {
     const user = await this.findById(id);
-    const normalized = symbols.map((s) => s.toUpperCase());
+    const currentSymbols = user.watchlist.map((symbol) =>
+      symbol.trim().toUpperCase(),
+    );
+    const normalizedSymbols = symbols.map((symbol) =>
+      symbol.trim().toUpperCase(),
+    );
+    const watchlist = [...new Set([...currentSymbols, ...normalizedSymbols])];
 
-    const existing = new Set(user.watchlist.map((s) => s.toUpperCase()));
-    const newSymbols = normalized.filter((s) => !existing.has(s));
+    if (watchlist.length > MAX_WATCHLIST_SYMBOLS) {
+      throw new BadRequestException(
+        `La watchlist admite un máximo de ${MAX_WATCHLIST_SYMBOLS} símbolos.`,
+      );
+    }
 
-    if (newSymbols.length === 0) return user;
+    if (
+      watchlist.length === user.watchlist.length &&
+      watchlist.every((symbol, index) => symbol === user.watchlist[index])
+    ) {
+      return user;
+    }
 
-    user.watchlist.push(...newSymbols);
+    user.watchlist = watchlist;
     await user.save();
     return user;
   }
