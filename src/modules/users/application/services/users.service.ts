@@ -22,6 +22,10 @@ function generateUsername(): string {
   return `user_${hex}`;
 }
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -41,7 +45,10 @@ export class UsersService {
     passwordHash: string;
     username?: string;
   }): Promise<UserDocument> {
-    const existingUser = await this.userModel.exists({ email: input.email });
+    const normalizedEmail = normalizeEmail(input.email);
+    const existingUser = await this.userModel.exists({
+      email: normalizedEmail,
+    });
 
     if (existingUser) {
       throw new ConflictException('Ya existe una cuenta con ese correo.');
@@ -66,7 +73,7 @@ export class UsersService {
 
     return this.userModel.create({
       fullName: input.fullName,
-      email: input.email.toLowerCase(),
+      email: normalizedEmail,
       passwordHash: input.passwordHash,
       username: username.toLowerCase(),
       availableBalance: initialBalance,
@@ -84,7 +91,7 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email: email.toLowerCase() }).exec();
+    return this.userModel.findOne({ email: normalizeEmail(email) }).exec();
   }
 
   async findById(id: string): Promise<UserDocument> {
@@ -98,7 +105,7 @@ export class UsersService {
   }
 
   async findByIdentity(identifier: string): Promise<UserDocument | null> {
-    const lower = identifier.toLowerCase();
+    const lower = normalizeEmail(identifier);
     return this.userModel
       .findOne({
         $or: [{ email: lower }, { username: lower }],
@@ -145,14 +152,14 @@ export class UsersService {
     }
 
     const emailTaken = await this.userModel.exists({
-      email: newEmail.toLowerCase(),
+      email: normalizeEmail(newEmail),
       _id: { $ne: user._id },
     });
     if (emailTaken) {
       throw new ConflictException('Ese correo ya está en uso.');
     }
 
-    user.email = newEmail.toLowerCase();
+    user.email = normalizeEmail(newEmail);
     user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();
   }

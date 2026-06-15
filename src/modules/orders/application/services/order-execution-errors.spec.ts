@@ -68,7 +68,7 @@ describe('OrderExecutionService error paths', () => {
     expect(marketService.listQuotes).not.toHaveBeenCalled();
   });
 
-  it('registra el error cuando una venta no encuentra posicion', async () => {
+  it('cancela la orden cuando una venta no encuentra posicion y no la deja pendiente', async () => {
     const order = {
       id: new Types.ObjectId().toString(),
       userId: new Types.ObjectId(),
@@ -95,10 +95,9 @@ describe('OrderExecutionService error paths', () => {
 
     await service.executeCycle();
 
-    expect(errorSpy).toHaveBeenCalledWith(
-      `Failed to execute order ${order.id}`,
-      expect.any(Error),
-    );
+    // Se usa CANCELLED porque es el estado terminal existente para una inconsistencia de negocio irrecuperable.
+    expect(order.status).toBe('CANCELLED');
+    expect(errorSpy).not.toHaveBeenCalled();
     expect(session.endSession).toHaveBeenCalled();
   });
 });

@@ -236,13 +236,16 @@ export class OrderExecutionService {
             marketPrice,
           );
         } else {
-          await this.processSellOrder(
+          const cancelled = await this.processSellOrder(
             session,
             user,
             liveOrder,
             grossAmountCLP,
             commissionCLP,
           );
+          if (cancelled) {
+            return;
+          }
         }
 
         await this.finalizeOrder(
@@ -351,7 +354,7 @@ export class OrderExecutionService {
     order: OrderDocument,
     grossAmountCLP: number,
     commissionAmountCLP: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const position = await this.positionModel
       .findOne({
         userId: new Types.ObjectId(user.id),
@@ -361,11 +364,23 @@ export class OrderExecutionService {
       .exec();
 
     if (!position) {
-      throw new Error(`Position not found for symbol ${order.symbol}`);
+      await this.cancelIrrecoverableSellOrder(session, user, order);
+      return true;
+    }
+
+    if (
+      position.quantity < order.quantity ||
+      (position.reservedQuantity ?? 0) < order.quantity
+    ) {
+      await this.cancelIrrecoverableSellOrder(session, user, order, position);
+      return true;
     }
 
     position.quantity -= order.quantity;
-    position.reservedQuantity -= order.quantity;
+    position.reservedQuantity = Math.max(
+      0,
+      (position.reservedQuantity ?? 0) - order.quantity,
+    );
 
     user.availableBalance = new Decimal(user.availableBalance)
       .plus(grossAmountCLP)
@@ -378,6 +393,31 @@ export class OrderExecutionService {
     } else {
       await position.save({ session });
     }
+
+    return false;
+  }
+
+  private async cancelIrrecoverableSellOrder(
+    session: ClientSession,
+    user: UserDocument,
+    order: OrderDocument,
+    position?: PositionDocument,
+  ): Promise<void> {
+    if (position) {
+      const releasableQuantity = Math.min(
+        position.reservedQuantity ?? 0,
+        order.quantity,
+      );
+      position.reservedQuantity = Math.max(
+        0,
+        (position.reservedQuantity ?? 0) - releasableQuantity,
+      );
+      await position.save({ session });
+    }
+
+    order.status = 'CANCELLED';
+    await user.save({ session });
+    await order.save({ session });
   }
 
   async executeMarketOrder(

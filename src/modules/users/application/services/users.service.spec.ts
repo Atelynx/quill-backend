@@ -126,7 +126,7 @@ describe('UsersService', () => {
       });
 
       expect(userModel.exists).toHaveBeenNthCalledWith(1, {
-        email: 'ANA@QUILL.DEV',
+        email: 'ana@quill.dev',
       });
       const createInput = firstCallArgument(userModel.create) as {
         username: string;
@@ -145,6 +145,23 @@ describe('UsersService', () => {
         email: 'ana@quill.dev',
         username: 'user_a1b2c3',
       });
+    });
+
+    it('rechaza un correo equivalente aunque cambie la capitalizacion', async () => {
+      userModel.exists.mockResolvedValueOnce({ _id: 'existing-user' });
+
+      await expect(
+        service.createUser({
+          fullName: 'Ana Lopez',
+          email: 'ANA@QUILL.DEV',
+          passwordHash: 'hashed-password',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(userModel.exists).toHaveBeenCalledWith({
+        email: 'ana@quill.dev',
+      });
+      expect(userModel.create).not.toHaveBeenCalled();
     });
 
     it('usa el username proporcionado si es valido', async () => {
@@ -244,6 +261,17 @@ describe('UsersService', () => {
         $or: [{ email: 'ana@quill.dev' }, { username: 'ana@quill.dev' }],
       });
       expect(result).toBe(user);
+    });
+
+    it('normaliza el correo al buscar por identidad', async () => {
+      const user = { id: 'user-1', email: 'ana@quill.dev' };
+      userModel.findOne.mockReturnValue(createExecQuery(user));
+
+      await service.findByIdentity('ANA@QUILL.DEV');
+
+      expect(userModel.findOne).toHaveBeenCalledWith({
+        $or: [{ email: 'ana@quill.dev' }, { username: 'ana@quill.dev' }],
+      });
     });
   });
 

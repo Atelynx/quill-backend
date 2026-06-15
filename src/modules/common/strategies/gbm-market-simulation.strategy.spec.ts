@@ -22,6 +22,13 @@ describe('GBMMarketSimulationStrategy', () => {
   });
 
   it('produces different results with different random values', () => {
+    const randomSpy = jest
+      .spyOn(Math, 'random')
+      .mockReturnValueOnce(0.5)
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.5)
+      .mockReturnValueOnce(0.5);
+
     const result1 = strategy.calculateNextTick(
       new Decimal(100),
       new Decimal(100),
@@ -36,6 +43,7 @@ describe('GBMMarketSimulationStrategy', () => {
     );
 
     expect(result1.toNumber()).not.toBe(result2.toNumber());
+    randomSpy.mockRestore();
   });
 
   it('is affected by volatility', () => {

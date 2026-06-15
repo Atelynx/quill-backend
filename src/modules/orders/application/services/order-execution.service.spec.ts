@@ -243,6 +243,30 @@ describe('OrderExecutionService', () => {
     expect(tradeModel.create).not.toHaveBeenCalled();
   });
 
+  it('cancela una compra cuando la reserva del usuario es inconsistente y libera el saldo bloqueado', async () => {
+    const currentOrder = order('BUY');
+    const user = {
+      id: currentOrder.userId.toString(),
+      availableBalance: 50,
+      reservedBalance: 100,
+      save: jest.fn(),
+    };
+    userModel.findById.mockReturnValue(query(user));
+    positionModel.findOne.mockReturnValue(query(null));
+    commissionService.calculate.mockResolvedValue(1);
+
+    await executeWith(currentOrder, 100);
+
+    // CANCELLED es el estado terminal existente para una inconsistencia de reserva.
+    expect(currentOrder.status).toBe('CANCELLED');
+    expect(user).toMatchObject({
+      availableBalance: 150,
+      reservedBalance: 0,
+    });
+    expect(tradeModel.create).not.toHaveBeenCalled();
+    expect(positionModel.create).not.toHaveBeenCalled();
+  });
+
   it.each([null, { rate: 0 }, { rate: -1 }, { rate: Number.NaN }])(
     'mantiene pendiente una orden extranjera sin tasa valida',
     async (rate) => {

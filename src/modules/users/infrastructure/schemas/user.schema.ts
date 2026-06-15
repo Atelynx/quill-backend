@@ -9,7 +9,7 @@ export class User {
   @Prop({ required: true, trim: true })
   fullName!: string;
 
-  @Prop({ required: true, unique: true, lowercase: true, trim: true })
+  @Prop({ required: true, lowercase: true, trim: true })
   email!: string;
 
   @Prop({ required: true })
@@ -27,7 +27,7 @@ export class User {
   @Prop({ required: true, default: 0 })
   tokenVersion!: number;
 
-  @Prop({ unique: true, sparse: true, lowercase: true, trim: true })
+  @Prop({ lowercase: true, trim: true })
   username?: string;
 
   @Prop({ type: [String], default: [] })
@@ -35,3 +35,5 @@ export class User {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+UserSchema.index({ email: 1 }, { unique: true });
+UserSchema.index({ username: 1 }, { unique: true, sparse: true });
