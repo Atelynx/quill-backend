@@ -29,6 +29,11 @@ describe('CacheService', () => {
     jest.clearAllMocks();
     mockRedisInstance.status = 'ready';
   });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   beforeAll(() => {
     Logger.overrideLogger(false);
   });
@@ -109,6 +114,37 @@ describe('CacheService', () => {
       const obj = { foo: [1, 2, 3] };
       await service.set('obj', obj);
       expect(await service.get('obj')).toEqual(obj);
+    });
+
+    it('expires values according to ttl and removes them when read', async () => {
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+      await service.set('expiring', 'value', 100);
+
+      now.mockReturnValue(1100);
+
+      expect(await service.get('expiring')).toBeUndefined();
+      expect(await service.keys()).not.toContain('expiring');
+    });
+
+    it('keeps values without ttl', async () => {
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+      await service.set('persistent', 'value');
+
+      now.mockReturnValue(1_000_000);
+
+      expect(await service.get('persistent')).toBe('value');
+      expect(await service.ttl('persistent')).toBe(-1);
+    });
+
+    it('evicts the oldest entry when the fallback reaches its limit', async () => {
+      await service.set('oldest', 'value');
+      for (let index = 0; index < 1000; index++) {
+        await service.set(`key-${index}`, index);
+      }
+
+      expect(await service.get('oldest')).toBeUndefined();
+      expect(await service.get('key-999')).toBe(999);
+      expect(await service.keys()).toHaveLength(1000);
     });
 
     it('returns undefined for missing keys', async () => {

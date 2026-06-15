@@ -23,6 +23,11 @@ async function bootstrap(): Promise<void> {
     .map((o) => o.trim())
     .filter(Boolean);
   const port = configService.get<number>('BACKEND_PORT', 3000);
+  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+  const swaggerEnabled = configService.get<boolean>(
+    'SWAGGER_ENABLED',
+    nodeEnv !== 'production',
+  );
 
   app.use(helmet());
   app.use(compression());
@@ -43,20 +48,22 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new HttpExceptionFilter());
   const apiPath = 'api';
   app.setGlobalPrefix(apiPath);
-  // Swagger Options
-  const options = new DocumentBuilder()
-    .addBearerAuth()
-    .setTitle('Quill Swagger API')
-    .setDescription('API documentation')
-    .setVersion('1.0')
-    .build();
-  const document = SwaggerModule.createDocument(app, options);
-  // Swagger path: http://localhost:3000/api/docs
-  SwaggerModule.setup(`${apiPath}/swagger`, app, document);
+  if (swaggerEnabled) {
+    const options = new DocumentBuilder()
+      .addBearerAuth()
+      .setTitle('Quill Swagger API')
+      .setDescription('API documentation')
+      .setVersion('1.0')
+      .build();
+    const document = SwaggerModule.createDocument(app, options);
+    SwaggerModule.setup(`${apiPath}/swagger`, app, document);
+  }
 
   await app.listen(port);
   logger.log(`Backend de Quill escuchando en http://localhost:${port}/api`);
-  logger.log(`Swaggeer de Quill en http://localhost:${port}/api/swagger`);
+  if (swaggerEnabled) {
+    logger.log(`Swagger de Quill en http://localhost:${port}/api/swagger`);
+  }
   logger.log(`Origen permitido para frontend: ${rawOrigins ?? 'no definido'}`);
 }
 

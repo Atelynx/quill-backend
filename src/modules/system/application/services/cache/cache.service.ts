@@ -7,27 +7,29 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { CacheManagerStore } from 'cache-manager';
 import Redis from 'ioredis';
+import {
+  BoundedMemoryCache,
+  deserializeCacheValue,
+  serializeCacheValue,
+} from './bounded-memory-cache';
+const FALLBACK_MAX_ENTRIES = 1000;
 
 @Injectable()
 export class CacheService
   implements OnModuleInit, OnModuleDestroy, CacheManagerStore
 {
   private readonly logger = new Logger(CacheService.name);
-  private readonly fallbackStore = new Map<string, string>();
+  private readonly fallbackStore = new BoundedMemoryCache(FALLBACK_MAX_ENTRIES);
   private redis: Redis | null = null;
   private connected = false;
   private fallbackWarningShown = false;
-
   readonly name = 'hybrid-redis-cache';
   readonly opts: any = {};
-
   constructor(private readonly configService: ConfigService) {}
 
   async onModuleInit(): Promise<void> {
     const url = this.configService.get<string>('REDIS_URL');
-
     if (!url) return;
-
     try {
       this.redis = new Redis(url, {
         lazyConnect: true,
@@ -51,7 +53,6 @@ export class CacheService
 
   async onModuleDestroy(): Promise<void> {
     if (!this.redis) return;
-
     try {
       if (this.redis.status !== 'end') await this.redis.quit();
     } catch {
@@ -60,9 +61,7 @@ export class CacheService
   }
 
   async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-    const stringValue =
-      typeof value === 'string' ? value : JSON.stringify(value);
-
+    const stringValue = serializeCacheValue(value);
     if (this.connected && this.redis) {
       if (ttl) {
         await this.redis.set(key, stringValue, 'PX', ttl);
@@ -71,8 +70,7 @@ export class CacheService
       }
       return;
     }
-
-    this.fallbackStore.set(key, stringValue);
+    this.fallbackStore.set(key, stringValue, ttl);
   }
 
   async get<T>(key: string): Promise<T | undefined> {
@@ -80,14 +78,7 @@ export class CacheService
       this.connected && this.redis
         ? await this.redis.get(key)
         : this.fallbackStore.get(key);
-
-    if (!rawValue) return undefined;
-
-    try {
-      return JSON.parse(rawValue) as T;
-    } catch {
-      return rawValue as unknown as T;
-    }
+    return deserializeCacheValue<T>(rawValue);
   }
 
   async del(key: string): Promise<void> {
@@ -95,7 +86,6 @@ export class CacheService
       await this.redis.del(key);
       return;
     }
-
     this.fallbackStore.delete(key);
   }
 
@@ -106,12 +96,10 @@ export class CacheService
   }
 
   async reset(): Promise<void> {
+    this.fallbackStore.clear();
     if (this.connected && this.redis) {
       await this.redis.flushall();
-      return;
     }
-
-    this.fallbackStore.clear();
   }
 
   async clear(): Promise<void> {
@@ -119,7 +107,9 @@ export class CacheService
   }
 
   async ttl(key: string): Promise<number> {
-    return this.connected && this.redis ? this.redis.pttl(key) : -1;
+    return this.connected && this.redis
+      ? this.redis.pttl(key)
+      : this.fallbackStore.ttl(key);
   }
 
   async mget(...keys: string[]): Promise<unknown[]> {
@@ -147,12 +137,10 @@ export class CacheService
 
   private activateFallback(message: string): void {
     this.connected = false;
-
     if (this.redis) {
       this.redis.disconnect(false);
       this.redis = null;
     }
-
     if (!this.fallbackWarningShown) {
       this.logger.warn(message);
       this.fallbackWarningShown = true;
