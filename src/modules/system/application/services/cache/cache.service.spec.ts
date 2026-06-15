@@ -10,6 +10,7 @@ const mockRedisInstance = {
   set: jest.fn().mockResolvedValue(undefined),
   get: jest.fn().mockResolvedValue(null),
   del: jest.fn().mockResolvedValue(undefined),
+  eval: jest.fn().mockResolvedValue(1),
   flushdb: jest.fn().mockResolvedValue(undefined),
   flushall: jest.fn().mockResolvedValue(undefined),
   keys: jest.fn().mockResolvedValue([]),
@@ -319,6 +320,74 @@ describe('CacheService', () => {
     it('keys returns result from redis.keys', async () => {
       mockRedisInstance.keys.mockResolvedValueOnce(['a', 'b']);
       expect(await service.keys()).toEqual(['a', 'b']);
+    });
+
+    it('acquires a distributed lock with NX and PX', async () => {
+      mockRedisInstance.set.mockResolvedValueOnce('OK');
+
+      await expect(
+        service.acquireLock('lock:key', 'owner-1', 5000),
+      ).resolves.toBe(true);
+      expect(mockRedisInstance.set).toHaveBeenCalledWith(
+        'lock:key',
+        'owner-1',
+        'PX',
+        5000,
+        'NX',
+      );
+    });
+
+    it('releases a distributed lock only through compare-and-delete', async () => {
+      await expect(service.releaseLock('lock:key', 'owner-1')).resolves.toBe(
+        true,
+      );
+      expect(mockRedisInstance.eval).toHaveBeenCalledWith(
+        expect.stringContaining('redis.call("GET", KEYS[1]) == ARGV[1]'),
+        1,
+        'lock:key',
+        'owner-1',
+      );
+    });
+
+    it('does not release a distributed lock owned by another execution', async () => {
+      mockRedisInstance.eval.mockResolvedValueOnce(0);
+
+      await expect(
+        service.releaseLock('lock:key', 'other-owner'),
+      ).resolves.toBe(false);
+    });
+  });
+
+  describe('in-memory lock fallback', () => {
+    beforeEach(() => {
+      config = { get: jest.fn().mockReturnValue(undefined) };
+      service = new CacheService(config as ConfigService);
+    });
+
+    it('does not acquire or release a lock owned by another execution', async () => {
+      await expect(
+        service.acquireLock('lock:key', 'owner-1', 5000),
+      ).resolves.toBe(true);
+      await expect(
+        service.acquireLock('lock:key', 'owner-2', 5000),
+      ).resolves.toBe(false);
+      await expect(service.releaseLock('lock:key', 'owner-2')).resolves.toBe(
+        false,
+      );
+      await expect(service.releaseLock('lock:key', 'owner-1')).resolves.toBe(
+        true,
+      );
+    });
+
+    it('allows acquiring the lock after its TTL expires', async () => {
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+      await service.acquireLock('lock:key', 'owner-1', 100);
+
+      now.mockReturnValue(1100);
+
+      await expect(
+        service.acquireLock('lock:key', 'owner-2', 100),
+      ).resolves.toBe(true);
     });
   });
 

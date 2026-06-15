@@ -54,7 +54,11 @@ describe('OrderExecutionService', () => {
   let tradeModel: { create: jest.Mock };
   let commissionService: { calculate: jest.Mock };
   let currencyRateService: { getRate: jest.Mock };
-  let cacheService: { get: jest.Mock };
+  let cacheService: {
+    get: jest.Mock;
+    acquireLock: jest.Mock;
+    releaseLock: jest.Mock;
+  };
   let errorSpy: jest.SpyInstance;
 
   beforeEach(() => {
@@ -80,7 +84,11 @@ describe('OrderExecutionService', () => {
     tradeModel = { create: jest.fn().mockResolvedValue(undefined) };
     commissionService = { calculate: jest.fn() };
     currencyRateService = { getRate: jest.fn() };
-    cacheService = { get: jest.fn().mockResolvedValue(undefined) };
+    cacheService = {
+      get: jest.fn().mockResolvedValue(undefined),
+      acquireLock: jest.fn().mockResolvedValue(true),
+      releaseLock: jest.fn().mockResolvedValue(true),
+    };
     service = new OrderExecutionService(
       {} as never,
       marketService as never,
@@ -373,7 +381,64 @@ describe('OrderExecutionService', () => {
     await service.handleMarketTick();
     await service.handleMarketTick();
     expect(marketService.listQuotes).toHaveBeenCalledTimes(2);
+    expect(cacheService.releaseLock).toHaveBeenCalledTimes(2);
     expect(errorSpy).toHaveBeenCalled();
+  });
+
+  it('ejecuta y libera el ciclo cuando adquiere el lock distribuido', async () => {
+    marketService.listQuotes.mockResolvedValue([]);
+    orderModel.find.mockReturnValue(query([]));
+
+    await service.handleMarketTick();
+
+    expect(cacheService.acquireLock).toHaveBeenCalledWith(
+      'lock:orders:execution-cycle',
+      expect.any(String),
+      60_000,
+    );
+    const acquireCalls = cacheService.acquireLock.mock
+      .calls as unknown as Array<[string, string, number]>;
+    const owner = acquireCalls[0][1];
+    expect(cacheService.releaseLock).toHaveBeenCalledWith(
+      'lock:orders:execution-cycle',
+      owner,
+    );
+    expect(marketService.listQuotes).toHaveBeenCalled();
+  });
+
+  it('no ejecuta el ciclo cuando otro proceso posee el lock', async () => {
+    cacheService.acquireLock.mockResolvedValue(false);
+
+    await service.handleMarketTick();
+
+    expect(marketService.listQuotes).not.toHaveBeenCalled();
+    expect(cacheService.releaseLock).not.toHaveBeenCalled();
+  });
+
+  it('no procesa ordenes cuando no puede adquirir lock en produccion', async () => {
+    cacheService.acquireLock.mockRejectedValue(
+      new Error('Redis requerido en producción'),
+    );
+
+    await service.handleMarketTick();
+
+    expect(marketService.listQuotes).not.toHaveBeenCalled();
+    expect(cacheService.releaseLock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalled();
+  });
+
+  it('deja que el TTL libere el lock si falla la liberacion', async () => {
+    marketService.listQuotes.mockResolvedValue([]);
+    orderModel.find.mockReturnValue(query([]));
+    cacheService.releaseLock.mockRejectedValue(new Error('Redis down'));
+
+    await service.handleMarketTick();
+
+    expect(marketService.listQuotes).toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Error releasing market execution lock',
+      expect.any(Error),
+    );
   });
 });
 

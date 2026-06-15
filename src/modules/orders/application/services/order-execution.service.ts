@@ -35,6 +35,10 @@ import {
   OrderDocument,
 } from '../../infrastructure/schemas/order.schema';
 import { CommissionService } from './commission.service';
+import { randomUUID } from 'crypto';
+
+const EXECUTION_CYCLE_LOCK_KEY = 'lock:orders:execution-cycle';
+const EXECUTION_CYCLE_LOCK_TTL_MS = 60_000;
 
 @Injectable()
 export class OrderExecutionService {
@@ -69,12 +73,29 @@ export class OrderExecutionService {
     }
 
     this.isRunning = true;
+    const lockOwner = randomUUID();
+    let lockAcquired = false;
     try {
+      lockAcquired = await this.cacheService.acquireLock(
+        EXECUTION_CYCLE_LOCK_KEY,
+        lockOwner,
+        EXECUTION_CYCLE_LOCK_TTL_MS,
+      );
+      if (!lockAcquired) return;
       await this.executeCycle();
     } catch (error) {
       this.logger.error('Error in market execution cycle', error);
     } finally {
-      // Ensure the lock is released even on failure to allow future ticks.
+      if (lockAcquired) {
+        try {
+          await this.cacheService.releaseLock(
+            EXECUTION_CYCLE_LOCK_KEY,
+            lockOwner,
+          );
+        } catch (error) {
+          this.logger.error('Error releasing market execution lock', error);
+        }
+      }
       this.isRunning = false;
     }
   }

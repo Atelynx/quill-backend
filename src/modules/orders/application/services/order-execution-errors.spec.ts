@@ -51,7 +51,11 @@ describe('OrderExecutionService error paths', () => {
       } as never,
       { create: jest.fn() } as never,
       { calculate: jest.fn().mockResolvedValue(1) } as never,
-      { get: jest.fn() } as never,
+      {
+        get: jest.fn(),
+        acquireLock: jest.fn().mockResolvedValue(true),
+        releaseLock: jest.fn().mockResolvedValue(true),
+      } as never,
       { get: jest.fn() } as never,
       { getRate: jest.fn() } as never,
     ) as unknown as ServiceInternals;

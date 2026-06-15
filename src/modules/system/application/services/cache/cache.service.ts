@@ -14,6 +14,7 @@ import {
 } from './bounded-memory-cache';
 import { CacheFallbackPolicy } from './cache-fallback-policy';
 import { createRedisClient } from './create-redis-client';
+import { acquireCacheLock, releaseCacheLock } from './cache-lock';
 
 @Injectable()
 export class CacheService
@@ -23,14 +24,12 @@ export class CacheService
   private readonly fallbackStore = new BoundedMemoryCache(1000);
   private redis: Redis | null = null;
   private connected = false;
-  private fallbackWarningShown = false;
   private readonly fallbackPolicy: CacheFallbackPolicy;
   readonly name = 'hybrid-redis-cache';
   readonly opts: Record<string, unknown> = {};
   constructor(private readonly configService: ConfigService) {
     this.fallbackPolicy = new CacheFallbackPolicy(configService);
   }
-
   async onModuleInit(): Promise<void> {
     const url = this.configService.get<string>('REDIS_URL');
     if (!url) {
@@ -48,7 +47,6 @@ export class CacheService
       this.handleRedisUnavailable('Redis no pudo inicializarse.');
     }
   }
-
   async onModuleDestroy(): Promise<void> {
     if (!this.redis) return;
     try {
@@ -57,7 +55,6 @@ export class CacheService
       this.redis.disconnect(false);
     }
   }
-
   async set<T>(key: string, value: T, ttl?: number): Promise<void> {
     const stringValue = serializeCacheValue(value);
     if (this.connected && this.redis) {
@@ -71,7 +68,6 @@ export class CacheService
     this.fallbackPolicy.assertAllowed();
     this.fallbackStore.set(key, stringValue, ttl);
   }
-
   async get<T>(key: string): Promise<T | undefined> {
     if (!this.connected || !this.redis) {
       this.fallbackPolicy.assertAllowed();
@@ -80,31 +76,21 @@ export class CacheService
     const rawValue = await this.redis.get(key);
     return deserializeCacheValue<T>(rawValue);
   }
-
   async del(key: string): Promise<void> {
-    if (this.connected && this.redis) {
-      await this.redis.del(key);
-      return;
-    }
+    if (this.connected && this.redis) return void (await this.redis.del(key));
     this.fallbackPolicy.assertAllowed();
     this.fallbackStore.delete(key);
   }
-
   async delete(key: string): Promise<boolean> {
     const exists = await this.get(key);
     await this.del(key);
     return !!exists;
   }
-
   async reset(): Promise<void> {
-    if (this.connected && this.redis) {
-      await this.redis.flushdb();
-      return;
-    }
+    if (this.connected && this.redis) return void (await this.redis.flushdb());
     this.fallbackPolicy.assertAllowed();
     this.fallbackStore.clear();
   }
-
   async clear(): Promise<void> {
     return this.reset();
   }
@@ -113,7 +99,6 @@ export class CacheService
     this.fallbackPolicy.assertAllowed();
     return this.fallbackStore.ttl(key);
   }
-
   async mget(...keys: string[]): Promise<unknown[]> {
     return Promise.all(keys.map((key) => this.get(key)));
   }
@@ -122,17 +107,33 @@ export class CacheService
       Object.entries(data).map(([key, value]) => this.set(key, value, ttl)),
     );
   }
-
   async mdel(...keys: string[]): Promise<void> {
     await Promise.all(keys.map((key) => this.del(key)));
   }
-
+  async acquireLock(key: string, owner: string, ttl: number): Promise<boolean> {
+    return acquireCacheLock(
+      this.connected ? this.redis : null,
+      this.fallbackStore,
+      this.fallbackPolicy,
+      key,
+      owner,
+      ttl,
+    );
+  }
+  async releaseLock(key: string, owner: string): Promise<boolean> {
+    return releaseCacheLock(
+      this.connected ? this.redis : null,
+      this.fallbackStore,
+      this.fallbackPolicy,
+      key,
+      owner,
+    );
+  }
   async keys(): Promise<string[]> {
     if (this.connected && this.redis) return this.redis.keys('*');
     this.fallbackPolicy.assertAllowed();
     return Array.from(this.fallbackStore.keys());
   }
-
   isConnected(): boolean {
     return this.connected;
   }
@@ -142,9 +143,6 @@ export class CacheService
       this.redis.disconnect(false);
       this.redis = null;
     }
-    if (!this.fallbackWarningShown) {
-      this.fallbackPolicy.logUnavailable(this.logger, message);
-      this.fallbackWarningShown = true;
-    }
+    this.fallbackPolicy.logUnavailable(this.logger, message);
   }
 }

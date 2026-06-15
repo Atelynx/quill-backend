@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 export class CacheFallbackPolicy {
   private readonly allowed: boolean;
+  private warningShown = false;
 
   constructor(configService: ConfigService) {
     this.allowed =
@@ -18,6 +19,8 @@ export class CacheFallbackPolicy {
   }
 
   logUnavailable(logger: Logger, message: string): void {
+    if (this.warningShown) return;
+    this.warningShown = true;
     if (this.allowed) {
       logger.warn(`${message} Se usará cache local temporal.`);
       return;
