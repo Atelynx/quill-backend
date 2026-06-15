@@ -141,7 +141,18 @@ describe('CurrencyTickService', () => {
       await internals.processTick();
 
       expect(strategy.calculateNextTick).toHaveBeenCalledTimes(2);
-      expect(cacheService.set).toHaveBeenCalledTimes(2);
+      expect(cacheService.set).toHaveBeenNthCalledWith(
+        1,
+        'forex:EURUSD:live_price',
+        104,
+        60_000,
+      );
+      expect(cacheService.set).toHaveBeenNthCalledWith(
+        2,
+        'forex:GBPUSD:live_price',
+        210,
+        60_000,
+      );
       expect(eventEmitter.emit).toHaveBeenCalledWith(CURRENCY_UPDATE_EVENT, [
         expect.objectContaining({ symbol: 'EURUSD', close: 104 }),
         expect.objectContaining({ symbol: 'GBPUSD', close: 210 }),

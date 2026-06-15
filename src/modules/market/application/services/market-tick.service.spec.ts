@@ -88,7 +88,18 @@ describe('MarketTickService', () => {
       await service.processTick();
 
       expect(strategy.calculateNextTick).toHaveBeenCalledTimes(2);
-      expect(cacheService.set).toHaveBeenCalledTimes(2);
+      expect(cacheService.set).toHaveBeenNthCalledWith(
+        1,
+        'stock:AAPL:live_price',
+        105,
+        60_000,
+      );
+      expect(cacheService.set).toHaveBeenNthCalledWith(
+        2,
+        'stock:GOOGL:live_price',
+        1850,
+        60_000,
+      );
       expect(eventEmitter.emit).toHaveBeenCalledWith(PRICE_UPDATE_EVENT, [
         expect.objectContaining({ symbol: 'AAPL', close: 105 }),
         expect.objectContaining({ symbol: 'GOOGL', close: 1850 }),

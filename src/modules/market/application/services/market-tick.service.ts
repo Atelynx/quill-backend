@@ -14,6 +14,7 @@ import { CacheService } from '../../../system/application/services/cache/cache.s
 const BASE_PRICE_CACHE_PREFIX = 'stock:';
 const BASE_PRICE_CACHE_SUFFIX = ':base_price';
 const LIVE_PRICE_CACHE_SUFFIX = ':live_price';
+const LIVE_PRICE_CACHE_TTL_MS = 60_000;
 
 @Injectable()
 export class MarketTickService {
@@ -71,6 +72,7 @@ export class MarketTickService {
         await this.cacheService.set(
           `${BASE_PRICE_CACHE_PREFIX}${stock.symbol}${LIVE_PRICE_CACHE_SUFFIX}`,
           nextPrice.toNumber(),
+          LIVE_PRICE_CACHE_TTL_MS,
         );
 
         const dayChangePct = nextPrice

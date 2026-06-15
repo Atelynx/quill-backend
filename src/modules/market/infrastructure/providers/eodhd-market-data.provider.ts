@@ -4,6 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { EODHDClient } from 'eodhd';
 import Decimal from 'decimal.js';
+import { DateTime } from 'luxon';
 import type { MarketQuote } from '../../domain/interfaces/market-quote.interface';
 import {
   Stock,
@@ -148,13 +149,16 @@ export class EodhdMarketDataProvider implements MarketDataProvider {
    * Check if a snapshot exists for today. Returns a MarketQuote if found.
    */
   private async getTodaySnapshot(symbol: string): Promise<MarketQuote | null> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const dayStart = DateTime.now().setZone('America/Santiago').startOf('day');
+    const nextDayStart = dayStart.plus({ days: 1 });
 
     const snapshot = await this.snapshotModel
       .findOne({
         symbol,
-        createdAt: { $gte: today },
+        createdAt: {
+          $gte: dayStart.toJSDate(),
+          $lt: nextDayStart.toJSDate(),
+        },
       })
       .sort({ createdAt: -1 })
       .lean()
