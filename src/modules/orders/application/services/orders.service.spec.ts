@@ -96,7 +96,7 @@ describe('OrdersService', () => {
     const result = await service.createOrder(new Types.ObjectId().toString(), {
       symbol: 'aapl',
       side: 'BUY',
-      quantity: 2.8,
+      quantity: 2,
       limitPrice: 100,
     });
 
@@ -126,6 +126,23 @@ describe('OrdersService', () => {
       status: 'PENDING',
     });
   });
+
+  it.each([2.9, 0, -1])(
+    'rechaza la cantidad inválida %s sin abrir una transacción',
+    async (quantity) => {
+      await expect(
+        service.createOrder(new Types.ObjectId().toString(), {
+          symbol: 'AAPL',
+          side: 'BUY',
+          quantity,
+          limitPrice: 100,
+        }),
+      ).rejects.toThrow('La cantidad debe ser un entero positivo.');
+
+      expect(connection.startSession).not.toHaveBeenCalled();
+      expect(orderModel.create).not.toHaveBeenCalled();
+    },
+  );
 
   it('redondea la reserva de compra incluyendo la comision estimada', async () => {
     const user = {

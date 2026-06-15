@@ -119,13 +119,52 @@ describe('MarketService', () => {
 
     await service.listStocks({ search: 'AAPL.*', page: 1, limit: 50 });
 
-    const escapedRegex = { $regex: 'AAPL\\.\\*', $options: 'i' };
+    const escapedRegex = { $regex: '^AAPL\\.\\*', $options: 'i' };
     expect(stockModel.find).toHaveBeenCalledWith({
       $or: [{ symbol: escapedRegex }, { name: escapedRegex }],
     });
     expect(stockModel.countDocuments).toHaveBeenCalledWith({
       $or: [{ symbol: escapedRegex }, { name: escapedRegex }],
     });
+  });
+
+  it('ignora una búsqueda vacía después de normalizar espacios', async () => {
+    const exec = jest.fn().mockResolvedValue([]);
+    const lean = jest.fn().mockReturnValue({ exec });
+    const limit = jest.fn().mockReturnValue({ lean });
+    const skip = jest.fn().mockReturnValue({ limit });
+    const sort = jest.fn().mockReturnValue({ skip });
+    stockModel.find.mockReturnValue({ sort });
+    stockModel.countDocuments.mockReturnValue({
+      exec: jest.fn().mockResolvedValue(0),
+    });
+
+    await service.listStocks({ search: '   \n  ', page: 1, limit: 50 });
+
+    expect(stockModel.find).toHaveBeenCalledWith({});
+    expect(stockModel.countDocuments).toHaveBeenCalledWith({});
+  });
+
+  it('normaliza espacios y limita búsquedas largas a 64 caracteres', async () => {
+    const exec = jest.fn().mockResolvedValue([]);
+    const lean = jest.fn().mockReturnValue({ exec });
+    const limit = jest.fn().mockReturnValue({ lean });
+    const skip = jest.fn().mockReturnValue({ limit });
+    const sort = jest.fn().mockReturnValue({ skip });
+    stockModel.find.mockReturnValue({ sort });
+    stockModel.countDocuments.mockReturnValue({
+      exec: jest.fn().mockResolvedValue(0),
+    });
+    const search = `  Banco   ${'A'.repeat(100)}  `;
+    const expectedTerm = `Banco ${'A'.repeat(58)}`;
+    const expectedRegex = { $regex: `^${expectedTerm}`, $options: 'i' };
+
+    await service.listStocks({ search, page: 1, limit: 50 });
+
+    expect(stockModel.find).toHaveBeenCalledWith({
+      $or: [{ symbol: expectedRegex }, { name: expectedRegex }],
+    });
+    expect(expectedTerm).toHaveLength(64);
   });
 
   it('obtiene el historial de precios en orden cronologico', async () => {

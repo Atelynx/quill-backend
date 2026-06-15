@@ -26,6 +26,26 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+function getDuplicateUserField(error: unknown): 'email' | 'username' | null {
+  if (
+    typeof error !== 'object' ||
+    error === null ||
+    !('code' in error) ||
+    error.code !== 11000
+  ) {
+    return null;
+  }
+
+  const duplicate = error as {
+    keyPattern?: Record<string, unknown>;
+    keyValue?: Record<string, unknown>;
+  };
+  const fields = Object.keys(duplicate.keyPattern ?? duplicate.keyValue ?? {});
+  if (fields.includes('email')) return 'email';
+  if (fields.includes('username')) return 'username';
+  return null;
+}
+
 const MAX_WATCHLIST_SYMBOLS = 50;
 
 @Injectable()
@@ -73,14 +93,25 @@ export class UsersService {
     const initialBalance =
       adminBalance ?? this.configService.get<number>('INITIAL_BALANCE', 100000);
 
-    return this.userModel.create({
-      fullName: input.fullName,
-      email: normalizedEmail,
-      passwordHash: input.passwordHash,
-      username: username.toLowerCase(),
-      availableBalance: initialBalance,
-      reservedBalance: 0,
-    });
+    try {
+      return await this.userModel.create({
+        fullName: input.fullName,
+        email: normalizedEmail,
+        passwordHash: input.passwordHash,
+        username: username.toLowerCase(),
+        availableBalance: initialBalance,
+        reservedBalance: 0,
+      });
+    } catch (error) {
+      const duplicateField = getDuplicateUserField(error);
+      if (duplicateField === 'email') {
+        throw new ConflictException('Ya existe una cuenta con ese correo.');
+      }
+      if (duplicateField === 'username') {
+        throw new ConflictException('Ese nombre de usuario ya está en uso.');
+      }
+      throw error;
+    }
   }
 
   private async generateUniqueUsername(): Promise<string> {

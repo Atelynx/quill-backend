@@ -98,7 +98,7 @@ export class CacheService
 
   async reset(): Promise<void> {
     if (this.connected && this.redis) {
-      await this.redis.flushall();
+      await this.redis.flushdb();
       return;
     }
     this.fallbackPolicy.assertAllowed();

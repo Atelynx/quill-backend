@@ -10,6 +10,7 @@ const mockRedisInstance = {
   set: jest.fn().mockResolvedValue(undefined),
   get: jest.fn().mockResolvedValue(null),
   del: jest.fn().mockResolvedValue(undefined),
+  flushdb: jest.fn().mockResolvedValue(undefined),
   flushall: jest.fn().mockResolvedValue(undefined),
   keys: jest.fn().mockResolvedValue([]),
   pttl: jest.fn().mockResolvedValue(-1),
@@ -286,9 +287,10 @@ describe('CacheService', () => {
       expect(mockRedisInstance.del).toHaveBeenCalledWith('k');
     });
 
-    it('reset delegates to redis.flushall', async () => {
+    it('reset clears only the selected Redis database', async () => {
       await service.reset();
-      expect(mockRedisInstance.flushall).toHaveBeenCalled();
+      expect(mockRedisInstance.flushdb).toHaveBeenCalled();
+      expect(mockRedisInstance.flushall).not.toHaveBeenCalled();
     });
 
     it('ttl delegates to redis.pttl', async () => {

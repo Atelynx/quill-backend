@@ -8,3 +8,6 @@ Esta carpeta implementa el store de cache usado por `cache-manager`.
 - `bounded-memory-cache.ts`: mantiene el fallback local limitado y con TTL.
 - Los archivos `*.spec.ts` verifican serialización, límites y política por
   entorno.
+
+`reset()` limpia únicamente la base Redis seleccionada mediante `FLUSHDB`; no
+usa `FLUSHALL` para evitar borrar bases pertenecientes a otras aplicaciones.

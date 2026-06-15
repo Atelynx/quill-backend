@@ -39,6 +39,14 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const MAX_STOCK_SEARCH_LENGTH = 64;
+
+function normalizeStockSearch(value?: string): string {
+  return (
+    value?.trim().replace(/\s+/g, ' ').slice(0, MAX_STOCK_SEARCH_LENGTH) ?? ''
+  );
+}
+
 @Injectable()
 export class MarketService implements OnModuleInit {
   constructor(
@@ -124,8 +132,12 @@ export class MarketService implements OnModuleInit {
       filter.source = source;
     }
 
-    if (search) {
-      const regex = { $regex: escapeRegExp(search), $options: 'i' };
+    const normalizedSearch = normalizeStockSearch(search);
+    if (normalizedSearch) {
+      const regex = {
+        $regex: `^${escapeRegExp(normalizedSearch)}`,
+        $options: 'i',
+      };
       filter.$or = [{ symbol: regex }, { name: regex }];
     }
 

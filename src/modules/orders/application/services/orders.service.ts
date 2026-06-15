@@ -46,12 +46,12 @@ export class OrdersService {
 
   async createOrder(userId: string, dto: CreateOrderDto) {
     const symbol = dto.symbol.toUpperCase();
-    const normalizedQuantity = Math.floor(dto.quantity);
 
-    if (normalizedQuantity < 1) {
+    if (!Number.isInteger(dto.quantity) || dto.quantity < 1) {
       throw new BadRequestException('La cantidad debe ser un entero positivo.');
     }
 
+    const normalizedQuantity = dto.quantity;
     const type = dto.type ?? 'LIMIT';
 
     if (type === 'MARKET') {

@@ -217,6 +217,44 @@ describe('UsersService', () => {
 
       expect(userModel.create).not.toHaveBeenCalled();
     });
+
+    it('traduce una colision concurrente de email a conflicto', async () => {
+      userModel.exists.mockResolvedValue(null);
+      configService.get.mockReturnValue(100000);
+      userModel.create.mockRejectedValue({
+        code: 11000,
+        keyPattern: { email: 1 },
+        keyValue: { email: 'ana@quill.dev' },
+      });
+
+      await expect(
+        service.createUser({
+          fullName: 'Ana Lopez',
+          email: 'ANA@QUILL.DEV',
+          passwordHash: 'hashed-password',
+          username: 'ana',
+        }),
+      ).rejects.toThrow('Ya existe una cuenta con ese correo.');
+    });
+
+    it('traduce una colision concurrente de username a conflicto', async () => {
+      userModel.exists.mockResolvedValue(null);
+      configService.get.mockReturnValue(100000);
+      userModel.create.mockRejectedValue({
+        code: 11000,
+        keyPattern: { username: 1 },
+        keyValue: { username: 'ana' },
+      });
+
+      await expect(
+        service.createUser({
+          fullName: 'Ana Lopez',
+          email: 'ana@quill.dev',
+          passwordHash: 'hashed-password',
+          username: 'Ana',
+        }),
+      ).rejects.toThrow('Ese nombre de usuario ya está en uso.');
+    });
   });
 
   describe('findByEmail', () => {
