@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import Decimal from 'decimal.js';
@@ -78,16 +78,19 @@ export class PortfolioService {
 
       if (currency !== 'CLP') {
         const rate = await this.getRate(currency);
-        if (rate !== null) {
-          marketValueCLP = new Decimal(marketValueNative)
-            .times(rate)
-            .toDecimalPlaces(2)
-            .toNumber();
-          unrealizedPnlCLP = new Decimal(unrealizedPnlNative)
-            .times(rate)
-            .toDecimalPlaces(2)
-            .toNumber();
+        if (rate === null) {
+          throw new ServiceUnavailableException(
+            `Tipo de cambio no disponible para ${currency}.`,
+          );
         }
+        marketValueCLP = new Decimal(marketValueNative)
+          .times(rate)
+          .toDecimalPlaces(2)
+          .toNumber();
+        unrealizedPnlCLP = new Decimal(unrealizedPnlNative)
+          .times(rate)
+          .toDecimalPlaces(2)
+          .toNumber();
       }
 
       investedValueCLP = investedValueCLP.plus(marketValueCLP);

@@ -1,3 +1,4 @@
+import { ServiceUnavailableException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { PortfolioService } from './portfolio.service';
 
@@ -227,7 +228,7 @@ describe('PortfolioService', () => {
     expect(currencyRateService.getRate).toHaveBeenCalledWith('USDCLP');
   });
 
-  it('tolera tasa de cambio no disponible sin romper el resumen', async () => {
+  it('rechaza el resumen cuando una posición USD no tiene tasa disponible', async () => {
     const positionModel = {
       find: jest.fn().mockReturnValue(
         createLeanQuery([
@@ -268,11 +269,11 @@ describe('PortfolioService', () => {
       currencyRateService as never,
     );
 
-    const summary = await service.getSummary(new Types.ObjectId().toString());
-
-    // If rate is unavailable, fall back to native values without crashing
-    expect(summary.investedValue).toBe(2000);
-    expect(summary.positions[0].marketValue).toBe(2000);
+    await expect(
+      service.getSummary(new Types.ObjectId().toString()),
+    ).rejects.toThrow(
+      new ServiceUnavailableException('Tipo de cambio no disponible para USD.'),
+    );
     expect(currencyRateService.getRate).toHaveBeenCalledWith('USDCLP');
   });
 });
