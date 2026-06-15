@@ -5,8 +5,8 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { ClientSession, Connection, Model, Types } from 'mongoose';
 import {
   AdminConfig,
   AdminConfigDocument,
@@ -27,6 +27,7 @@ export class AdminConfigService implements OnModuleInit {
     private readonly adminConfigModel: Model<AdminConfigDocument>,
     @InjectModel(ConfigSnapshot.name)
     private readonly snapshotModel: Model<ConfigSnapshotDocument>,
+    @InjectConnection() private readonly connection: Connection,
     private readonly configService: ConfigService,
   ) {}
 
@@ -93,32 +94,37 @@ export class AdminConfigService implements OnModuleInit {
   ): Promise<AdminConfigDocument> {
     validateAdminConfigValue(key, value);
 
-    await this.adminConfigModel
-      .updateMany({ key }, { $set: { inUse: false } })
-      .exec();
+    const session = await this.connection.startSession();
+    try {
+      let createdConfig: AdminConfigDocument | undefined;
+      await session.withTransaction(async () => {
+        await this.adminConfigModel
+          .updateMany({ key, inUse: true }, { $set: { inUse: false } })
+          .session(session)
+          .exec();
 
-    const [doc] = await this.adminConfigModel.create([
-      {
-        key,
-        value,
-        name: options?.name,
-        tags: options?.tags,
-        inUse: true,
-        updatedBy: options?.updatedBy
-          ? new Types.ObjectId(options.updatedBy)
-          : undefined,
-      },
-    ]);
+        [createdConfig] = await this.adminConfigModel.create(
+          [this.buildConfig(key, value, options)],
+          { session },
+        );
 
-    const shouldSnapshot = options?.createSnapshot ?? true;
-    if (shouldSnapshot) {
-      const label = options?.name ?? value;
-      await this.createManualSnapshot(
-        `Auto · ${key} → ${JSON.stringify(label)}`,
-      );
+        if (options?.createSnapshot ?? true) {
+          const label = options?.name ?? value;
+          await this.createSnapshot(
+            `Auto · ${key} → ${JSON.stringify(label)}`,
+            undefined,
+            session,
+          );
+        }
+      });
+
+      if (!createdConfig) {
+        throw new Error('No se pudo crear la configuración.');
+      }
+      return createdConfig;
+    } finally {
+      await session.endSession();
     }
-
-    return doc;
   }
 
   async getHistory(key: string): Promise<AdminConfigDocument[]> {
@@ -137,25 +143,7 @@ export class AdminConfigService implements OnModuleInit {
     name?: string,
     createdBy?: string,
   ): Promise<ConfigSnapshotDocument> {
-    const activeConfigs = await this.adminConfigModel
-      .find({ inUse: true })
-      .lean()
-      .exec();
-
-    const configs: Record<string, unknown> = {};
-    for (const c of activeConfigs) {
-      configs[c.key] = c.value;
-    }
-
-    const [snapshot] = await this.snapshotModel.create([
-      {
-        configs,
-        name: name ?? `Manual · ${new Date().toISOString()}`,
-        createdBy: createdBy ? new Types.ObjectId(createdBy) : undefined,
-      },
-    ]);
-
-    return snapshot;
+    return this.createSnapshot(name, createdBy);
   }
 
   async restoreSnapshot(snapshotId: string): Promise<ConfigSnapshotDocument> {
@@ -165,23 +153,92 @@ export class AdminConfigService implements OnModuleInit {
       throw new NotFoundException('Snapshot no encontrado.');
     }
 
-    for (const [key, value] of Object.entries(snapshot.configs)) {
-      await this.set(key, value, { createSnapshot: false });
+    const configs = Object.entries(snapshot.configs);
+    for (const [key, value] of configs) {
+      validateAdminConfigValue(key, value);
     }
 
-    const [audit] = await this.snapshotModel.create([
-      {
-        configs: { ...snapshot.configs },
-        name: `Restore · ${snapshot.name ?? snapshotId}`,
-      },
-    ]);
+    const session = await this.connection.startSession();
+    try {
+      let audit: ConfigSnapshotDocument | undefined;
+      await session.withTransaction(async () => {
+        await this.adminConfigModel
+          .updateMany({ inUse: true }, { $set: { inUse: false } })
+          .session(session)
+          .exec();
 
-    return audit;
+        if (configs.length) {
+          await this.adminConfigModel.create(
+            configs.map(([key, value]) => this.buildConfig(key, value)),
+            { session },
+          );
+        }
+
+        [audit] = await this.snapshotModel.create(
+          [
+            {
+              configs: { ...snapshot.configs },
+              name: `Restore · ${snapshot.name ?? snapshotId}`,
+            },
+          ],
+          { session },
+        );
+      });
+
+      if (!audit) {
+        throw new Error('No se pudo auditar la restauración.');
+      }
+      return audit;
+    } finally {
+      await session.endSession();
+    }
   }
 
   async markUsed(key: string): Promise<void> {
     await this.adminConfigModel
       .updateOne({ key, inUse: true }, { $set: { lastUsedAt: new Date() } })
       .exec();
+  }
+
+  private buildConfig(
+    key: string,
+    value: unknown,
+    options?: { name?: string; tags?: string[]; updatedBy?: string },
+  ) {
+    return {
+      key,
+      value,
+      name: options?.name,
+      tags: options?.tags,
+      inUse: true,
+      updatedBy: options?.updatedBy
+        ? new Types.ObjectId(options.updatedBy)
+        : undefined,
+    };
+  }
+
+  private async createSnapshot(
+    name?: string,
+    createdBy?: string,
+    session?: ClientSession,
+  ): Promise<ConfigSnapshotDocument> {
+    const query = this.adminConfigModel.find({ inUse: true }).lean();
+    if (session) query.session(session);
+    const activeConfigs = await query.exec();
+    const configs = Object.fromEntries(
+      activeConfigs.map((config) => [config.key, config.value]),
+    );
+
+    const [snapshot] = await this.snapshotModel.create(
+      [
+        {
+          configs,
+          name: name ?? `Manual · ${new Date().toISOString()}`,
+          createdBy: createdBy ? new Types.ObjectId(createdBy) : undefined,
+        },
+      ],
+      session ? { session } : undefined,
+    );
+    return snapshot;
   }
 }

@@ -102,25 +102,16 @@ describe('RealtimeGateway', () => {
       expect(socket.disconnect).not.toHaveBeenCalled();
     });
 
-    it('reads token from query if not in auth', async () => {
+    it('rechaza tokens enviados mediante query string', async () => {
       if (socket.handshake) {
         socket.handshake.query = { token: 'query-token' };
       }
-      jwtService.verifyAsync.mockResolvedValue({
-        sub: 'user-456',
-        tokenVersion: 1,
-      });
-      usersService.findById.mockResolvedValue({
-        id: 'user-456',
-        email: 'user@quill.dev',
-        role: 'investor',
-        tokenVersion: 1,
-      });
 
       await gateway.handleConnection(socket as Socket);
 
-      expect(jwtService.verifyAsync).toHaveBeenCalledWith('query-token');
-      expect(socket.join).toHaveBeenCalledWith('user:user-456');
+      expect(jwtService.verifyAsync).not.toHaveBeenCalled();
+      expect(socket.disconnect).toHaveBeenCalled();
+      expect(socket.join).not.toHaveBeenCalled();
     });
 
     it('disconnects when token has been revoked', async () => {

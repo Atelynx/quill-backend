@@ -11,3 +11,7 @@ Esta carpeta contiene casos de uso del modulo `market`.
 
 Los servicios son provider-agnosticos. Cada provider maneja su propio cacheo,
 llamadas a API externa, y estrategia de fallback internamente.
+
+El precio vivo ejecutable se almacena en `stock:{symbol}:live_price`. Las
+órdenes LIMIT lo priorizan y usan el cierre persistido solo como fallback
+explícito cuando el precio vivo no está disponible o no es válido.

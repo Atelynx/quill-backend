@@ -54,6 +54,7 @@ describe('OrderExecutionService', () => {
   let tradeModel: { create: jest.Mock };
   let commissionService: { calculate: jest.Mock };
   let currencyRateService: { getRate: jest.Mock };
+  let cacheService: { get: jest.Mock };
   let errorSpy: jest.SpyInstance;
 
   beforeEach(() => {
@@ -79,6 +80,7 @@ describe('OrderExecutionService', () => {
     tradeModel = { create: jest.fn().mockResolvedValue(undefined) };
     commissionService = { calculate: jest.fn() };
     currencyRateService = { getRate: jest.fn() };
+    cacheService = { get: jest.fn().mockResolvedValue(undefined) };
     service = new OrderExecutionService(
       {} as never,
       marketService as never,
@@ -90,7 +92,7 @@ describe('OrderExecutionService', () => {
       tradeModel as never,
       commissionService as never,
       { get: jest.fn() } as never,
-      { get: jest.fn() } as never,
+      cacheService as never,
       currencyRateService as never,
     ) as unknown as ServiceInternals;
     errorSpy = jest
@@ -160,6 +162,30 @@ describe('OrderExecutionService', () => {
       ],
       { session },
     );
+  });
+
+  it('ejecuta una orden LIMIT con el precio vivo cuando cruza el limite', async () => {
+    const currentOrder = order('BUY', { limitPrice: 95 });
+    const user = {
+      id: currentOrder.userId.toString(),
+      availableBalance: 797.5,
+      reservedBalance: 202.5,
+      save: jest.fn(),
+    };
+    cacheService.get.mockResolvedValue(90);
+    userModel.findById.mockReturnValue(query(user));
+    positionModel.findOne.mockReturnValue(query(null));
+    commissionService.calculate.mockResolvedValue(1);
+
+    await executeWith(currentOrder, 100);
+
+    expect(cacheService.get).toHaveBeenCalledWith(
+      `stock:${currentOrder.symbol}:live_price`,
+    );
+    expect(currentOrder).toMatchObject({
+      status: 'EXECUTED',
+      executionPrice: 90,
+    });
   });
 
   it('crea una posicion nueva cuando compra sin posicion previa', async () => {

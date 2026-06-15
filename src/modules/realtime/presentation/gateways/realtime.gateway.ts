@@ -51,13 +51,7 @@ export class RealtimeGateway
 
   async handleConnection(socket: Socket): Promise<void> {
     const authToken: unknown = socket.handshake.auth.token;
-    const queryToken: unknown = socket.handshake.query.token;
-    const token =
-      typeof authToken === 'string'
-        ? authToken
-        : typeof queryToken === 'string'
-          ? queryToken
-          : undefined;
+    const token = typeof authToken === 'string' ? authToken : undefined;
     if (!token) {
       socket.disconnect();
       return;

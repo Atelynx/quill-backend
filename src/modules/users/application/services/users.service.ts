@@ -153,6 +153,7 @@ export class UsersService {
     }
 
     user.email = newEmail.toLowerCase();
+    user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();
   }
 

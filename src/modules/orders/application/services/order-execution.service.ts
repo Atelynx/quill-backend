@@ -88,12 +88,7 @@ export class OrderExecutionService {
   private async processPendingOrders(
     quotes: Array<{ symbol: string; close: number; currency?: string }>,
   ): Promise<void> {
-    const quoteMap = new Map(
-      quotes.map((quote) => [
-        quote.symbol,
-        { price: quote.close, currency: quote.currency },
-      ]),
-    );
+    const quoteMap = new Map(quotes.map((quote) => [quote.symbol, quote]));
 
     const pendingOrders = await this.orderModel
       .find({ status: 'PENDING' })
@@ -101,10 +96,44 @@ export class OrderExecutionService {
 
     for (const order of pendingOrders) {
       const quote = quoteMap.get(order.symbol);
-      if (quote && this.shouldExecute(order, quote.price)) {
-        await this.executeOrder(order, quote.price, quote.currency);
+      if (!quote) continue;
+
+      const executablePrice = await this.resolveExecutablePrice(
+        order.symbol,
+        quote.close,
+      );
+      if (
+        executablePrice !== null &&
+        this.shouldExecute(order, executablePrice)
+      ) {
+        await this.executeOrder(order, executablePrice, quote.currency);
       }
     }
+  }
+
+  private async resolveExecutablePrice(
+    symbol: string,
+    persistedPrice: number,
+  ): Promise<number | null> {
+    try {
+      const livePrice = await this.cacheService.get<number>(
+        `stock:${symbol}:live_price`,
+      );
+      if (this.isValidPrice(livePrice)) {
+        return livePrice;
+      }
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo consultar el precio vivo de ${symbol}; se usará el precio persistido.`,
+        error,
+      );
+    }
+
+    return this.isValidPrice(persistedPrice) ? persistedPrice : null;
+  }
+
+  private isValidPrice(price: unknown): price is number {
+    return typeof price === 'number' && Number.isFinite(price) && price > 0;
   }
 
   private shouldExecute(order: OrderDocument, marketPrice: number): boolean {

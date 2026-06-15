@@ -285,11 +285,12 @@ describe('UsersService', () => {
   });
 
   describe('changeEmail', () => {
-    it('cambia el email si la contraseña es correcta', async () => {
+    it('cambia el email e invalida los tokens anteriores', async () => {
       const user = {
         _id: 'user-1',
         email: 'old@quill.dev',
         passwordHash: 'hashed',
+        tokenVersion: 4,
         save: jest.fn().mockResolvedValue(true),
       } satisfies MutableDocumentMock;
       userModel.findById.mockReturnValue(createExecQuery(user));
@@ -299,6 +300,7 @@ describe('UsersService', () => {
       await service.changeEmail('user-1', 'correct-password', 'new@quill.dev');
 
       expect(user.email).toBe('new@quill.dev');
+      expect(user.tokenVersion).toBe(5);
       expect(user.save).toHaveBeenCalled();
     });
 
