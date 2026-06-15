@@ -33,8 +33,9 @@ npm run lint:check
   esta disponible.
 - `GET /api/system/health`: alias compatible de readiness.
 
-Redis usa fallback en memoria cuando no esta disponible, por lo que readiness
-queda degradado pero operativo. El healthcheck de producción usa readiness.
+Redis usa fallback en memoria cuando no esta disponible. En desarrollo y test,
+readiness queda degradado pero operativo; en producción Redis es requerido y
+readiness responde HTTP 503. El healthcheck de producción usa readiness.
 
 ## Cobertura unitaria
 

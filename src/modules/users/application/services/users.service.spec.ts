@@ -531,6 +531,38 @@ describe('UsersService', () => {
       await expect(
         service.sendFriendRequest(userId, friendId),
       ).rejects.toBeInstanceOf(ConflictException);
+
+      const filter = firstCallArgument(friendshipModel.exists) as {
+        $or: Array<{ userId: Types.ObjectId; friendId: Types.ObjectId }>;
+      };
+      expect(filter.$or).toEqual([
+        {
+          userId: new Types.ObjectId(userId),
+          friendId: new Types.ObjectId(friendId),
+        },
+        {
+          userId: new Types.ObjectId(friendId),
+          friendId: new Types.ObjectId(userId),
+        },
+      ]);
+    });
+
+    it('rechaza una solicitud inversa cuando ya existe A hacia B', async () => {
+      userModel.findById.mockReturnValue(createExecQuery({ _id: userId }));
+      friendshipModel.exists.mockResolvedValue({ _id: 'a-to-b' });
+
+      await expect(
+        service.sendFriendRequest(friendId, userId),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      const filter = firstCallArgument(friendshipModel.exists) as {
+        $or: Array<{ userId: Types.ObjectId; friendId: Types.ObjectId }>;
+      };
+      expect(filter.$or).toContainEqual({
+        userId: new Types.ObjectId(userId),
+        friendId: new Types.ObjectId(friendId),
+      });
+      expect(friendshipModel.create).not.toHaveBeenCalled();
     });
 
     it('acepta solicitud de amistad', async () => {
@@ -587,8 +619,62 @@ describe('UsersService', () => {
 
       const friends = await service.getFriends(userId);
 
-      expect(friends).toHaveLength(1);
-      expect(friends[0].fullName).toBe('Friend');
+      expect(friends).toEqual([
+        {
+          _id: friendId,
+          id: friendId,
+          fullName: 'Friend',
+          email: 'friend@quill.dev',
+          username: 'friend_user',
+        },
+      ]);
+    });
+
+    it('lista solicitudes pendientes con contrato compatible', async () => {
+      const requestId = new Types.ObjectId();
+      const createdAt = new Date('2026-06-15T10:00:00.000Z');
+      friendshipModel.find.mockReturnValue(
+        createLeanQuery([
+          {
+            _id: requestId,
+            userId: new Types.ObjectId(friendId),
+            friendId: new Types.ObjectId(userId),
+            status: 'pending',
+            createdAt,
+          },
+        ]),
+      );
+      userModel.find.mockReturnValue(
+        createLeanQuery([
+          {
+            _id: new Types.ObjectId(friendId),
+            fullName: 'Friend',
+            email: 'friend@quill.dev',
+            username: 'friend_user',
+          },
+        ]),
+      );
+
+      expect(await service.getPendingRequests(userId)).toEqual([
+        {
+          _id: requestId.toString(),
+          id: requestId.toString(),
+          from: {
+            _id: friendId,
+            id: friendId,
+            fullName: 'Friend',
+            email: 'friend@quill.dev',
+            username: 'friend_user',
+          },
+          fromUserId: friendId,
+          fullName: 'Friend',
+          email: 'friend@quill.dev',
+          username: 'friend_user',
+          status: 'pending',
+          createdAt,
+          requestedAt: createdAt,
+        },
+      ]);
     });
   });
 

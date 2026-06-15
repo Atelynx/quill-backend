@@ -6,7 +6,11 @@ describe('HealthService', () => {
     const cacheService = {
       isConnected: jest.fn(),
     };
-    const service = new HealthService({} as never, cacheService as never);
+    const service = new HealthService(
+      {} as never,
+      cacheService as never,
+      { get: jest.fn().mockReturnValue('test') } as never,
+    );
 
     const result = service.getLiveness();
 
@@ -23,6 +27,7 @@ describe('HealthService', () => {
       {
         isConnected: jest.fn().mockReturnValue(true),
       } as never,
+      { get: jest.fn().mockReturnValue('production') } as never,
     );
 
     const result = service.getReadiness();
@@ -44,6 +49,7 @@ describe('HealthService', () => {
       {
         isConnected: jest.fn().mockReturnValue(false),
       } as never,
+      { get: jest.fn().mockReturnValue('production') } as never,
     );
 
     expect(service.getReadiness()).toMatchObject({
@@ -56,10 +62,28 @@ describe('HealthService', () => {
     });
   });
 
-  it('mantiene readiness degradado pero exitoso cuando redis usa fallback', () => {
+  it('marca readiness fallido en produccion cuando redis usa fallback', () => {
     const service = new HealthService(
       { readyState: ConnectionStates.connected } as never,
       { isConnected: jest.fn().mockReturnValue(false) } as never,
+      { get: jest.fn().mockReturnValue('production') } as never,
+    );
+
+    expect(service.getReadiness()).toMatchObject({
+      status: 'error',
+      ready: false,
+      services: {
+        mongodb: 'up',
+        redis: 'fallback',
+      },
+    });
+  });
+
+  it('mantiene readiness degradado en desarrollo cuando redis usa fallback', () => {
+    const service = new HealthService(
+      { readyState: ConnectionStates.connected } as never,
+      { isConnected: jest.fn().mockReturnValue(false) } as never,
+      { get: jest.fn().mockReturnValue('development') } as never,
     );
 
     expect(service.getReadiness()).toMatchObject({

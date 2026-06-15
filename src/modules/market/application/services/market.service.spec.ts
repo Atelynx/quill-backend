@@ -8,6 +8,7 @@ describe('MarketService', () => {
     findOne: jest.Mock;
     findOneAndUpdate: jest.Mock;
     deleteOne: jest.Mock;
+    countDocuments: jest.Mock;
   };
   let snapshotModel: {
     find: jest.Mock;
@@ -38,6 +39,7 @@ describe('MarketService', () => {
       findOne: jest.fn(),
       findOneAndUpdate: jest.fn(),
       deleteOne: jest.fn(),
+      countDocuments: jest.fn(),
     };
     snapshotModel = {
       find: jest.fn(),
@@ -102,6 +104,28 @@ describe('MarketService', () => {
 
     expect(sort).toHaveBeenCalledWith({ symbol: 1 });
     expect(result).toEqual([{ symbol: 'AAPL' }]);
+  });
+
+  it('escapa metacaracteres regex al buscar stocks', async () => {
+    const exec = jest.fn().mockResolvedValue([]);
+    const lean = jest.fn().mockReturnValue({ exec });
+    const limit = jest.fn().mockReturnValue({ lean });
+    const skip = jest.fn().mockReturnValue({ limit });
+    const sort = jest.fn().mockReturnValue({ skip });
+    stockModel.find.mockReturnValue({ sort });
+    stockModel.countDocuments.mockReturnValue({
+      exec: jest.fn().mockResolvedValue(0),
+    });
+
+    await service.listStocks({ search: 'AAPL.*', page: 1, limit: 50 });
+
+    const escapedRegex = { $regex: 'AAPL\\.\\*', $options: 'i' };
+    expect(stockModel.find).toHaveBeenCalledWith({
+      $or: [{ symbol: escapedRegex }, { name: escapedRegex }],
+    });
+    expect(stockModel.countDocuments).toHaveBeenCalledWith({
+      $or: [{ symbol: escapedRegex }, { name: escapedRegex }],
+    });
   });
 
   it('obtiene el historial de precios en orden cronologico', async () => {

@@ -249,9 +249,13 @@ export class UsersService {
       throw new NotFoundException('Usuario no encontrado.');
     }
 
+    const userObjectId = new Types.ObjectId(userId);
+    const friendObjectId = new Types.ObjectId(friendId);
     const existing = await this.friendshipModel.exists({
-      userId: new Types.ObjectId(userId),
-      friendId: new Types.ObjectId(friendId),
+      $or: [
+        { userId: userObjectId, friendId: friendObjectId },
+        { userId: friendObjectId, friendId: userObjectId },
+      ],
     });
 
     if (existing) {
@@ -259,8 +263,8 @@ export class UsersService {
     }
 
     await this.friendshipModel.create({
-      userId: new Types.ObjectId(userId),
-      friendId: new Types.ObjectId(friendId),
+      userId: userObjectId,
+      friendId: friendObjectId,
       status: 'pending',
     });
   }
@@ -323,12 +327,16 @@ export class UsersService {
       .lean()
       .exec();
 
-    return friends.map((f) => ({
-      id: f._id.toString(),
-      fullName: f.fullName,
-      email: f.email,
-      username: f.username ?? null,
-    }));
+    return friends.map((f) => {
+      const id = f._id.toString();
+      return {
+        _id: id,
+        id,
+        fullName: f.fullName,
+        email: f.email,
+        username: f.username ?? null,
+      };
+    });
   }
 
   async getPendingRequests(userId: string) {
@@ -352,12 +360,25 @@ export class UsersService {
 
     return requests.map((r) => {
       const u = userMap.get(r.userId.toString());
-      return {
-        id: r._id.toString(),
-        fromUserId: r.userId.toString(),
+      const id = r._id.toString();
+      const fromUserId = r.userId.toString();
+      const from = {
+        _id: fromUserId,
+        id: fromUserId,
         fullName: u?.fullName ?? null,
         email: u?.email ?? null,
         username: u?.username ?? null,
+      };
+      return {
+        _id: id,
+        id,
+        from,
+        fromUserId,
+        fullName: from.fullName,
+        email: from.email,
+        username: from.username,
+        status: r.status,
+        createdAt: r.createdAt,
         requestedAt: r.createdAt,
       };
     });

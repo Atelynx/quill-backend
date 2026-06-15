@@ -35,6 +35,10 @@ import {
   TradeDocument,
 } from '../../../trades/infrastructure/schemas/trade.schema';
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 @Injectable()
 export class MarketService implements OnModuleInit {
   constructor(
@@ -121,7 +125,7 @@ export class MarketService implements OnModuleInit {
     }
 
     if (search) {
-      const regex = { $regex: search, $options: 'i' };
+      const regex = { $regex: escapeRegExp(search), $options: 'i' };
       filter.$or = [{ symbol: regex }, { name: regex }];
     }
 

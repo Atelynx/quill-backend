@@ -38,4 +38,19 @@ describe('SystemController', () => {
       expect((error as ServiceUnavailableException).getStatus()).toBe(503);
     }
   });
+
+  it('responde HTTP 503 cuando Redis requerido no esta disponible', () => {
+    const controller = new SystemController({
+      getReadiness: jest.fn().mockReturnValue({
+        status: 'error',
+        ready: false,
+        services: { mongodb: 'up', redis: 'fallback' },
+        timestamp: new Date().toISOString(),
+      }),
+    } as never);
+
+    expect(() => controller.getReadiness()).toThrow(
+      ServiceUnavailableException,
+    );
+  });
 });
