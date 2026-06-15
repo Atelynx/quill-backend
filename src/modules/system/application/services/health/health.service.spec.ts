@@ -2,7 +2,20 @@ import { ConnectionStates } from 'mongoose';
 import { HealthService } from './health.service';
 
 describe('HealthService', () => {
-  it('informa mongodb y redis como disponibles', () => {
+  it('informa que el proceso esta vivo sin consultar dependencias', () => {
+    const cacheService = {
+      isConnected: jest.fn(),
+    };
+    const service = new HealthService({} as never, cacheService as never);
+
+    const result = service.getLiveness();
+
+    expect(result.status).toBe('ok');
+    expect(result.timestamp).toEqual(expect.any(String));
+    expect(cacheService.isConnected).not.toHaveBeenCalled();
+  });
+
+  it('informa readiness exitoso con mongodb y redis disponibles', () => {
     const service = new HealthService(
       {
         readyState: ConnectionStates.connected,
@@ -12,9 +25,10 @@ describe('HealthService', () => {
       } as never,
     );
 
-    const result = service.getStatus();
+    const result = service.getReadiness();
 
     expect(result.status).toBe('ok');
+    expect(result.ready).toBe(true);
     expect(result.services).toEqual({
       mongodb: 'up',
       redis: 'up',
@@ -22,7 +36,7 @@ describe('HealthService', () => {
     expect(result.timestamp).toEqual(expect.any(String));
   });
 
-  it('marca redis en fallback y mongodb abajo cuando no estan disponibles', () => {
+  it('informa readiness fallido cuando mongodb esta caido', () => {
     const service = new HealthService(
       {
         readyState: ConnectionStates.disconnected,
@@ -32,8 +46,9 @@ describe('HealthService', () => {
       } as never,
     );
 
-    expect(service.getStatus()).toMatchObject({
+    expect(service.getReadiness()).toMatchObject({
       status: 'error',
+      ready: false,
       services: {
         mongodb: 'down',
         redis: 'fallback',
@@ -41,12 +56,19 @@ describe('HealthService', () => {
     });
   });
 
-  it('informa estado degradado cuando solo redis usa fallback', () => {
+  it('mantiene readiness degradado pero exitoso cuando redis usa fallback', () => {
     const service = new HealthService(
       { readyState: ConnectionStates.connected } as never,
       { isConnected: jest.fn().mockReturnValue(false) } as never,
     );
 
-    expect(service.getStatus().status).toBe('degraded');
+    expect(service.getReadiness()).toMatchObject({
+      status: 'degraded',
+      ready: true,
+      services: {
+        mongodb: 'up',
+        redis: 'fallback',
+      },
+    });
   });
 });

@@ -26,6 +26,16 @@ npm run lint:check
 `npm run lint` mantiene el autofix para desarrollo local. CI usa
 `npm run lint:check` para validar sin modificar archivos.
 
+## Healthchecks
+
+- `GET /api/system/health/live`: liveness del proceso.
+- `GET /api/system/health/ready`: readiness; responde HTTP 503 si MongoDB no
+  esta disponible.
+- `GET /api/system/health`: alias compatible de readiness.
+
+Redis usa fallback en memoria cuando no esta disponible, por lo que readiness
+queda degradado pero operativo. El healthcheck de producción usa readiness.
+
 ## Cobertura unitaria
 
 Servicios con tests: `AuthService`, `CommissionService`, `OrderExecutionService`, `OrdersService`, `PortfolioService`, `UsersService`, `HealthService`, `TradesService`, `MarketService`.

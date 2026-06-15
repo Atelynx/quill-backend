@@ -10,17 +10,29 @@ export class HealthService {
     private readonly cacheService: CacheService,
   ) {}
 
-  getStatus() {
+  getLiveness() {
+    return {
+      status: 'ok' as const,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  getReadiness() {
     const mongodbUp = this.connection.readyState === ConnectionStates.connected;
     const redisUp = this.cacheService.isConnected();
 
     return {
       status: mongodbUp ? (redisUp ? 'ok' : 'degraded') : 'error',
+      ready: mongodbUp,
       services: {
         mongodb: mongodbUp ? 'up' : 'down',
         redis: redisUp ? 'up' : 'fallback',
       },
       timestamp: new Date().toISOString(),
     };
+  }
+
+  getStatus() {
+    return this.getReadiness();
   }
 }

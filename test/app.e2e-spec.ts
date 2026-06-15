@@ -9,10 +9,16 @@ import {
 
 interface HealthResponse {
   status: string;
+  ready: boolean;
   services: {
     mongodb: string;
     redis: string;
   };
+  timestamp: string;
+}
+
+interface LivenessResponse {
+  status: string;
   timestamp: string;
 }
 
@@ -91,12 +97,20 @@ describe('Quill API (e2e)', () => {
     }
   });
 
-  it('responde con el estado de salud del sistema', async () => {
+  it('responde liveness y readiness del sistema', async () => {
+    const liveResponse = await request(httpServer)
+      .get('/api/system/health/live')
+      .expect(200);
+    const liveBody = liveResponse.body as LivenessResponse;
+    expect(liveBody.status).toBe('ok');
+    expect(liveBody.timestamp).toEqual(expect.any(String));
+
     const response = await request(httpServer)
-      .get('/api/system/health')
+      .get('/api/system/health/ready')
       .expect(200);
     const body = response.body as HealthResponse;
 
+    expect(body.ready).toBe(true);
     expect(body.services.mongodb).toBe('up');
     expect(['up', 'fallback']).toContain(body.services.redis);
     expect(body.status).toBe(body.services.redis === 'up' ? 'ok' : 'degraded');
