@@ -10,6 +10,22 @@ npm run test:e2e    # E2E
 npm run test:cov    # Cobertura
 ```
 
+## Validación local y CI
+
+El proyecto usa la versión de Node definida en `.nvmrc`. La validación no
+modificadora ejecutada por CI es:
+
+```bash
+npm ci
+npm run typecheck
+npm run build
+npm test -- --runInBand
+npm run lint:check
+```
+
+`npm run lint` mantiene el autofix para desarrollo local. CI usa
+`npm run lint:check` para validar sin modificar archivos.
+
 ## Cobertura unitaria
 
 Servicios con tests: `AuthService`, `CommissionService`, `OrderExecutionService`, `OrdersService`, `PortfolioService`, `UsersService`, `HealthService`, `TradesService`, `MarketService`.
