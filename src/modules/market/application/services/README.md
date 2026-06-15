@@ -15,3 +15,6 @@ llamadas a API externa, y estrategia de fallback internamente.
 El precio vivo ejecutable se almacena en `stock:{symbol}:live_price`. Las
 órdenes LIMIT lo priorizan y usan el cierre persistido solo como fallback
 explícito cuando el precio vivo no está disponible o no es válido.
+
+El calendario bursátil usa la zona `America/Santiago` y bloquea sábados y
+domingos. Los feriados bursátiles no se modelan actualmente.

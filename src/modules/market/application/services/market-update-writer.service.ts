@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import Decimal from 'decimal.js';
@@ -16,6 +16,8 @@ import type { MarketRefreshUpdate } from './market-refresh.types';
 
 @Injectable()
 export class MarketUpdateWriterService {
+  private readonly logger = new Logger(MarketUpdateWriterService.name);
+
   constructor(
     @InjectModel(Stock.name) private readonly stockModel: Model<StockDocument>,
     @InjectModel(PriceSnapshot.name)
@@ -39,8 +41,6 @@ export class MarketUpdateWriterService {
           source: update.quote.source ?? providerName,
         });
       }
-
-      this.cacheQuote(update);
     }
 
     if (stockOperations.length) {
@@ -49,6 +49,16 @@ export class MarketUpdateWriterService {
 
     if (snapshots.length) {
       await this.snapshotModel.insertMany(snapshots);
+    }
+
+    try {
+      await Promise.all(updates.map((update) => this.cacheQuote(update)));
+    } catch (error) {
+      this.logger.error(
+        'No se pudieron actualizar todas las cotizaciones en caché.',
+        error,
+      );
+      throw error;
     }
   }
 
@@ -83,28 +93,23 @@ export class MarketUpdateWriterService {
     };
   }
 
-  private cacheQuote(update: MarketRefreshUpdate): void {
+  private async cacheQuote(update: MarketRefreshUpdate): Promise<void> {
     const symbol = update.stock.symbol;
     const price = update.quote.price;
-    void this.cacheService.set(
-      `market:${symbol}`,
-      {
-        symbol,
-        price,
-        updatedAt: new Date().toISOString(),
-      },
-      this.cacheTtlMs(),
-    );
-    void this.cacheService.set(
-      `stock:${symbol}:base_price`,
-      price,
-      this.cacheTtlMs(),
-    );
-    void this.cacheService.set(
-      `stock:${symbol}:live_price`,
-      price,
-      this.cacheTtlMs(),
-    );
+    const ttl = this.cacheTtlMs();
+    await Promise.all([
+      this.cacheService.set(
+        `market:${symbol}`,
+        {
+          symbol,
+          price,
+          updatedAt: new Date().toISOString(),
+        },
+        ttl,
+      ),
+      this.cacheService.set(`stock:${symbol}:base_price`, price, ttl),
+      this.cacheService.set(`stock:${symbol}:live_price`, price, ttl),
+    ]);
   }
 
   private percent(price: number, previousClose: number): number {

@@ -401,6 +401,11 @@ export class OrderExecutionService {
         `No hay precio disponible para ${symbol}. Intente con una orden LIMIT.`,
       );
     }
+    if (!this.isValidPrice(livePrice)) {
+      throw new BadRequestException(
+        `El precio disponible para ${symbol} no es válido.`,
+      );
+    }
 
     const stock = await this.stockModel
       .findOne({ symbol })
@@ -435,6 +440,12 @@ export class OrderExecutionService {
         .toNumber();
       commissionCLP = await this.commissionService.calculate(grossAmountCLP);
     }
+    this.assertValidMarketAmounts(
+      grossAmountNative,
+      commissionNative,
+      grossAmountCLP,
+      commissionCLP,
+    );
 
     const session = await this.connection.startSession();
     try {
@@ -671,6 +682,29 @@ export class OrderExecutionService {
     }
 
     return entry.rate;
+  }
+
+  private assertValidMarketAmounts(
+    grossAmountNative: number,
+    commissionNative: number,
+    grossAmountCLP: number,
+    commissionCLP: number,
+  ): void {
+    const validCommission = (commission: number, grossAmount: number) =>
+      Number.isFinite(commission) &&
+      commission >= 0 &&
+      commission <= grossAmount;
+
+    if (
+      !this.isValidPrice(grossAmountNative) ||
+      !this.isValidPrice(grossAmountCLP) ||
+      !validCommission(commissionNative, grossAmountNative) ||
+      !validCommission(commissionCLP, grossAmountCLP)
+    ) {
+      throw new BadRequestException(
+        'No se pudo calcular un monto válido para ejecutar la orden.',
+      );
+    }
   }
 
   private async resolveCurrency(

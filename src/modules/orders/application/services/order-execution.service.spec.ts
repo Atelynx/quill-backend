@@ -426,14 +426,52 @@ describe('executeMarketOrder', () => {
       .mockImplementation(jest.fn());
   });
 
-  it('lanza NotFoundException cuando no hay precio en vivo', async () => {
-    cacheService.get.mockResolvedValue(undefined);
+  it.each([undefined, null])(
+    'lanza NotFoundException cuando no hay precio en vivo: %s',
+    async (price) => {
+      cacheService.get.mockResolvedValue(price);
+
+      await expect(
+        service.executeMarketOrder(userId, 'AAPL', 'BUY', 10),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(cacheService.get).toHaveBeenCalledWith('stock:AAPL:live_price');
+      expect(session.withTransaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['BUY', -1],
+    ['BUY', 0],
+    ['BUY', Number.NaN],
+    ['BUY', Number.POSITIVE_INFINITY],
+    ['SELL', -1],
+    ['SELL', 0],
+    ['SELL', Number.NaN],
+    ['SELL', Number.POSITIVE_INFINITY],
+  ] as const)(
+    'rechaza una orden MARKET %s con precio inválido %s',
+    async (side, price) => {
+      cacheService.get.mockResolvedValue(price);
+
+      await expect(
+        service.executeMarketOrder(userId, 'AAPL', side, 1),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(session.withTransaction).not.toHaveBeenCalled();
+      expect(orderModel.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rechaza montos MARKET no finitos antes de persistir', async () => {
+    cacheService.get.mockResolvedValue(100);
+    commissionService.calculate.mockResolvedValue(Number.NaN);
 
     await expect(
-      service.executeMarketOrder(userId, 'AAPL', 'BUY', 10),
-    ).rejects.toThrow(NotFoundException);
+      service.executeMarketOrder(userId, 'AAPL', 'BUY', 1),
+    ).rejects.toThrow(BadRequestException);
 
-    expect(cacheService.get).toHaveBeenCalledWith('stock:AAPL:live_price');
+    expect(session.withTransaction).not.toHaveBeenCalled();
   });
 
   it('lanza NotFoundException cuando el usuario no existe', async () => {
