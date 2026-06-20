@@ -25,19 +25,24 @@ export class MarketController {
    */
   @Get('status')
   async getStatus() {
-    const [openTime, closeTime] = await Promise.all([
+    const [openTime, closeTime, closedDays] = await Promise.all([
       this.adminConfigService.get<string>('MARKET_HOURS_OPEN'),
       this.adminConfigService.get<string>('MARKET_HOURS_CLOSED'),
+      this.adminConfigService.get<string>('MARKET_CLOSED_DAYS'),
     ]);
 
     const effectiveOpenTime = openTime ?? '09:30';
     const effectiveCloseTime = closeTime ?? '16:00';
-    const open = isMarketOpen(effectiveOpenTime, effectiveCloseTime);
+    const days = closedDays
+      ? closedDays.split(',').map(Number).filter((d) => d >= 1 && d <= 7)
+      : [6, 7];
+    const open = isMarketOpen(effectiveOpenTime, effectiveCloseTime, days);
 
     return {
       open,
       openTime: effectiveOpenTime,
       closeTime: effectiveCloseTime,
+      closedDays: days,
       currentTime: formatTime(new Date()),
       timezone: 'America/Santiago',
     };

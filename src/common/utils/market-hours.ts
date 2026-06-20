@@ -15,10 +15,11 @@ export function getCurrentMinutes(): number {
 export function isMarketOpen(
   openTime: string,
   closeTime: string,
+  closedDays: number[] = [6, 7],
   now = DateTime.now().setZone(MARKET_TIME_ZONE),
 ): boolean {
   const zonedNow = now.setZone(MARKET_TIME_ZONE);
-  if (zonedNow.weekday > 5) {
+  if (closedDays.includes(zonedNow.weekday)) {
     return false;
   }
 

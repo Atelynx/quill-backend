@@ -35,6 +35,9 @@ export const envValidationSchema = Joi.object({
   MARKET_HOURS_CLOSED: Joi.string()
     .pattern(/^\d{2}:\d{2}$/)
     .default('16:00'),
+  MARKET_CLOSED_DAYS: Joi.string()
+    .pattern(/^\d(,\d)*$/)
+    .default('6,7'),
   MARKET_TICK_INTERVAL_SECONDS: Joi.number().min(0).default(15),
   SIMULATION_STRATEGY: Joi.string().valid('flat', 'gbm', 'nw').default('flat'),
   EODHD_API_KEY: Joi.when('MARKET_PROVIDER', {

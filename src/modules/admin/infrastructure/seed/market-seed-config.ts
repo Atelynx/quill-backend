@@ -51,6 +51,13 @@ export const MARKET_HOURS_CLOSED_KEY: SEED_KEY = {
   tags: ['market', 'hours'],
 };
 
+export const MARKET_CLOSED_DAYS_KEY: SEED_KEY = {
+  key: 'MARKET_CLOSED_DAYS',
+  defaultValue: '6,7',
+  name: 'Días de la semana que el mercado cierra (1=lun..7=dom)',
+  tags: ['market', 'hours'],
+};
+
 export const MARKET_SEED_CONFIG: SEED_CONFIG = {
   name: 'MARKET_SEED_CONFIG',
   keys: [
@@ -60,5 +67,6 @@ export const MARKET_SEED_CONFIG: SEED_CONFIG = {
     INITIAL_BALANCE_KEY,
     MARKET_HOURS_OPEN_KEY,
     MARKET_HOURS_CLOSED_KEY,
+    MARKET_CLOSED_DAYS_KEY,
   ],
 };

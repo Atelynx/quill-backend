@@ -32,6 +32,17 @@ export function validateAdminConfigValue(key: string, value: unknown): void {
     return;
   }
 
+  if (key === 'MARKET_CLOSED_DAYS') {
+    if (typeof value !== 'string' || !/^\d(,\d)*$/.test(value)) {
+      throwInvalidValue(key);
+    }
+    const days = value.split(',').map(Number);
+    if (days.some((d) => d < 1 || d > 7)) {
+      throwInvalidValue(key);
+    }
+    return;
+  }
+
   const allowed = ALLOWED_VALUES[key];
   if (allowed && (typeof value !== 'string' || !allowed.includes(value))) {
     throwInvalidValue(key);
