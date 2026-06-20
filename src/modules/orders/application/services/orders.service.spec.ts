@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { CreateOrderDto } from '../../presentation/dto/create-order.dto';
 import { OrdersService } from './orders.service';
@@ -432,6 +432,71 @@ describe('OrdersService', () => {
         new Types.ObjectId().toString(),
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('lanza NotFoundException cuando la orden no existe', async () => {
+    orderModel.findOneAndUpdate.mockResolvedValue(null);
+
+    await expect(
+      service.cancelOrder(
+        new Types.ObjectId().toString(),
+        new Types.ObjectId().toString(),
+      ),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(orderModel.findOneAndUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('lanza NotFoundException cuando el usuario no existe al cancelar una BUY', async () => {
+    const order = {
+      status: 'PENDING',
+      side: 'BUY',
+      reservedAmount: 100,
+      save: jest.fn(),
+    };
+    orderModel.findOneAndUpdate.mockResolvedValue(order);
+    userModel.findById.mockReturnValue(createExecQuery(null));
+
+    await expect(
+      service.cancelOrder(
+        new Types.ObjectId().toString(),
+        new Types.ObjectId().toString(),
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('cancela una SELL sin position existente de forma graceful', async () => {
+    const order = {
+      status: 'PENDING',
+      side: 'SELL',
+      symbol: 'MISSING.SN',
+      quantity: 3,
+      save: jest.fn(),
+    };
+    orderModel.findOneAndUpdate.mockResolvedValue(order);
+    positionModel.findOne.mockReturnValue(createExecQuery(null));
+
+    await service.cancelOrder(
+      new Types.ObjectId().toString(),
+      new Types.ObjectId().toString(),
+    );
+
+    expect(order.status).toBe('CANCELLED');
+    expect(order.save).toHaveBeenCalledWith({ session });
+  });
+
+  it('propaga errores inesperados de la transacción', async () => {
+    const dbError = new Error('DB connection lost');
+    session.withTransaction.mockRejectedValue(dbError);
+
+    await expect(
+      service.cancelOrder(
+        new Types.ObjectId().toString(),
+        new Types.ObjectId().toString(),
+      ),
+    ).rejects.toThrow('DB connection lost');
+
+    expect(session.endSession).toHaveBeenCalled();
   });
 
 });
