@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../../../common/guards/jwt-auth.guard';
+import { ParseLimitPipe } from '../../../../common/pipes/parse-limit.pipe';
 import { RolesGuard } from '../../../../common/guards/roles.guard';
 import { Roles } from '../../../../common/decorators/roles.decorator';
 import { MarketService } from '../../../market/application/services/market.service';
@@ -20,22 +21,20 @@ import { UpdateStockPriceDto } from '../dto/update-stock-price.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
 export class AdminStockController {
-  constructor(
-    private readonly marketService: MarketService,
-  ) {}
+  constructor(private readonly marketService: MarketService) {}
 
   @Get()
   async findAll(
     @Query('search') search?: string,
     @Query('source') source?: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query('page', new ParseLimitPipe(1, 10000)) page?: number,
+    @Query('limit', new ParseLimitPipe(50, 200)) limit?: number,
   ) {
     return this.marketService.listStocks({
       search,
       source,
-      page: page ? parseInt(page, 10) : undefined,
-      limit: limit ? parseInt(limit, 10) : undefined,
+      page,
+      limit,
     });
   }
 

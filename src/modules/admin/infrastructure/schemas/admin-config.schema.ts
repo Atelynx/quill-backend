@@ -33,7 +33,10 @@ export class AdminConfig {
 
 const schema = SchemaFactory.createForClass(AdminConfig);
 
-schema.index({ key: 1, inUse: 1 });
+schema.index(
+  { key: 1 },
+  { unique: true, partialFilterExpression: { inUse: true } },
+);
 schema.index({ key: 1, createdAt: -1 });
 
 export const AdminConfigSchema = schema;

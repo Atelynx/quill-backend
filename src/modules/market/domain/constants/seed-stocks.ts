@@ -1,5 +1,5 @@
 export const seedStocks = [
-{
+  {
     symbol: 'COPEC.SN',
     name: 'COPEC.SN',
     currency: 'CLP',
@@ -12,7 +12,7 @@ export const seedStocks = [
     high: 6219.7998,
     low: 6136,
     open: 6200,
-    volume: 1371420
+    volume: 1371420,
   },
   {
     symbol: 'CENCOSUD.SN',
@@ -27,7 +27,7 @@ export const seedStocks = [
     high: 2260,
     low: 2180.1001,
     open: 2210,
-    volume: 3840685
+    volume: 3840685,
   },
   {
     symbol: 'CHILE.SN',
@@ -42,13 +42,6 @@ export const seedStocks = [
     high: 182.5,
     low: 178.52,
     open: 179.9,
-    volume: 80637425
+    volume: 80637425,
   },
-
 ];
- 
-
-function ISODate(value: string) {
-  return new Date(value);
-}
-

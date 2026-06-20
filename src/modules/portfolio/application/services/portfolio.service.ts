@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import Decimal from 'decimal.js';
@@ -27,14 +27,27 @@ export class PortfolioService {
   ) {}
 
   async getSummary(userId: string) {
-    const [user, positions, quotes] = await Promise.all([
+    const [user, positions] = await Promise.all([
       this.usersService.findById(userId),
       this.positionModel
         .find({ userId: new Types.ObjectId(userId) })
         .lean()
         .exec(),
-      this.stockModel.find().lean().exec(),
     ]);
+    const activePositions = positions.filter(
+      (position) => position.quantity > 0,
+    );
+    const symbols = [...new Set(activePositions.map(({ symbol }) => symbol))];
+    const quotes =
+      symbols.length === 0
+        ? []
+        : await this.stockModel
+            .find(
+              { symbol: { $in: symbols } },
+              { symbol: 1, close: 1, currency: 1 },
+            )
+            .lean()
+            .exec();
 
     this.rateCache.clear();
     const quoteMap = new Map(quotes.map((quote) => [quote.symbol, quote]));
@@ -51,9 +64,7 @@ export class PortfolioService {
       unrealizedProfitLoss: number;
     }> = [];
 
-    for (const position of positions) {
-      if (position.quantity <= 0) continue;
-
+    for (const position of activePositions) {
       const quote = quoteMap.get(position.symbol);
       const marketPrice = quote?.close ?? 0;
       const currency = quote?.currency ?? 'CLP';
@@ -78,16 +89,19 @@ export class PortfolioService {
 
       if (currency !== 'CLP') {
         const rate = await this.getRate(currency);
-        if (rate !== null) {
-          marketValueCLP = new Decimal(marketValueNative)
-            .times(rate)
-            .toDecimalPlaces(2)
-            .toNumber();
-          unrealizedPnlCLP = new Decimal(unrealizedPnlNative)
-            .times(rate)
-            .toDecimalPlaces(2)
-            .toNumber();
+        if (rate === null) {
+          throw new ServiceUnavailableException(
+            `Tipo de cambio no disponible para ${currency}.`,
+          );
         }
+        marketValueCLP = new Decimal(marketValueNative)
+          .times(rate)
+          .toDecimalPlaces(2)
+          .toNumber();
+        unrealizedPnlCLP = new Decimal(unrealizedPnlNative)
+          .times(rate)
+          .toDecimalPlaces(2)
+          .toNumber();
       }
 
       investedValueCLP = investedValueCLP.plus(marketValueCLP);
@@ -110,6 +124,7 @@ export class PortfolioService {
       reservedBalance: user.reservedBalance,
       investedValue: investedValueCLP.toDecimalPlaces(2).toNumber(),
       totalEquity: new Decimal(user.availableBalance)
+        .plus(user.reservedBalance)
         .plus(investedValueCLP)
         .toDecimalPlaces(2)
         .toNumber(),

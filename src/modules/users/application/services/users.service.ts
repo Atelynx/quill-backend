@@ -22,6 +22,32 @@ function generateUsername(): string {
   return `user_${hex}`;
 }
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function getDuplicateUserField(error: unknown): 'email' | 'username' | null {
+  if (
+    typeof error !== 'object' ||
+    error === null ||
+    !('code' in error) ||
+    error.code !== 11000
+  ) {
+    return null;
+  }
+
+  const duplicate = error as {
+    keyPattern?: Record<string, unknown>;
+    keyValue?: Record<string, unknown>;
+  };
+  const fields = Object.keys(duplicate.keyPattern ?? duplicate.keyValue ?? {});
+  if (fields.includes('email')) return 'email';
+  if (fields.includes('username')) return 'username';
+  return null;
+}
+
+const MAX_WATCHLIST_SYMBOLS = 50;
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -41,7 +67,10 @@ export class UsersService {
     passwordHash: string;
     username?: string;
   }): Promise<UserDocument> {
-    const existingUser = await this.userModel.exists({ email: input.email });
+    const normalizedEmail = normalizeEmail(input.email);
+    const existingUser = await this.userModel.exists({
+      email: normalizedEmail,
+    });
 
     if (existingUser) {
       throw new ConflictException('Ya existe una cuenta con ese correo.');
@@ -64,14 +93,25 @@ export class UsersService {
     const initialBalance =
       adminBalance ?? this.configService.get<number>('INITIAL_BALANCE', 100000);
 
-    return this.userModel.create({
-      fullName: input.fullName,
-      email: input.email.toLowerCase(),
-      passwordHash: input.passwordHash,
-      username: username.toLowerCase(),
-      availableBalance: initialBalance,
-      reservedBalance: 0,
-    });
+    try {
+      return await this.userModel.create({
+        fullName: input.fullName,
+        email: normalizedEmail,
+        passwordHash: input.passwordHash,
+        username: username.toLowerCase(),
+        availableBalance: initialBalance,
+        reservedBalance: 0,
+      });
+    } catch (error) {
+      const duplicateField = getDuplicateUserField(error);
+      if (duplicateField === 'email') {
+        throw new ConflictException('Ya existe una cuenta con ese correo.');
+      }
+      if (duplicateField === 'username') {
+        throw new ConflictException('Ese nombre de usuario ya está en uso.');
+      }
+      throw error;
+    }
   }
 
   private async generateUniqueUsername(): Promise<string> {
@@ -84,7 +124,7 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email: email.toLowerCase() }).exec();
+    return this.userModel.findOne({ email: normalizeEmail(email) }).exec();
   }
 
   async findById(id: string): Promise<UserDocument> {
@@ -98,7 +138,7 @@ export class UsersService {
   }
 
   async findByIdentity(identifier: string): Promise<UserDocument | null> {
-    const lower = identifier.toLowerCase();
+    const lower = normalizeEmail(identifier);
     return this.userModel
       .findOne({
         $or: [{ email: lower }, { username: lower }],
@@ -145,14 +185,15 @@ export class UsersService {
     }
 
     const emailTaken = await this.userModel.exists({
-      email: newEmail.toLowerCase(),
+      email: normalizeEmail(newEmail),
       _id: { $ne: user._id },
     });
     if (emailTaken) {
       throw new ConflictException('Ese correo ya está en uso.');
     }
 
-    user.email = newEmail.toLowerCase();
+    user.email = normalizeEmail(newEmail);
+    user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();
   }
 
@@ -169,19 +210,34 @@ export class UsersService {
     }
 
     user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();
   }
 
   async addToWatchlist(id: string, symbols: string[]): Promise<UserDocument> {
     const user = await this.findById(id);
-    const normalized = symbols.map((s) => s.toUpperCase());
+    const currentSymbols = user.watchlist.map((symbol) =>
+      symbol.trim().toUpperCase(),
+    );
+    const normalizedSymbols = symbols.map((symbol) =>
+      symbol.trim().toUpperCase(),
+    );
+    const watchlist = [...new Set([...currentSymbols, ...normalizedSymbols])];
 
-    const existing = new Set(user.watchlist.map((s) => s.toUpperCase()));
-    const newSymbols = normalized.filter((s) => !existing.has(s));
+    if (watchlist.length > MAX_WATCHLIST_SYMBOLS) {
+      throw new BadRequestException(
+        `La watchlist admite un máximo de ${MAX_WATCHLIST_SYMBOLS} símbolos.`,
+      );
+    }
 
-    if (newSymbols.length === 0) return user;
+    if (
+      watchlist.length === user.watchlist.length &&
+      watchlist.every((symbol, index) => symbol === user.watchlist[index])
+    ) {
+      return user;
+    }
 
-    user.watchlist.push(...newSymbols);
+    user.watchlist = watchlist;
     await user.save();
     return user;
   }
@@ -224,9 +280,13 @@ export class UsersService {
       throw new NotFoundException('Usuario no encontrado.');
     }
 
+    const userObjectId = new Types.ObjectId(userId);
+    const friendObjectId = new Types.ObjectId(friendId);
     const existing = await this.friendshipModel.exists({
-      userId: new Types.ObjectId(userId),
-      friendId: new Types.ObjectId(friendId),
+      $or: [
+        { userId: userObjectId, friendId: friendObjectId },
+        { userId: friendObjectId, friendId: userObjectId },
+      ],
     });
 
     if (existing) {
@@ -234,8 +294,8 @@ export class UsersService {
     }
 
     await this.friendshipModel.create({
-      userId: new Types.ObjectId(userId),
-      friendId: new Types.ObjectId(friendId),
+      userId: userObjectId,
+      friendId: friendObjectId,
       status: 'pending',
     });
   }
@@ -298,12 +358,16 @@ export class UsersService {
       .lean()
       .exec();
 
-    return friends.map((f) => ({
-      id: f._id.toString(),
-      fullName: f.fullName,
-      email: f.email,
-      username: f.username ?? null,
-    }));
+    return friends.map((f) => {
+      const id = f._id.toString();
+      return {
+        _id: id,
+        id,
+        fullName: f.fullName,
+        email: f.email,
+        username: f.username ?? null,
+      };
+    });
   }
 
   async getPendingRequests(userId: string) {
@@ -327,12 +391,25 @@ export class UsersService {
 
     return requests.map((r) => {
       const u = userMap.get(r.userId.toString());
-      return {
-        id: r._id.toString(),
-        fromUserId: r.userId.toString(),
+      const id = r._id.toString();
+      const fromUserId = r.userId.toString();
+      const from = {
+        _id: fromUserId,
+        id: fromUserId,
         fullName: u?.fullName ?? null,
         email: u?.email ?? null,
         username: u?.username ?? null,
+      };
+      return {
+        _id: id,
+        id,
+        from,
+        fromUserId,
+        fullName: from.fullName,
+        email: from.email,
+        username: from.username,
+        status: r.status,
+        createdAt: r.createdAt,
         requestedAt: r.createdAt,
       };
     });

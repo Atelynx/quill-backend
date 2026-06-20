@@ -11,3 +11,14 @@ Esta carpeta contiene casos de uso del modulo `market`.
 
 Los servicios son provider-agnosticos. Cada provider maneja su propio cacheo,
 llamadas a API externa, y estrategia de fallback internamente.
+
+El precio vivo ejecutable se almacena en `stock:{symbol}:live_price`. Las
+órdenes LIMIT lo priorizan y usan el cierre persistido solo como fallback
+explícito cuando el precio vivo no está disponible o no es válido. Cada tick
+renueva este precio con un TTL de 60 segundos para evitar valores obsoletos.
+
+El calendario bursátil usa la zona `America/Santiago` y bloquea sábados y
+domingos. Los feriados bursátiles no se modelan actualmente.
+
+La búsqueda del catálogo normaliza espacios, limita términos a 64 caracteres y
+usa prefijos escapados para reducir consultas regex amplias.

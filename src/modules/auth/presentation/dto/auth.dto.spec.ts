@@ -20,4 +20,26 @@ describe('Auth Data transfer object validation', () => {
 
     await expect(validate(dto)).resolves.toHaveLength(0);
   });
+
+  it('should accept register fields at their maximum valid lengths', async () => {
+    const dto = Object.assign(new RegisterDto(), {
+      fullName: 'A'.repeat(100),
+      email: 'maximum.valid@example.com',
+      password: 'P'.repeat(128),
+      username: 'u'.repeat(30),
+    });
+
+    await expect(validate(dto)).resolves.toHaveLength(0);
+  });
+
+  it('should reject register fields above their maximum lengths', async () => {
+    const dto = Object.assign(new RegisterDto(), {
+      fullName: 'A'.repeat(101),
+      email: `${'a'.repeat(243)}@example.com`,
+      password: 'P'.repeat(129),
+      username: 'u'.repeat(31),
+    });
+
+    expect(await validate(dto)).toHaveLength(4);
+  });
 });

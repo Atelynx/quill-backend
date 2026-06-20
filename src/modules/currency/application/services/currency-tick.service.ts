@@ -16,6 +16,7 @@ import type { CurrencyDataProvider } from '../../domain/interfaces/currency-data
 
 const BASE_PRICE_KEY = (symbol: string) => `forex:${symbol}:base_price`;
 const LIVE_PRICE_KEY = (symbol: string) => `forex:${symbol}:live_price`;
+const LIVE_PRICE_CACHE_TTL_MS = 60_000;
 
 @Injectable()
 export class CurrencyTickService implements OnModuleInit, OnModuleDestroy {
@@ -103,6 +104,7 @@ export class CurrencyTickService implements OnModuleInit, OnModuleDestroy {
         await this.cacheService.set(
           LIVE_PRICE_KEY(symbol),
           nextPrice.toNumber(),
+          LIVE_PRICE_CACHE_TTL_MS,
         );
 
         const dayChangePct = nextPrice

@@ -47,7 +47,10 @@ export class MockMarketDataProvider implements MarketDataProvider {
 
     // Fallback: try DB first, then hardcoded seed
     if (!this.mockStocks.has(upperSymbol)) {
-      const dbStock = await this.stockModel.findOne({ symbol: upperSymbol }).lean().exec();
+      const dbStock = await this.stockModel
+        .findOne({ symbol: upperSymbol })
+        .lean()
+        .exec();
       if (dbStock) {
         this.mockStocks.set(upperSymbol, {
           price: dbStock.close,

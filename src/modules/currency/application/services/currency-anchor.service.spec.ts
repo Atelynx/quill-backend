@@ -131,6 +131,7 @@ describe('CurrencyAnchorService', () => {
       expect(cacheService.set).toHaveBeenCalledWith(
         'forex:EURUSD:live_price',
         1.1,
+        60_000,
       );
     });
 

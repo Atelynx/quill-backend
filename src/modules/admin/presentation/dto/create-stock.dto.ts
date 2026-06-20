@@ -1,8 +1,17 @@
-import { IsNumber, IsOptional, IsPositive, IsString, MinLength, Matches } from 'class-validator';
+import {
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  MinLength,
+  Matches,
+} from 'class-validator';
 
 export class CreateStockDto {
   @IsString()
-  @Matches(/^[A-Za-z0-9.]+$/, { message: 'symbol must contain only letters, numbers, and dots' })
+  @Matches(/^[A-Za-z0-9.]+$/, {
+    message: 'symbol must contain only letters, numbers, and dots',
+  })
   symbol!: string;
 
   @IsString()

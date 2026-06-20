@@ -27,7 +27,13 @@ Socket.IO en namespace `/realtime`. El `RealtimeGateway` sigue la **Megaphone Ru
 
 ## Cache híbrida
 
-`CacheService` intenta Redis; si no responde, cae a `Map` en memoria.
+`CacheService` intenta Redis; si no responde, usa un fallback en memoria que
+respeta TTL y limita su tamaño a 1000 entradas con expulsión de la más antigua.
+
+## Swagger
+
+Swagger se habilita por defecto en desarrollo y test. En producción permanece
+deshabilitado salvo que `SWAGGER_ENABLED=true` se configure explícitamente.
 
 ## Piezas transversales
 

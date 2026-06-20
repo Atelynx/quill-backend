@@ -3,7 +3,6 @@ import { CacheInterceptor, CacheKey, CacheTTL } from '@nestjs/cache-manager';
 import { MarketService } from '../../application/services/market.service';
 import { AdminConfigService } from '../../../admin/application/services/admin-config.service';
 import {
-  getCurrentMinutes,
   isMarketOpen,
   formatTime,
 } from '../../../../common/utils/market-hours';
@@ -31,20 +30,16 @@ export class MarketController {
       this.adminConfigService.get<string>('MARKET_HOURS_CLOSED'),
     ]);
 
-    const currentMinutes = getCurrentMinutes();
     const effectiveOpenTime = openTime ?? '09:30';
     const effectiveCloseTime = closeTime ?? '16:00';
-    const open = isMarketOpen(
-      effectiveOpenTime,
-      effectiveCloseTime,
-      currentMinutes,
-    );
+    const open = isMarketOpen(effectiveOpenTime, effectiveCloseTime);
 
     return {
       open,
       openTime: effectiveOpenTime,
       closeTime: effectiveCloseTime,
       currentTime: formatTime(new Date()),
+      timezone: 'America/Santiago',
     };
   }
 

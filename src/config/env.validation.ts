@@ -6,8 +6,17 @@ export const envValidationSchema = Joi.object({
     .default('development'),
   BACKEND_PORT: Joi.number().default(3000),
   FRONTEND_ORIGIN: Joi.string().default('http://localhost:5173'),
+  SWAGGER_ENABLED: Joi.boolean().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.boolean().default(false),
+    otherwise: Joi.boolean().default(true),
+  }),
   MONGODB_URI: Joi.string().required(),
-  REDIS_URL: Joi.string().default('redis://localhost:6379'),
+  REDIS_URL: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().uri().required(),
+    otherwise: Joi.string().uri().default('redis://localhost:6379'),
+  }),
   JWT_SECRET: Joi.when('NODE_ENV', {
     is: 'production',
     then: Joi.string()

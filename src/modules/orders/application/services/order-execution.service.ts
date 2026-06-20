@@ -35,6 +35,10 @@ import {
   OrderDocument,
 } from '../../infrastructure/schemas/order.schema';
 import { CommissionService } from './commission.service';
+import { randomUUID } from 'crypto';
+
+const EXECUTION_CYCLE_LOCK_KEY = 'lock:orders:execution-cycle';
+const EXECUTION_CYCLE_LOCK_TTL_MS = 60_000;
 
 @Injectable()
 export class OrderExecutionService {
@@ -69,12 +73,29 @@ export class OrderExecutionService {
     }
 
     this.isRunning = true;
+    const lockOwner = randomUUID();
+    let lockAcquired = false;
     try {
+      lockAcquired = await this.cacheService.acquireLock(
+        EXECUTION_CYCLE_LOCK_KEY,
+        lockOwner,
+        EXECUTION_CYCLE_LOCK_TTL_MS,
+      );
+      if (!lockAcquired) return;
       await this.executeCycle();
     } catch (error) {
       this.logger.error('Error in market execution cycle', error);
     } finally {
-      // Ensure the lock is released even on failure to allow future ticks.
+      if (lockAcquired) {
+        try {
+          await this.cacheService.releaseLock(
+            EXECUTION_CYCLE_LOCK_KEY,
+            lockOwner,
+          );
+        } catch (error) {
+          this.logger.error('Error releasing market execution lock', error);
+        }
+      }
       this.isRunning = false;
     }
   }
@@ -88,12 +109,7 @@ export class OrderExecutionService {
   private async processPendingOrders(
     quotes: Array<{ symbol: string; close: number; currency?: string }>,
   ): Promise<void> {
-    const quoteMap = new Map(
-      quotes.map((quote) => [
-        quote.symbol,
-        { price: quote.close, currency: quote.currency },
-      ]),
-    );
+    const quoteMap = new Map(quotes.map((quote) => [quote.symbol, quote]));
 
     const pendingOrders = await this.orderModel
       .find({ status: 'PENDING' })
@@ -101,10 +117,44 @@ export class OrderExecutionService {
 
     for (const order of pendingOrders) {
       const quote = quoteMap.get(order.symbol);
-      if (quote && this.shouldExecute(order, quote.price)) {
-        await this.executeOrder(order, quote.price, quote.currency);
+      if (!quote) continue;
+
+      const executablePrice = await this.resolveExecutablePrice(
+        order.symbol,
+        quote.close,
+      );
+      if (
+        executablePrice !== null &&
+        this.shouldExecute(order, executablePrice)
+      ) {
+        await this.executeOrder(order, executablePrice, quote.currency);
       }
     }
+  }
+
+  private async resolveExecutablePrice(
+    symbol: string,
+    persistedPrice: number,
+  ): Promise<number | null> {
+    try {
+      const livePrice = await this.cacheService.get<number>(
+        `stock:${symbol}:live_price`,
+      );
+      if (this.isValidPrice(livePrice)) {
+        return livePrice;
+      }
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo consultar el precio vivo de ${symbol}; se usará el precio persistido.`,
+        error,
+      );
+    }
+
+    return this.isValidPrice(persistedPrice) ? persistedPrice : null;
+  }
+
+  private isValidPrice(price: unknown): price is number {
+    return typeof price === 'number' && Number.isFinite(price) && price > 0;
   }
 
   private shouldExecute(order: OrderDocument, marketPrice: number): boolean {
@@ -141,10 +191,14 @@ export class OrderExecutionService {
     const session = await this.connection.startSession();
     try {
       await session.withTransaction(async () => {
-        const [liveOrder, user] = await Promise.all([
-          this.orderModel.findById(order.id).session(session).exec(),
-          this.userModel.findById(order.userId).session(session).exec(),
-        ]);
+        const liveOrder = await this.orderModel
+          .findById(order.id)
+          .session(session)
+          .exec();
+        const user = await this.userModel
+          .findById(order.userId)
+          .session(session)
+          .exec();
 
         if (!liveOrder || liveOrder.status !== 'PENDING' || !user) {
           return;
@@ -178,6 +232,21 @@ export class OrderExecutionService {
         const executedAt = new Date();
 
         if (liveOrder.side === 'BUY') {
+          const totalCostCLP = new Decimal(grossAmountCLP)
+            .plus(commissionCLP)
+            .toDecimalPlaces(2);
+          const totalFunds = new Decimal(user.availableBalance).plus(
+            liveOrder.reservedAmount,
+          );
+          const hasValidReservation = new Decimal(
+            user.reservedBalance,
+          ).greaterThanOrEqualTo(liveOrder.reservedAmount);
+
+          if (!hasValidReservation || totalFunds.lessThan(totalCostCLP)) {
+            await this.cancelUnfundedBuyOrder(session, user, liveOrder);
+            return;
+          }
+
           await this.processBuyOrder(
             session,
             user,
@@ -188,13 +257,16 @@ export class OrderExecutionService {
             marketPrice,
           );
         } else {
-          await this.processSellOrder(
+          const cancelled = await this.processSellOrder(
             session,
             user,
             liveOrder,
             grossAmountCLP,
             commissionCLP,
           );
+          if (cancelled) {
+            return;
+          }
         }
 
         await this.finalizeOrder(
@@ -212,6 +284,30 @@ export class OrderExecutionService {
     } finally {
       await session.endSession();
     }
+  }
+
+  private async cancelUnfundedBuyOrder(
+    session: ClientSession,
+    user: UserDocument,
+    order: OrderDocument,
+  ): Promise<void> {
+    const releasableAmount = Decimal.min(
+      user.reservedBalance,
+      order.reservedAmount,
+    ).toDecimalPlaces(2);
+
+    user.reservedBalance = new Decimal(user.reservedBalance)
+      .minus(releasableAmount)
+      .toDecimalPlaces(2)
+      .toNumber();
+    user.availableBalance = new Decimal(user.availableBalance)
+      .plus(releasableAmount)
+      .toDecimalPlaces(2)
+      .toNumber();
+    order.status = 'CANCELLED';
+
+    await user.save({ session });
+    await order.save({ session });
   }
 
   private async processBuyOrder(
@@ -279,7 +375,7 @@ export class OrderExecutionService {
     order: OrderDocument,
     grossAmountCLP: number,
     commissionAmountCLP: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const position = await this.positionModel
       .findOne({
         userId: new Types.ObjectId(user.id),
@@ -289,11 +385,23 @@ export class OrderExecutionService {
       .exec();
 
     if (!position) {
-      throw new Error(`Position not found for symbol ${order.symbol}`);
+      await this.cancelIrrecoverableSellOrder(session, user, order);
+      return true;
+    }
+
+    if (
+      position.quantity < order.quantity ||
+      (position.reservedQuantity ?? 0) < order.quantity
+    ) {
+      await this.cancelIrrecoverableSellOrder(session, user, order, position);
+      return true;
     }
 
     position.quantity -= order.quantity;
-    position.reservedQuantity -= order.quantity;
+    position.reservedQuantity = Math.max(
+      0,
+      (position.reservedQuantity ?? 0) - order.quantity,
+    );
 
     user.availableBalance = new Decimal(user.availableBalance)
       .plus(grossAmountCLP)
@@ -306,6 +414,31 @@ export class OrderExecutionService {
     } else {
       await position.save({ session });
     }
+
+    return false;
+  }
+
+  private async cancelIrrecoverableSellOrder(
+    session: ClientSession,
+    user: UserDocument,
+    order: OrderDocument,
+    position?: PositionDocument,
+  ): Promise<void> {
+    if (position) {
+      const releasableQuantity = Math.min(
+        position.reservedQuantity ?? 0,
+        order.quantity,
+      );
+      position.reservedQuantity = Math.max(
+        0,
+        (position.reservedQuantity ?? 0) - releasableQuantity,
+      );
+      await position.save({ session });
+    }
+
+    order.status = 'CANCELLED';
+    await user.save({ session });
+    await order.save({ session });
   }
 
   async executeMarketOrder(
@@ -327,6 +460,11 @@ export class OrderExecutionService {
     if (livePrice === undefined || livePrice === null) {
       throw new NotFoundException(
         `No hay precio disponible para ${symbol}. Intente con una orden LIMIT.`,
+      );
+    }
+    if (!this.isValidPrice(livePrice)) {
+      throw new BadRequestException(
+        `El precio disponible para ${symbol} no es válido.`,
       );
     }
 
@@ -363,6 +501,12 @@ export class OrderExecutionService {
         .toNumber();
       commissionCLP = await this.commissionService.calculate(grossAmountCLP);
     }
+    this.assertValidMarketAmounts(
+      grossAmountNative,
+      commissionNative,
+      grossAmountCLP,
+      commissionCLP,
+    );
 
     const session = await this.connection.startSession();
     try {
@@ -374,6 +518,15 @@ export class OrderExecutionService {
 
         if (!user) {
           throw new NotFoundException('Usuario no encontrado.');
+        }
+
+        const lockedStock = await this.stockModel.findOneAndUpdate(
+          { symbol },
+          { $currentDate: { updatedAt: true } },
+          { returnDocument: 'after', session },
+        );
+        if (!lockedStock) {
+          throw new NotFoundException('La acción solicitada no existe.');
         }
 
         const executedAt = new Date();
@@ -442,7 +595,10 @@ export class OrderExecutionService {
             .session(session)
             .exec();
 
-          if (!position || position.quantity < quantity) {
+          if (
+            !position ||
+            position.quantity - (position.reservedQuantity ?? 0) < quantity
+          ) {
             throw new BadRequestException(
               'No tienes suficientes acciones para vender.',
             );
@@ -555,27 +711,25 @@ export class OrderExecutionService {
             .toDecimalPlaces(2)
             .toNumber();
 
-    await Promise.all([
-      user.save({ session }),
-      order.save({ session }),
-      this.tradeModel.create(
-        [
-          {
-            userId: new Types.ObjectId(user.id),
-            orderId: new Types.ObjectId(order.id),
-            symbol: order.symbol,
-            side: order.side,
-            quantity: order.quantity,
-            executionPrice: marketPrice,
-            grossAmount,
-            commissionAmount,
-            netAmount,
-            executedAt,
-          },
-        ],
-        { session },
-      ),
-    ]);
+    await user.save({ session });
+    await order.save({ session });
+    await this.tradeModel.create(
+      [
+        {
+          userId: new Types.ObjectId(user.id),
+          orderId: new Types.ObjectId(order.id),
+          symbol: order.symbol,
+          side: order.side,
+          quantity: order.quantity,
+          executionPrice: marketPrice,
+          grossAmount,
+          commissionAmount,
+          netAmount,
+          executedAt,
+        },
+      ],
+      { session },
+    );
   }
 
   private async getValidRate(currency: string): Promise<number> {
@@ -589,6 +743,29 @@ export class OrderExecutionService {
     }
 
     return entry.rate;
+  }
+
+  private assertValidMarketAmounts(
+    grossAmountNative: number,
+    commissionNative: number,
+    grossAmountCLP: number,
+    commissionCLP: number,
+  ): void {
+    const validCommission = (commission: number, grossAmount: number) =>
+      Number.isFinite(commission) &&
+      commission >= 0 &&
+      commission <= grossAmount;
+
+    if (
+      !this.isValidPrice(grossAmountNative) ||
+      !this.isValidPrice(grossAmountCLP) ||
+      !validCommission(commissionNative, grossAmountNative) ||
+      !validCommission(commissionCLP, grossAmountCLP)
+    ) {
+      throw new BadRequestException(
+        'No se pudo calcular un monto válido para ejecutar la orden.',
+      );
+    }
   }
 
   private async resolveCurrency(
