@@ -165,14 +165,19 @@ export class OrderExecutionService {
   }
 
   private async isMarketOpen(): Promise<boolean> {
-    const [openTime, closeTime] = await Promise.all([
+    const [openTime, closeTime, closedDays] = await Promise.all([
       this.adminConfigService.get<string>('MARKET_HOURS_OPEN'),
       this.adminConfigService.get<string>('MARKET_HOURS_CLOSED'),
+      this.adminConfigService.get<string>('MARKET_CLOSED_DAYS'),
     ]);
 
     if (!openTime || !closeTime) return true;
 
-    return isMarketOpen(openTime, closeTime);
+    const days = closedDays
+      ? closedDays.split(',').map(Number).filter((d) => d >= 1 && d <= 7)
+      : [6, 7];
+
+    return isMarketOpen(openTime, closeTime, days);
   }
 
   private async executeOrder(
