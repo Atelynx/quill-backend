@@ -1,36 +1,52 @@
-import { validate, getMetadataStorage } from 'class-validator';
+import { validate } from 'class-validator';
 import { CreateOrderDto } from './create-order.dto';
 
 describe('CreateOrderDto validation', () => {
-  //   it('should have validation decorators defined on the DTO', () => {
-  //     const metadatas = (getMetadataStorage() as any).getTargetValidationMetadatas(
-  //       CreateOrderDto,
-  //       ''
-  //     );
-
-  //     expect(Array.isArray(metadatas)).toBe(true);
-  //     expect(metadatas.length).toBeGreaterThan(0);
-  //   });
-
-  //   it('should fail validation for an empty DTO instance', async () => {
-  //     const dto = new CreateOrderDto();
-  //     const errors = await validate(dto);
-  //     expect(errors.length).toBeGreaterThan(0);
-  //   });
-
-  it('should have validation decorators for each DTO property', () => {
-    const metadatas = (
-      getMetadataStorage() as any
-    ).getTargetValidationMetadatas(CreateOrderDto, '');
-
-    const props = Array.from(
-      new Set(metadatas.map((m: any) => m.propertyName)),
-    );
-    expect(props.length).toBeGreaterThan(0);
-
-    props.forEach((prop) => {
-      const propMetas = metadatas.filter((m: any) => m.propertyName === prop);
-      expect(propMetas.length).toBeGreaterThan(0);
+  const createDto = (values: Partial<CreateOrderDto>) =>
+    Object.assign(new CreateOrderDto(), {
+      symbol: 'AAPL',
+      side: 'BUY',
+      quantity: 1,
+      ...values,
     });
+
+  it('should reject an empty DTO instance', async () => {
+    const errors = await validate(new CreateOrderDto());
+
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rechaza una orden LIMIT sin limitPrice', async () => {
+    const errors = await validate(createDto({ type: 'LIMIT' }));
+
+    expect(errors.some((error) => error.property === 'limitPrice')).toBe(true);
+  });
+
+  it('acepta una orden LIMIT con limitPrice', async () => {
+    const errors = await validate(
+      createDto({ type: 'LIMIT', limitPrice: 100 }),
+    );
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('acepta una orden MARKET sin limitPrice', async () => {
+    const errors = await validate(createDto({ type: 'MARKET' }));
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it.each([0, -1])('rechaza limitPrice inválido: %s', async (limitPrice) => {
+    const errors = await validate(createDto({ type: 'LIMIT', limitPrice }));
+
+    expect(errors.some((error) => error.property === 'limitPrice')).toBe(true);
+  });
+
+  it('rechaza cantidades no enteras', async () => {
+    const errors = await validate(
+      createDto({ type: 'LIMIT', limitPrice: 100, quantity: 1.5 }),
+    );
+
+    expect(errors.some((error) => error.property === 'quantity')).toBe(true);
   });
 });

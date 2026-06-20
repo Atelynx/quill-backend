@@ -33,4 +33,72 @@ describe('envValidationSchema', () => {
 
     expect(result.error?.message).toContain('EODHD_API_KEY');
   });
+
+  it('rechaza secretos JWT inseguros en produccion', () => {
+    const result = envValidationSchema.validate({
+      ...baseEnv,
+      NODE_ENV: 'production',
+      REDIS_URL: 'redis://cache:6379',
+      JWT_SECRET: 'REEMPLAZAR_CON_SECRETO_ALEATORIO_DE_AL_MENOS_32_CARACTERES',
+    });
+
+    expect(result.error?.message).toContain('JWT_SECRET');
+  });
+
+  it('acepta un secreto JWT largo en produccion', () => {
+    const result = envValidationSchema.validate({
+      ...baseEnv,
+      NODE_ENV: 'production',
+      REDIS_URL: 'redis://cache:6379',
+      JWT_SECRET: 'secret-production-value-with-32-characters',
+    });
+
+    expect(result.error).toBeUndefined();
+  });
+
+  it('deshabilita Swagger por defecto en produccion', () => {
+    const result = envValidationSchema.validate({
+      ...baseEnv,
+      NODE_ENV: 'production',
+      REDIS_URL: 'redis://cache:6379',
+      JWT_SECRET: 'secret-production-value-with-32-characters',
+    });
+    const value = result.value as { SWAGGER_ENABLED: boolean };
+
+    expect(result.error).toBeUndefined();
+    expect(value.SWAGGER_ENABLED).toBe(false);
+  });
+
+  it('habilita Swagger por defecto fuera de produccion', () => {
+    const result = envValidationSchema.validate(baseEnv);
+    const value = result.value as { SWAGGER_ENABLED: boolean };
+
+    expect(result.error).toBeUndefined();
+    expect(value.SWAGGER_ENABLED).toBe(true);
+  });
+
+  it('permite habilitar Swagger explicitamente en produccion', () => {
+    const result = envValidationSchema.validate({
+      ...baseEnv,
+      NODE_ENV: 'production',
+      REDIS_URL: 'redis://cache:6379',
+      JWT_SECRET: 'secret-production-value-with-32-characters',
+      SWAGGER_ENABLED: 'true',
+    });
+    const value = result.value as { SWAGGER_ENABLED: boolean };
+
+    expect(result.error).toBeUndefined();
+    expect(value.SWAGGER_ENABLED).toBe(true);
+  });
+
+  it('requiere REDIS_URL en produccion', () => {
+    const result = envValidationSchema.validate({
+      ...baseEnv,
+      NODE_ENV: 'production',
+      JWT_SECRET: 'secret-production-value-with-32-characters',
+      REDIS_URL: undefined,
+    });
+
+    expect(result.error?.message).toContain('REDIS_URL');
+  });
 });

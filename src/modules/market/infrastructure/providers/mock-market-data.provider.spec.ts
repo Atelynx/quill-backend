@@ -9,10 +9,18 @@ function createLeanQuery<T>(value: T) {
   };
 }
 
+function createFindOneQuery<T>(value: T | null) {
+  return {
+    lean: jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue(value),
+    }),
+  };
+}
+
 describe('MockMarketDataProvider', () => {
   let provider: MockMarketDataProvider;
   let configService: ConfigService;
-  let stockModel: { find: jest.Mock };
+  let stockModel: { find: jest.Mock; findOne: jest.Mock };
 
   beforeEach(() => {
     configService = {
@@ -20,6 +28,7 @@ describe('MockMarketDataProvider', () => {
     } as unknown as ConfigService;
     stockModel = {
       find: jest.fn(),
+      findOne: jest.fn().mockReturnValue(createFindOneQuery(null)),
     };
   });
 
@@ -115,14 +124,14 @@ describe('MockMarketDataProvider', () => {
       expect(Array.isArray(seeds)).toBe(true);
       expect(seeds.length).toBeGreaterThan(0);
       expect(seeds[0]).toMatchObject({
-        symbol: expect.any(String),
-        name: expect.any(String),
-        currency: expect.any(String),
-        close: expect.any(Number),
-        previousClose: expect.any(Number),
         dayChangePercentage: 1.5,
         source: 'mock',
       });
+      expect(typeof seeds[0].symbol).toBe('string');
+      expect(typeof seeds[0].name).toBe('string');
+      expect(typeof seeds[0].currency).toBe('string');
+      expect(typeof seeds[0].close).toBe('number');
+      expect(typeof seeds[0].previousClose).toBe('number');
     });
   });
 

@@ -6,8 +6,14 @@ import { Logger } from '@nestjs/common';
 
 jest.useFakeTimers();
 
+interface MarketTickSchedulerInternals {
+  logger: Logger;
+  runTick(): Promise<void>;
+}
+
 describe('MarketTickScheduler', () => {
   let scheduler: MarketTickScheduler;
+  let internals: MarketTickSchedulerInternals;
   let configService: { get: jest.Mock };
   let marketTickService: { processTick: jest.Mock };
   let schedulerRegistry: {
@@ -31,6 +37,7 @@ describe('MarketTickScheduler', () => {
       marketTickService as unknown as MarketTickService,
       schedulerRegistry as unknown as SchedulerRegistry,
     );
+    internals = scheduler as unknown as MarketTickSchedulerInternals;
   });
 
   afterEach(() => {
@@ -77,15 +84,15 @@ describe('MarketTickScheduler', () => {
 
   describe('runTick', () => {
     it('delegates to marketTickService.processTick', async () => {
-      await (scheduler as any).runTick();
+      await internals.runTick();
       expect(marketTickService.processTick).toHaveBeenCalled();
     });
 
     it('logs error when processTick throws', async () => {
       marketTickService.processTick.mockRejectedValue(new Error('tick error'));
-      const errorSpy = jest.spyOn((scheduler as any).logger, 'error');
+      const errorSpy = jest.spyOn(internals.logger, 'error');
 
-      await (scheduler as any).runTick();
+      await internals.runTick();
 
       expect(errorSpy).toHaveBeenCalledWith(
         expect.stringContaining('tick error'),

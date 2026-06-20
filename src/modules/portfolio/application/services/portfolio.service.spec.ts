@@ -1,3 +1,4 @@
+import { ServiceUnavailableException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { PortfolioService } from './portfolio.service';
 
@@ -70,11 +71,15 @@ describe('PortfolioService', () => {
 
     const summary = await service.getSummary(new Types.ObjectId().toString());
 
+    expect(stockModel.find).toHaveBeenCalledWith(
+      { symbol: { $in: ['AAPL', 'MSFT'] } },
+      { symbol: 1, close: 1, currency: 1 },
+    );
     expect(summary.availableBalance).toBe(500);
     expect(summary.reservedBalance).toBe(100);
     expect(summary.investedValue).toBe(1300);
     expect(summary.unrealizedProfitLoss).toBe(50);
-    expect(summary.totalEquity).toBe(1800);
+    expect(summary.totalEquity).toBe(1900);
     expect(summary.positions).toEqual([
       {
         symbol: 'AAPL',
@@ -95,6 +100,46 @@ describe('PortfolioService', () => {
         unrealizedProfitLoss: -50,
       },
     ]);
+  });
+
+  it('no consulta acciones cuando el portafolio no tiene posiciones activas', async () => {
+    const positionModel = {
+      find: jest.fn().mockReturnValue(
+        createLeanQuery([
+          {
+            symbol: 'OLD',
+            quantity: 0,
+            reservedQuantity: 0,
+            averageCost: 100,
+          },
+        ]),
+      ),
+    };
+    const stockModel = {
+      find: jest.fn(),
+    };
+    const usersService = {
+      findById: jest.fn().mockResolvedValue({
+        availableBalance: 500,
+        reservedBalance: 100,
+      }),
+    };
+    const service = new PortfolioService(
+      positionModel as never,
+      stockModel as never,
+      usersService as never,
+      { getRate: jest.fn() } as never,
+    );
+
+    const summary = await service.getSummary(new Types.ObjectId().toString());
+
+    expect(stockModel.find).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({
+      investedValue: 0,
+      totalEquity: 600,
+      unrealizedProfitLoss: 0,
+      positions: [],
+    });
   });
 
   it('convierte valores USD a CLP para los totales del portafolio', async () => {
@@ -227,7 +272,7 @@ describe('PortfolioService', () => {
     expect(currencyRateService.getRate).toHaveBeenCalledWith('USDCLP');
   });
 
-  it('tolera tasa de cambio no disponible sin romper el resumen', async () => {
+  it('rechaza el resumen cuando una posición USD no tiene tasa disponible', async () => {
     const positionModel = {
       find: jest.fn().mockReturnValue(
         createLeanQuery([
@@ -268,11 +313,11 @@ describe('PortfolioService', () => {
       currencyRateService as never,
     );
 
-    const summary = await service.getSummary(new Types.ObjectId().toString());
-
-    // If rate is unavailable, fall back to native values without crashing
-    expect(summary.investedValue).toBe(2000);
-    expect(summary.positions[0].marketValue).toBe(2000);
+    await expect(
+      service.getSummary(new Types.ObjectId().toString()),
+    ).rejects.toThrow(
+      new ServiceUnavailableException('Tipo de cambio no disponible para USD.'),
+    );
     expect(currencyRateService.getRate).toHaveBeenCalledWith('USDCLP');
   });
 });

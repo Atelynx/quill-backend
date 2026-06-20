@@ -12,6 +12,9 @@ export class StrategyFactory {
     noiseWave: NoiseWaveSimulationStrategy,
   ): IMarketSimulationStrategy {
     const normalizedName = strategyName?.toLowerCase().trim();
+    console.log(
+      `Selected market simulation strategy: ${normalizedName ?? 'undefined'}`,
+    );
 
     switch (normalizedName) {
       case 'flat':

@@ -14,14 +14,27 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/system/health/ready').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - public
+      - data
   
   mongodb:
     image: mongo:7
     container_name: quill-mongodb
     restart: unless-stopped
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
-    ports:
-      - "27017:27017"
     environment:
       MONGO_INITDB_DATABASE: quill
     volumes:
@@ -35,6 +48,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    networks:
+      - data
 
   mongodb-init-replica:
     image: mongo:7
@@ -49,13 +64,13 @@ services:
         "-lc",
         "until mongosh --host mongodb:27017 --quiet --eval \"db.adminCommand({ ping: 1 }).ok\" | grep 1; do sleep 2; done; mongosh --host mongodb:27017 --quiet --eval \"try { rs.status().ok } catch (error) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongodb:27017' }] }) }\"",
       ]
+    networks:
+      - data
 
   redis:
     image: redis:7-alpine
     container_name: quill-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -63,7 +78,14 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    networks:
+      - data
 
 volumes:
   mongodb_data:
   redis_data:
+
+networks:
+  public:
+  data:
+    internal: true

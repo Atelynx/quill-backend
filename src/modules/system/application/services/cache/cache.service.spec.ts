@@ -10,6 +10,8 @@ const mockRedisInstance = {
   set: jest.fn().mockResolvedValue(undefined),
   get: jest.fn().mockResolvedValue(null),
   del: jest.fn().mockResolvedValue(undefined),
+  eval: jest.fn().mockResolvedValue(1),
+  flushdb: jest.fn().mockResolvedValue(undefined),
   flushall: jest.fn().mockResolvedValue(undefined),
   keys: jest.fn().mockResolvedValue([]),
   pttl: jest.fn().mockResolvedValue(-1),
@@ -19,7 +21,7 @@ jest.mock('ioredis', () => jest.fn(() => mockRedisInstance));
 
 import Redis from 'ioredis';
 import { CacheService } from './cache.service';
-import { Logger } from '@nestjs/common';
+import { Logger, ServiceUnavailableException } from '@nestjs/common';
 
 describe('CacheService', () => {
   let service: CacheService;
@@ -29,6 +31,11 @@ describe('CacheService', () => {
     jest.clearAllMocks();
     mockRedisInstance.status = 'ready';
   });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   beforeAll(() => {
     Logger.overrideLogger(false);
   });
@@ -66,6 +73,27 @@ describe('CacheService', () => {
       await service.set('key1', { a: 1 }, 1000);
       const v = await service.get<{ a: number }>('key1');
       expect(v).toEqual({ a: 1 });
+    });
+
+    it('rejects cache operations in production when Redis fails', async () => {
+      mockRedisInstance.connect.mockRejectedValueOnce(
+        new Error('connect fail'),
+      );
+      config = {
+        get: jest.fn((key: string) =>
+          key === 'NODE_ENV' ? 'production' : 'redis://localhost:6379',
+        ),
+      };
+      service = new CacheService(config as ConfigService);
+
+      await service.onModuleInit();
+
+      await expect(service.set('critical', 'value')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      await expect(service.get('critical')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
     });
   });
 
@@ -109,6 +137,37 @@ describe('CacheService', () => {
       const obj = { foo: [1, 2, 3] };
       await service.set('obj', obj);
       expect(await service.get('obj')).toEqual(obj);
+    });
+
+    it('expires values according to ttl and removes them when read', async () => {
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+      await service.set('expiring', 'value', 100);
+
+      now.mockReturnValue(1100);
+
+      expect(await service.get('expiring')).toBeUndefined();
+      expect(await service.keys()).not.toContain('expiring');
+    });
+
+    it('keeps values without ttl', async () => {
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+      await service.set('persistent', 'value');
+
+      now.mockReturnValue(1_000_000);
+
+      expect(await service.get('persistent')).toBe('value');
+      expect(await service.ttl('persistent')).toBe(-1);
+    });
+
+    it('evicts the oldest entry when the fallback reaches its limit', async () => {
+      await service.set('oldest', 'value');
+      for (let index = 0; index < 1000; index++) {
+        await service.set(`key-${index}`, index);
+      }
+
+      expect(await service.get('oldest')).toBeUndefined();
+      expect(await service.get('key-999')).toBe(999);
+      expect(await service.keys()).toHaveLength(1000);
     });
 
     it('returns undefined for missing keys', async () => {
@@ -229,9 +288,10 @@ describe('CacheService', () => {
       expect(mockRedisInstance.del).toHaveBeenCalledWith('k');
     });
 
-    it('reset delegates to redis.flushall', async () => {
+    it('reset clears only the selected Redis database', async () => {
       await service.reset();
-      expect(mockRedisInstance.flushall).toHaveBeenCalled();
+      expect(mockRedisInstance.flushdb).toHaveBeenCalled();
+      expect(mockRedisInstance.flushall).not.toHaveBeenCalled();
     });
 
     it('ttl delegates to redis.pttl', async () => {
@@ -261,6 +321,74 @@ describe('CacheService', () => {
       mockRedisInstance.keys.mockResolvedValueOnce(['a', 'b']);
       expect(await service.keys()).toEqual(['a', 'b']);
     });
+
+    it('acquires a distributed lock with NX and PX', async () => {
+      mockRedisInstance.set.mockResolvedValueOnce('OK');
+
+      await expect(
+        service.acquireLock('lock:key', 'owner-1', 5000),
+      ).resolves.toBe(true);
+      expect(mockRedisInstance.set).toHaveBeenCalledWith(
+        'lock:key',
+        'owner-1',
+        'PX',
+        5000,
+        'NX',
+      );
+    });
+
+    it('releases a distributed lock only through compare-and-delete', async () => {
+      await expect(service.releaseLock('lock:key', 'owner-1')).resolves.toBe(
+        true,
+      );
+      expect(mockRedisInstance.eval).toHaveBeenCalledWith(
+        expect.stringContaining('redis.call("GET", KEYS[1]) == ARGV[1]'),
+        1,
+        'lock:key',
+        'owner-1',
+      );
+    });
+
+    it('does not release a distributed lock owned by another execution', async () => {
+      mockRedisInstance.eval.mockResolvedValueOnce(0);
+
+      await expect(
+        service.releaseLock('lock:key', 'other-owner'),
+      ).resolves.toBe(false);
+    });
+  });
+
+  describe('in-memory lock fallback', () => {
+    beforeEach(() => {
+      config = { get: jest.fn().mockReturnValue(undefined) };
+      service = new CacheService(config as ConfigService);
+    });
+
+    it('does not acquire or release a lock owned by another execution', async () => {
+      await expect(
+        service.acquireLock('lock:key', 'owner-1', 5000),
+      ).resolves.toBe(true);
+      await expect(
+        service.acquireLock('lock:key', 'owner-2', 5000),
+      ).resolves.toBe(false);
+      await expect(service.releaseLock('lock:key', 'owner-2')).resolves.toBe(
+        false,
+      );
+      await expect(service.releaseLock('lock:key', 'owner-1')).resolves.toBe(
+        true,
+      );
+    });
+
+    it('allows acquiring the lock after its TTL expires', async () => {
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+      await service.acquireLock('lock:key', 'owner-1', 100);
+
+      now.mockReturnValue(1100);
+
+      await expect(
+        service.acquireLock('lock:key', 'owner-2', 100),
+      ).resolves.toBe(true);
+    });
   });
 
   describe('Redis error fallback during operations', () => {
@@ -278,6 +406,28 @@ describe('CacheService', () => {
 
       errorHandler!(new Error('ECONNREFUSED'));
       expect(service.isConnected()).toBe(false);
+    });
+
+    it('does not activate local fallback after a Redis error in production', async () => {
+      let errorHandler: (err: Error) => void;
+      mockRedisInstance.on.mockImplementation(
+        (_event: string, handler: (err: Error) => void) => {
+          errorHandler = handler;
+        },
+      );
+      config = {
+        get: jest.fn((key: string) =>
+          key === 'NODE_ENV' ? 'production' : 'redis://localhost:6379',
+        ),
+      };
+      service = new CacheService(config as ConfigService);
+      await service.onModuleInit();
+
+      errorHandler!(new Error('ECONNREFUSED'));
+
+      await expect(service.get('critical')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
     });
   });
 });

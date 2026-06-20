@@ -12,6 +12,7 @@ import type { CurrencyDataProvider } from '../../domain/interfaces/currency-data
 
 const BASE_PRICE_KEY = (symbol: string) => `forex:${symbol}:base_price`;
 const LIVE_PRICE_KEY = (symbol: string) => `forex:${symbol}:live_price`;
+const LIVE_PRICE_CACHE_TTL_MS = 60_000;
 
 @Injectable()
 export class CurrencyAnchorService implements OnModuleInit, OnModuleDestroy {
@@ -85,7 +86,11 @@ export class CurrencyAnchorService implements OnModuleInit, OnModuleDestroy {
           LIVE_PRICE_KEY(symbol),
         );
         if (existingLive == null) {
-          await this.cacheService.set(LIVE_PRICE_KEY(symbol), anchorPrice);
+          await this.cacheService.set(
+            LIVE_PRICE_KEY(symbol),
+            anchorPrice,
+            LIVE_PRICE_CACHE_TTL_MS,
+          );
         }
 
         this.logger.debug(`Anchor updated for ${symbol}: ${anchorPrice}`);

@@ -15,6 +15,7 @@ import { FlatMarketSimulationStrategy } from '../common/strategies/flat-market-s
 import { NoiseWaveSimulationStrategy } from '../common/strategies/nw-simulation.strategy';
 import { StrategyFactory } from '../common/strategies/strategy.factory';
 import { StrategyType } from '../common/strategies/strategy.types';
+import { AdminConfigService } from '../admin/application/services/admin-config.service';
 
 @Module({
   imports: [CommonStrategiesModule],
@@ -34,14 +35,20 @@ import { StrategyType } from '../common/strategies/strategy.types';
         ExchangeRateCurrencyDataProvider,
         NoneCurrencyDataProvider,
         ConfigService,
+        AdminConfigService,
       ],
-      useFactory: (
+      useFactory: async (
         mockProvider: MockCurrencyDataProvider,
         exchangeRateProvider: ExchangeRateCurrencyDataProvider,
         noneProvider: NoneCurrencyDataProvider,
         configService: ConfigService,
+        adminConfigService: AdminConfigService,
       ) => {
-        const providerName = configService.get<string>('CURRENCY_PROVIDER');
+        const adminConfigProviderName =
+          await adminConfigService.get<string>('CURRENCY_PROVIDER');
+        const providerName = adminConfigProviderName
+          ? adminConfigProviderName
+          : configService.get<string>('CURRENCY_PROVIDER', 'mock');
 
         if (providerName === 'exchangeRate') {
           return new FallbackCurrencyDataProvider(
@@ -61,21 +68,25 @@ import { StrategyType } from '../common/strategies/strategy.types';
     {
       provide: 'CURRENCY_SIMULATION_STRATEGY',
       inject: [
-        ConfigService,
         GBMMarketSimulationStrategy,
         FlatMarketSimulationStrategy,
         NoiseWaveSimulationStrategy,
+        ConfigService,
+        AdminConfigService,
       ],
-      useFactory: (
-        configService: ConfigService,
+      useFactory: async (
         gbm: GBMMarketSimulationStrategy,
         flat: FlatMarketSimulationStrategy,
         nw: NoiseWaveSimulationStrategy,
+        configService: ConfigService,
+        adminConfigService: AdminConfigService,
       ) => {
-        const strategyName = configService.get<string>(
+        const strategyConfigProviderName = await adminConfigService.get<string>(
           'CURRENCY_SIMULATION_STRATEGY',
-          'flat',
         );
+        const strategyName = strategyConfigProviderName
+          ? strategyConfigProviderName
+          : configService.get<string>('CURRENCY_SIMULATION_STRATEGY', 'flat');
         return StrategyFactory.createStrategy(
           strategyName as StrategyType,
           gbm,

@@ -10,6 +10,33 @@ npm run test:e2e    # E2E
 npm run test:cov    # Cobertura
 ```
 
+## Validación local y CI
+
+El proyecto usa la versión de Node definida en `.nvmrc`. La validación no
+modificadora ejecutada por CI es:
+
+```bash
+npm ci
+npm run typecheck
+npm run build
+npm test -- --runInBand
+npm run lint:check
+```
+
+`npm run lint` mantiene el autofix para desarrollo local. CI usa
+`npm run lint:check` para validar sin modificar archivos.
+
+## Healthchecks
+
+- `GET /api/system/health/live`: liveness del proceso.
+- `GET /api/system/health/ready`: readiness; responde HTTP 503 si MongoDB no
+  esta disponible.
+- `GET /api/system/health`: alias compatible de readiness.
+
+Redis usa fallback en memoria cuando no esta disponible. En desarrollo y test,
+readiness queda degradado pero operativo; en producción Redis es requerido y
+readiness responde HTTP 503. El healthcheck de producción usa readiness.
+
 ## Cobertura unitaria
 
 Servicios con tests: `AuthService`, `CommissionService`, `OrderExecutionService`, `OrdersService`, `PortfolioService`, `UsersService`, `HealthService`, `TradesService`, `MarketService`.

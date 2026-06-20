@@ -1,5 +1,13 @@
+import { Logger } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { OrderExecutionService } from './order-execution.service';
+
+interface ServiceInternals {
+  isRunning: boolean;
+  logger: Logger;
+  executeCycle(): Promise<void>;
+  handleMarketTick(): Promise<void>;
+}
 
 const query = <T>(value: T) => ({
   session: jest.fn().mockReturnThis(),
@@ -7,17 +15,20 @@ const query = <T>(value: T) => ({
 });
 
 describe('OrderExecutionService error paths', () => {
-  let service: any;
-  let marketService: any;
-  let session: any;
-  let orderModel: any;
-  let userModel: any;
-  let positionModel: any;
+  let service: ServiceInternals;
+  let marketService: { listQuotes: jest.Mock };
+  let session: { withTransaction: jest.Mock; endSession: jest.Mock };
+  let orderModel: { find: jest.Mock; findById: jest.Mock };
+  let userModel: { findById: jest.Mock };
+  let positionModel: { findOne: jest.Mock; create: jest.Mock };
+  let errorSpy: jest.SpyInstance;
 
   beforeEach(() => {
     marketService = { listQuotes: jest.fn() };
     session = {
-      withTransaction: jest.fn(async (callback) => callback()),
+      withTransaction: jest.fn((callback: () => Promise<unknown>) =>
+        callback(),
+      ),
       endSession: jest.fn().mockResolvedValue(undefined),
     };
     orderModel = { find: jest.fn(), findById: jest.fn() };
@@ -25,19 +36,32 @@ describe('OrderExecutionService error paths', () => {
     positionModel = { findOne: jest.fn(), create: jest.fn() };
     service = new OrderExecutionService(
       {} as never,
-      marketService,
+      marketService as never,
       { startSession: jest.fn().mockResolvedValue(session) } as never,
-      orderModel,
-      userModel,
-      positionModel,
-      { findOne: jest.fn() } as never,
+      orderModel as never,
+      userModel as never,
+      positionModel as never,
+      {
+        findOne: jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue({ currency: 'CLP' }),
+          }),
+        }),
+        findOneAndUpdate: jest.fn().mockResolvedValue({ symbol: 'AAPL' }),
+      } as never,
       { create: jest.fn() } as never,
       { calculate: jest.fn().mockResolvedValue(1) } as never,
-      { get: jest.fn() } as never,
+      {
+        get: jest.fn(),
+        acquireLock: jest.fn().mockResolvedValue(true),
+        releaseLock: jest.fn().mockResolvedValue(true),
+      } as never,
       { get: jest.fn() } as never,
       { getRate: jest.fn() } as never,
-    );
-    jest.spyOn(service.logger, 'error').mockImplementation(jest.fn());
+    ) as unknown as ServiceInternals;
+    errorSpy = jest
+      .spyOn(service.logger, 'error')
+      .mockImplementation(jest.fn());
   });
 
   it('omite el tick cuando ya existe un ciclo en curso', async () => {
@@ -48,7 +72,7 @@ describe('OrderExecutionService error paths', () => {
     expect(marketService.listQuotes).not.toHaveBeenCalled();
   });
 
-  it('registra el error cuando una venta no encuentra posicion', async () => {
+  it('cancela la orden cuando una venta no encuentra posicion y no la deja pendiente', async () => {
     const order = {
       id: new Types.ObjectId().toString(),
       userId: new Types.ObjectId(),
@@ -75,10 +99,9 @@ describe('OrderExecutionService error paths', () => {
 
     await service.executeCycle();
 
-    expect(service.logger.error).toHaveBeenCalledWith(
-      `Failed to execute order ${order.id}`,
-      expect.any(Error),
-    );
+    // Se usa CANCELLED porque es el estado terminal existente para una inconsistencia de negocio irrecuperable.
+    expect(order.status).toBe('CANCELLED');
+    expect(errorSpy).not.toHaveBeenCalled();
     expect(session.endSession).toHaveBeenCalled();
   });
 });

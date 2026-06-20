@@ -13,6 +13,44 @@ jest.mock('bcrypt', () => ({
   compare: jest.fn(),
 }));
 
+const comparePassword = bcrypt.compare as unknown as jest.MockedFunction<
+  (plainText: string, hash: string) => Promise<boolean>
+>;
+const hashPassword = bcrypt.hash as unknown as jest.MockedFunction<
+  (plainText: string, rounds: number) => Promise<string>
+>;
+
+interface UserModelMock {
+  exists: jest.Mock;
+  create: jest.Mock;
+  findOne: jest.Mock;
+  findById: jest.Mock;
+  find: jest.Mock;
+  countDocuments: jest.Mock;
+}
+
+interface FriendshipModelMock {
+  exists: jest.Mock;
+  create: jest.Mock;
+  findOne: jest.Mock;
+  find: jest.Mock;
+  deleteMany: jest.Mock;
+  countDocuments: jest.Mock;
+}
+
+interface MutableDocumentMock {
+  _id: string;
+  id?: string;
+  fullName?: string;
+  username?: string;
+  email?: string;
+  passwordHash?: string;
+  tokenVersion?: number;
+  watchlist?: string[];
+  status?: string;
+  save: jest.Mock;
+}
+
 function createExecQuery<T>(value: T) {
   return { exec: jest.fn().mockResolvedValue(value) };
 }
@@ -25,12 +63,17 @@ function createLeanQuery<T>(value: T) {
   };
 }
 
+function firstCallArgument(mock: jest.Mock): unknown {
+  const calls = mock.mock.calls as unknown as unknown[][];
+  return calls[0]?.[0];
+}
+
 describe('UsersService', () => {
   let service: UsersService;
-  let userModel: any;
-  let friendshipModel: any;
-  let stockModel: any;
-  let configService: any;
+  let userModel: UserModelMock;
+  let friendshipModel: FriendshipModelMock;
+  let stockModel: { find: jest.Mock };
+  let configService: { get: jest.Mock };
 
   beforeEach(() => {
     userModel = {
@@ -83,13 +126,17 @@ describe('UsersService', () => {
       });
 
       expect(userModel.exists).toHaveBeenNthCalledWith(1, {
-        email: 'ANA@QUILL.DEV',
+        email: 'ana@quill.dev',
       });
+      const createInput = firstCallArgument(userModel.create) as {
+        username: string;
+      };
+      expect(createInput.username).toMatch(/^user_[0-9a-f]{6}$/);
       expect(userModel.create).toHaveBeenCalledWith({
         fullName: 'Ana Lopez',
         email: 'ana@quill.dev',
         passwordHash: 'hashed-password',
-        username: expect.stringMatching(/^user_[0-9a-f]{6}$/),
+        username: createInput.username,
         availableBalance: 100000,
         reservedBalance: 0,
       });
@@ -98,6 +145,23 @@ describe('UsersService', () => {
         email: 'ana@quill.dev',
         username: 'user_a1b2c3',
       });
+    });
+
+    it('rechaza un correo equivalente aunque cambie la capitalizacion', async () => {
+      userModel.exists.mockResolvedValueOnce({ _id: 'existing-user' });
+
+      await expect(
+        service.createUser({
+          fullName: 'Ana Lopez',
+          email: 'ANA@QUILL.DEV',
+          passwordHash: 'hashed-password',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(userModel.exists).toHaveBeenCalledWith({
+        email: 'ana@quill.dev',
+      });
+      expect(userModel.create).not.toHaveBeenCalled();
     });
 
     it('usa el username proporcionado si es valido', async () => {
@@ -153,6 +217,44 @@ describe('UsersService', () => {
 
       expect(userModel.create).not.toHaveBeenCalled();
     });
+
+    it('traduce una colision concurrente de email a conflicto', async () => {
+      userModel.exists.mockResolvedValue(null);
+      configService.get.mockReturnValue(100000);
+      userModel.create.mockRejectedValue({
+        code: 11000,
+        keyPattern: { email: 1 },
+        keyValue: { email: 'ana@quill.dev' },
+      });
+
+      await expect(
+        service.createUser({
+          fullName: 'Ana Lopez',
+          email: 'ANA@QUILL.DEV',
+          passwordHash: 'hashed-password',
+          username: 'ana',
+        }),
+      ).rejects.toThrow('Ya existe una cuenta con ese correo.');
+    });
+
+    it('traduce una colision concurrente de username a conflicto', async () => {
+      userModel.exists.mockResolvedValue(null);
+      configService.get.mockReturnValue(100000);
+      userModel.create.mockRejectedValue({
+        code: 11000,
+        keyPattern: { username: 1 },
+        keyValue: { username: 'ana' },
+      });
+
+      await expect(
+        service.createUser({
+          fullName: 'Ana Lopez',
+          email: 'ana@quill.dev',
+          passwordHash: 'hashed-password',
+          username: 'Ana',
+        }),
+      ).rejects.toThrow('Ese nombre de usuario ya está en uso.');
+    });
   });
 
   describe('findByEmail', () => {
@@ -198,6 +300,17 @@ describe('UsersService', () => {
       });
       expect(result).toBe(user);
     });
+
+    it('normaliza el correo al buscar por identidad', async () => {
+      const user = { id: 'user-1', email: 'ana@quill.dev' };
+      userModel.findOne.mockReturnValue(createExecQuery(user));
+
+      await service.findByIdentity('ANA@QUILL.DEV');
+
+      expect(userModel.findOne).toHaveBeenCalledWith({
+        $or: [{ email: 'ana@quill.dev' }, { username: 'ana@quill.dev' }],
+      });
+    });
   });
 
   describe('updateProfile', () => {
@@ -208,7 +321,7 @@ describe('UsersService', () => {
         fullName: 'Old Name',
         username: 'old_user',
         save: jest.fn().mockResolvedValue(true),
-      } as any;
+      } satisfies MutableDocumentMock;
       userModel.findById.mockReturnValue(createExecQuery(user));
       userModel.exists.mockResolvedValue(null);
 
@@ -227,7 +340,7 @@ describe('UsersService', () => {
       const user = {
         _id: 'user-1',
         save: jest.fn(),
-      } as any;
+      } satisfies MutableDocumentMock;
       userModel.findById.mockReturnValue(createExecQuery(user));
       userModel.exists.mockResolvedValue({ _id: 'other-user' });
 
@@ -238,20 +351,22 @@ describe('UsersService', () => {
   });
 
   describe('changeEmail', () => {
-    it('cambia el email si la contraseña es correcta', async () => {
+    it('cambia el email e invalida los tokens anteriores', async () => {
       const user = {
         _id: 'user-1',
         email: 'old@quill.dev',
         passwordHash: 'hashed',
+        tokenVersion: 4,
         save: jest.fn().mockResolvedValue(true),
-      } as any;
+      } satisfies MutableDocumentMock;
       userModel.findById.mockReturnValue(createExecQuery(user));
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      comparePassword.mockResolvedValue(true);
       userModel.exists.mockResolvedValue(null);
 
       await service.changeEmail('user-1', 'correct-password', 'new@quill.dev');
 
       expect(user.email).toBe('new@quill.dev');
+      expect(user.tokenVersion).toBe(5);
       expect(user.save).toHaveBeenCalled();
     });
 
@@ -260,9 +375,9 @@ describe('UsersService', () => {
         _id: 'user-1',
         passwordHash: 'hashed',
         save: jest.fn(),
-      } as any;
+      } satisfies MutableDocumentMock;
       userModel.findById.mockReturnValue(createExecQuery(user));
-      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+      comparePassword.mockResolvedValue(false);
 
       await expect(
         service.changeEmail('user-1', 'wrong', 'new@quill.dev'),
@@ -276,9 +391,9 @@ describe('UsersService', () => {
         _id: 'user-1',
         passwordHash: 'hashed',
         save: jest.fn(),
-      } as any;
+      } satisfies MutableDocumentMock;
       userModel.findById.mockReturnValue(createExecQuery(user));
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      comparePassword.mockResolvedValue(true);
       userModel.exists.mockResolvedValue({ _id: 'other-user' });
 
       await expect(
@@ -288,20 +403,22 @@ describe('UsersService', () => {
   });
 
   describe('changePassword', () => {
-    it('cambia la contraseña si la actual es correcta', async () => {
+    it('cambia la contraseña e invalida los tokens anteriores', async () => {
       const user = {
         _id: 'user-1',
         passwordHash: 'old-hash',
+        tokenVersion: 4,
         save: jest.fn().mockResolvedValue(true),
-      } as any;
+      } satisfies MutableDocumentMock;
       userModel.findById.mockReturnValue(createExecQuery(user));
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('new-hash');
+      comparePassword.mockResolvedValue(true);
+      hashPassword.mockResolvedValue('new-hash');
 
       await service.changePassword('user-1', 'old-pass', 'new-pass-long');
 
       expect(bcrypt.hash).toHaveBeenCalledWith('new-pass-long', 10);
       expect(user.passwordHash).toBe('new-hash');
+      expect(user.tokenVersion).toBe(5);
       expect(user.save).toHaveBeenCalled();
     });
 
@@ -310,9 +427,9 @@ describe('UsersService', () => {
         _id: 'user-1',
         passwordHash: 'old-hash',
         save: jest.fn(),
-      } as any;
+      } satisfies MutableDocumentMock;
       userModel.findById.mockReturnValue(createExecQuery(user));
-      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+      comparePassword.mockResolvedValue(false);
 
       await expect(
         service.changePassword('user-1', 'wrong', 'new-pass-long'),
@@ -328,7 +445,7 @@ describe('UsersService', () => {
         _id: 'user-1',
         watchlist: ['AAPL'],
         save: jest.fn().mockResolvedValue(true),
-      } as any;
+      } satisfies MutableDocumentMock;
       userModel.findById.mockReturnValue(createExecQuery(user));
 
       const result = await service.addToWatchlist('user-1', ['AAPL', 'MSFT']);
@@ -338,12 +455,41 @@ describe('UsersService', () => {
       expect(result).toBe(user);
     });
 
+    it('normaliza y deduplica simbolos antes de persistir', async () => {
+      const user = {
+        _id: 'user-1',
+        watchlist: ['aapl', 'AAPL'],
+        save: jest.fn().mockResolvedValue(true),
+      } satisfies MutableDocumentMock;
+      userModel.findById.mockReturnValue(createExecQuery(user));
+
+      await service.addToWatchlist('user-1', ['msft', 'MSFT', 'AAPL']);
+
+      expect(user.watchlist).toEqual(['AAPL', 'MSFT']);
+      expect(user.save).toHaveBeenCalled();
+    });
+
+    it('rechaza agregar simbolos cuando la watchlist supera el maximo', async () => {
+      const user = {
+        _id: 'user-1',
+        watchlist: Array.from({ length: 50 }, (_, index) => `SYM${index}`),
+        save: jest.fn(),
+      } satisfies MutableDocumentMock;
+      userModel.findById.mockReturnValue(createExecQuery(user));
+
+      await expect(
+        service.addToWatchlist('user-1', ['EXTRA']),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(user.save).not.toHaveBeenCalled();
+    });
+
     it('elimina un simbolo del watchlist', async () => {
       const user = {
         _id: 'user-1',
         watchlist: ['AAPL', 'MSFT', 'GOOGL'],
         save: jest.fn().mockResolvedValue(true),
-      } as any;
+      } satisfies MutableDocumentMock;
       userModel.findById.mockReturnValue(createExecQuery(user));
 
       const result = await service.removeFromWatchlist('user-1', 'MSFT');
@@ -400,11 +546,14 @@ describe('UsersService', () => {
 
       await service.sendFriendRequest(userId, friendId);
 
-      expect(friendshipModel.create).toHaveBeenCalledWith({
-        userId: expect.any(Types.ObjectId),
-        friendId: expect.any(Types.ObjectId),
-        status: 'pending',
-      });
+      const friendshipInput = firstCallArgument(friendshipModel.create) as {
+        userId: unknown;
+        friendId: unknown;
+        status: string;
+      };
+      expect(friendshipInput.userId).toBeInstanceOf(Types.ObjectId);
+      expect(friendshipInput.friendId).toBeInstanceOf(Types.ObjectId);
+      expect(friendshipInput.status).toBe('pending');
     });
 
     it('rechaza auto-solicitud', async () => {
@@ -420,13 +569,46 @@ describe('UsersService', () => {
       await expect(
         service.sendFriendRequest(userId, friendId),
       ).rejects.toBeInstanceOf(ConflictException);
+
+      const filter = firstCallArgument(friendshipModel.exists) as {
+        $or: Array<{ userId: Types.ObjectId; friendId: Types.ObjectId }>;
+      };
+      expect(filter.$or).toEqual([
+        {
+          userId: new Types.ObjectId(userId),
+          friendId: new Types.ObjectId(friendId),
+        },
+        {
+          userId: new Types.ObjectId(friendId),
+          friendId: new Types.ObjectId(userId),
+        },
+      ]);
+    });
+
+    it('rechaza una solicitud inversa cuando ya existe A hacia B', async () => {
+      userModel.findById.mockReturnValue(createExecQuery({ _id: userId }));
+      friendshipModel.exists.mockResolvedValue({ _id: 'a-to-b' });
+
+      await expect(
+        service.sendFriendRequest(friendId, userId),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      const filter = firstCallArgument(friendshipModel.exists) as {
+        $or: Array<{ userId: Types.ObjectId; friendId: Types.ObjectId }>;
+      };
+      expect(filter.$or).toContainEqual({
+        userId: new Types.ObjectId(userId),
+        friendId: new Types.ObjectId(friendId),
+      });
+      expect(friendshipModel.create).not.toHaveBeenCalled();
     });
 
     it('acepta solicitud de amistad', async () => {
       const request = {
+        _id: 'request-1',
         status: 'pending',
         save: jest.fn().mockResolvedValue(true),
-      } as any;
+      } satisfies MutableDocumentMock;
       friendshipModel.findOne.mockReturnValue(createExecQuery(request));
 
       await service.acceptFriendRequest(userId, friendId);
@@ -442,18 +624,14 @@ describe('UsersService', () => {
 
       await service.removeFriend(userId, friendId);
 
-      expect(friendshipModel.deleteMany).toHaveBeenCalledWith({
-        $or: [
-          {
-            userId: expect.any(Types.ObjectId),
-            friendId: expect.any(Types.ObjectId),
-          },
-          {
-            userId: expect.any(Types.ObjectId),
-            friendId: expect.any(Types.ObjectId),
-          },
-        ],
-      });
+      const deleteFilter = firstCallArgument(friendshipModel.deleteMany) as {
+        $or: Array<{ userId: unknown; friendId: unknown }>;
+      };
+      expect(deleteFilter.$or).toHaveLength(2);
+      for (const direction of deleteFilter.$or) {
+        expect(direction.userId).toBeInstanceOf(Types.ObjectId);
+        expect(direction.friendId).toBeInstanceOf(Types.ObjectId);
+      }
     });
 
     it('lista amigos aceptados', async () => {
@@ -479,8 +657,62 @@ describe('UsersService', () => {
 
       const friends = await service.getFriends(userId);
 
-      expect(friends).toHaveLength(1);
-      expect(friends[0].fullName).toBe('Friend');
+      expect(friends).toEqual([
+        {
+          _id: friendId,
+          id: friendId,
+          fullName: 'Friend',
+          email: 'friend@quill.dev',
+          username: 'friend_user',
+        },
+      ]);
+    });
+
+    it('lista solicitudes pendientes con contrato compatible', async () => {
+      const requestId = new Types.ObjectId();
+      const createdAt = new Date('2026-06-15T10:00:00.000Z');
+      friendshipModel.find.mockReturnValue(
+        createLeanQuery([
+          {
+            _id: requestId,
+            userId: new Types.ObjectId(friendId),
+            friendId: new Types.ObjectId(userId),
+            status: 'pending',
+            createdAt,
+          },
+        ]),
+      );
+      userModel.find.mockReturnValue(
+        createLeanQuery([
+          {
+            _id: new Types.ObjectId(friendId),
+            fullName: 'Friend',
+            email: 'friend@quill.dev',
+            username: 'friend_user',
+          },
+        ]),
+      );
+
+      expect(await service.getPendingRequests(userId)).toEqual([
+        {
+          _id: requestId.toString(),
+          id: requestId.toString(),
+          from: {
+            _id: friendId,
+            id: friendId,
+            fullName: 'Friend',
+            email: 'friend@quill.dev',
+            username: 'friend_user',
+          },
+          fromUserId: friendId,
+          fullName: 'Friend',
+          email: 'friend@quill.dev',
+          username: 'friend_user',
+          status: 'pending',
+          createdAt,
+          requestedAt: createdAt,
+        },
+      ]);
     });
   });
 

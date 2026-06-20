@@ -8,8 +8,14 @@ import Decimal from 'decimal.js';
 jest.useFakeTimers();
 import { Logger } from '@nestjs/common';
 
+interface CurrencyTickServiceInternals {
+  isTicking: boolean;
+  processTick(): Promise<void>;
+}
+
 describe('CurrencyTickService', () => {
   let service: CurrencyTickService;
+  let internals: CurrencyTickServiceInternals;
   let setIntervalSpy: jest.SpyInstance;
   let provider: { getSymbols: jest.Mock };
   let strategy: { calculateNextTick: jest.Mock };
@@ -43,15 +49,14 @@ describe('CurrencyTickService', () => {
       configService as unknown as ConfigService,
       schedulerRegistry as unknown as SchedulerRegistry,
     );
+    internals = service as unknown as CurrencyTickServiceInternals;
     // Prevent real intervals from being created during tests
-    setIntervalSpy = jest.spyOn(global, 'setInterval').mockImplementation(((
-      fn: any,
-      ms?: number,
-      ...args: any[]
-    ) => {
-      // return a dummy timer object that won't keep node alive
-      return { ref: () => {}, unref: () => {} } as unknown as NodeJS.Timeout;
-    }) as any);
+    setIntervalSpy = jest
+      .spyOn(global, 'setInterval')
+      .mockImplementation(() => {
+        // return a dummy timer object that won't keep node alive
+        return { ref: () => {}, unref: () => {} } as unknown as NodeJS.Timeout;
+      });
   });
   beforeAll(() => {
     Logger.overrideLogger(false);
@@ -118,8 +123,8 @@ describe('CurrencyTickService', () => {
     });
 
     it('skips when already ticking (concurrent guard)', async () => {
-      (service as any).isTicking = true;
-      await (service as any).processTick();
+      internals.isTicking = true;
+      await internals.processTick();
       expect(provider.getSymbols).not.toHaveBeenCalled();
     });
 
@@ -133,10 +138,21 @@ describe('CurrencyTickService', () => {
         .mockReturnValueOnce(new Decimal(104))
         .mockReturnValueOnce(new Decimal(210));
 
-      await (service as any).processTick();
+      await internals.processTick();
 
       expect(strategy.calculateNextTick).toHaveBeenCalledTimes(2);
-      expect(cacheService.set).toHaveBeenCalledTimes(2);
+      expect(cacheService.set).toHaveBeenNthCalledWith(
+        1,
+        'forex:EURUSD:live_price',
+        104,
+        60_000,
+      );
+      expect(cacheService.set).toHaveBeenNthCalledWith(
+        2,
+        'forex:GBPUSD:live_price',
+        210,
+        60_000,
+      );
       expect(eventEmitter.emit).toHaveBeenCalledWith(CURRENCY_UPDATE_EVENT, [
         expect.objectContaining({ symbol: 'EURUSD', close: 104 }),
         expect.objectContaining({ symbol: 'GBPUSD', close: 210 }),
@@ -150,7 +166,7 @@ describe('CurrencyTickService', () => {
         .mockResolvedValueOnce(200)
         .mockResolvedValueOnce(null);
 
-      await (service as any).processTick();
+      await internals.processTick();
 
       expect(strategy.calculateNextTick).not.toHaveBeenCalled();
       expect(eventEmitter.emit).not.toHaveBeenCalled();
@@ -160,15 +176,15 @@ describe('CurrencyTickService', () => {
       cacheService.get.mockResolvedValueOnce(100).mockResolvedValueOnce(102);
       strategy.calculateNextTick.mockReturnValue(new Decimal(104));
 
-      await (service as any).processTick();
+      await internals.processTick();
 
-      expect((service as any).isTicking).toBe(false);
+      expect(internals.isTicking).toBe(false);
     });
 
     it('does not emit when no updates', async () => {
       cacheService.get.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
 
-      await (service as any).processTick();
+      await internals.processTick();
 
       expect(eventEmitter.emit).not.toHaveBeenCalled();
     });

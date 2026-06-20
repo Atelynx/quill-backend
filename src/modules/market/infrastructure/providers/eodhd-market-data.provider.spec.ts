@@ -9,8 +9,8 @@ describe('EodhdMarketDataProvider', () => {
   const mockRealTime = jest.fn();
   let provider: EodhdMarketDataProvider;
   let configMock: Partial<ConfigService>;
-  let stockModelMock: any;
-  let snapshotModelMock: any;
+  let stockModelMock: { findOne: jest.Mock };
+  let snapshotModelMock: { findOne: jest.Mock; create: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -56,8 +56,8 @@ describe('EodhdMarketDataProvider', () => {
 
     provider = new EodhdMarketDataProvider(
       configMock as ConfigService,
-      stockModelMock,
-      snapshotModelMock,
+      stockModelMock as never,
+      snapshotModelMock as never,
     );
   });
   beforeAll(() => {
@@ -166,8 +166,8 @@ describe('EodhdMarketDataProvider', () => {
     });
     provider = new EodhdMarketDataProvider(
       configMock as ConfigService,
-      stockModelMock,
-      snapshotModelMock,
+      stockModelMock as never,
+      snapshotModelMock as never,
     );
 
     const schedule = provider.getRefreshSchedule();
@@ -189,8 +189,8 @@ describe('EodhdMarketDataProvider', () => {
       configMock.getOrThrow = jest.fn(() => 'test-token');
       provider = new EodhdMarketDataProvider(
         configMock as ConfigService,
-        stockModelMock,
-        snapshotModelMock,
+        stockModelMock as never,
+        snapshotModelMock as never,
       );
 
       const seeds = provider.getSeedData();
@@ -217,8 +217,8 @@ describe('EodhdMarketDataProvider', () => {
       configMock.getOrThrow = jest.fn(() => 'test-token');
       provider = new EodhdMarketDataProvider(
         configMock as ConfigService,
-        stockModelMock,
-        snapshotModelMock,
+        stockModelMock as never,
+        snapshotModelMock as never,
       );
 
       expect(provider.getSeedData()).toEqual([]);
@@ -226,6 +226,29 @@ describe('EodhdMarketDataProvider', () => {
   });
 
   describe('cache-hit path', () => {
+    it('consulta el día actual usando America/Santiago', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-06-16T02:30:00.000Z'));
+      mockRealTime.mockResolvedValue({
+        code: 'SQM-B.SN',
+        close: 100,
+        timestamp: 1710000000,
+      });
+
+      try {
+        await provider.getQuote('SQM-B.SN');
+
+        expect(snapshotModelMock.findOne).toHaveBeenCalledWith({
+          symbol: 'SQM-B.SN',
+          createdAt: {
+            $gte: new Date('2026-06-15T04:00:00.000Z'),
+            $lt: new Date('2026-06-16T04:00:00.000Z'),
+          },
+        });
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it('returns cached snapshot when today snapshot exists', async () => {
       snapshotModelMock.findOne = jest.fn(() => ({
         sort: jest.fn(() => ({

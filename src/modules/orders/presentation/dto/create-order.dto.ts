@@ -1,11 +1,14 @@
 import {
   IsEnum,
+  IsDefined,
+  IsInt,
   IsNumber,
   IsOptional,
   IsPositive,
   IsString,
   Length,
   Min,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateOrderDto {
@@ -17,6 +20,7 @@ export class CreateOrderDto {
   side!: 'BUY' | 'SELL';
 
   @IsNumber()
+  @IsInt()
   @IsPositive()
   quantity!: number;
 
@@ -24,8 +28,10 @@ export class CreateOrderDto {
   @IsEnum(['LIMIT', 'MARKET'])
   type?: 'LIMIT' | 'MARKET';
 
-  @IsOptional()
+  @ValidateIf((order: CreateOrderDto) => order.type !== 'MARKET')
+  @IsDefined()
   @IsNumber()
+  @IsPositive()
   @Min(0.01)
   limitPrice?: number;
 }

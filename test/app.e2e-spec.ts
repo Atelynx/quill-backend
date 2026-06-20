@@ -1,7 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { OrderExecutionService } from '../src/modules/orders/application/services/order-execution.service';
-import { MockMarketDataProvider } from '../src/modules/market/infrastructure/providers/mock-market-data.provider';
 import {
   createTestApp,
   destroyTestApp,
@@ -10,10 +9,16 @@ import {
 
 interface HealthResponse {
   status: string;
+  ready: boolean;
   services: {
     mongodb: string;
     redis: string;
   };
+  timestamp: string;
+}
+
+interface LivenessResponse {
+  status: string;
   timestamp: string;
 }
 
@@ -61,6 +66,10 @@ interface TradeResponse {
   quantity: number;
 }
 
+interface OrderExecutionServiceTestApi {
+  isMarketOpen(): Promise<boolean>;
+}
+
 function getHttpServer(app: INestApplication): Parameters<typeof request>[0] {
   return app.getHttpServer() as Parameters<typeof request>[0];
 }
@@ -88,15 +97,23 @@ describe('Quill API (e2e)', () => {
     }
   });
 
-  it('responde con el estado de salud del sistema', async () => {
+  it('responde liveness y readiness del sistema', async () => {
+    const liveResponse = await request(httpServer)
+      .get('/api/system/health/live')
+      .expect(200);
+    const liveBody = liveResponse.body as LivenessResponse;
+    expect(liveBody.status).toBe('ok');
+    expect(liveBody.timestamp).toEqual(expect.any(String));
+
     const response = await request(httpServer)
-      .get('/api/system/health')
+      .get('/api/system/health/ready')
       .expect(200);
     const body = response.body as HealthResponse;
 
-    expect(body.status).toBe('ok');
+    expect(body.ready).toBe(true);
     expect(body.services.mongodb).toBe('up');
     expect(['up', 'fallback']).toContain(body.services.redis);
+    expect(body.status).toBe(body.services.redis === 'up' ? 'ok' : 'degraded');
     expect(body.timestamp).toEqual(expect.any(String));
   });
 
@@ -193,12 +210,26 @@ describe('Quill API (e2e)', () => {
     const loginBody = loginResponse.body as LoginResponse;
 
     const token = loginBody.accessToken;
+    await testContext!.connection.collection('stocks').insertOne({
+      symbol: 'E2ECLP',
+      name: 'Acción CLP E2E',
+      currency: 'CLP',
+      close: 1000,
+      previousClose: 1000,
+      dayChangePercentage: 0,
+      source: 'admin',
+      baseVolatility: 0,
+      baseDrift: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
     const quotesResponse = await request(httpServer)
       .get('/api/market/stocks')
       .expect(200);
     const quotes = quotesResponse.body as StockQuoteResponse[];
     const targetQuote = quotes.find(
-      (quote) => quote.symbol === 'TSLA' && quote.currency === 'CLP',
+      (quote) => quote.symbol === 'E2ECLP' && quote.currency === 'CLP',
     );
 
     expect(targetQuote).toBeDefined();
@@ -225,16 +256,13 @@ describe('Quill API (e2e)', () => {
       status: 'PENDING',
     });
 
-    const marketProvider = app.get(MockMarketDataProvider);
-    jest
-      .spyOn(marketProvider, 'generateNextPrice')
-      .mockImplementation((stock) =>
-        stock.symbol === targetQuote.symbol
-          ? Number((targetQuote.close - 1).toFixed(2))
-          : stock.close,
-      );
-
     const executionService = app.get(OrderExecutionService);
+    jest
+      .spyOn(
+        executionService as unknown as OrderExecutionServiceTestApi,
+        'isMarketOpen',
+      )
+      .mockResolvedValue(true);
     await executionService.handleMarketTick();
 
     const executedOrdersResponse = await request(httpServer)
@@ -279,6 +307,62 @@ describe('Quill API (e2e)', () => {
       symbol: targetQuote.symbol,
       side: 'BUY',
       quantity: 2,
+    });
+  });
+
+  it('cancela una orden LIMIT BUY y libera el saldo reservado', async () => {
+    const credentials = {
+      fullName: 'Camila Rojas',
+      email: 'camila.cancel@quill.dev',
+      password: 'Password123',
+    };
+    await testContext!.connection.collection('stocks').insertOne({
+      symbol: 'E2ECANCEL',
+      name: 'Acción cancelación E2E',
+      currency: 'CLP',
+      close: 1000,
+      previousClose: 1000,
+      dayChangePercentage: 0,
+      source: 'admin',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await request(httpServer)
+      .post('/api/auth/register')
+      .send(credentials)
+      .expect(201);
+    const loginResponse = await request(httpServer)
+      .post('/api/auth/login')
+      .send({ email: credentials.email, password: credentials.password })
+      .expect(201);
+    const token = (loginResponse.body as LoginResponse).accessToken;
+
+    const orderResponse = await request(httpServer)
+      .post('/api/orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        symbol: 'E2ECANCEL',
+        side: 'BUY',
+        quantity: 2,
+        limitPrice: 900,
+      })
+      .expect(201);
+    const order = orderResponse.body as OrderResponse & { _id: string };
+
+    const cancelResponse = await request(httpServer)
+      .patch(`/api/orders/${order._id}/cancel`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(cancelResponse.body).toMatchObject({ status: 'CANCELLED' });
+
+    const portfolioResponse = await request(httpServer)
+      .get('/api/portfolio/summary')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(portfolioResponse.body).toMatchObject({
+      availableBalance: 100000,
+      reservedBalance: 0,
+      totalEquity: 100000,
     });
   });
 });

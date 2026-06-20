@@ -45,14 +45,26 @@ export class MockMarketDataProvider implements MarketDataProvider {
       await this.seedFromDatabase();
     }
 
-    // Fallback: initialize single symbol from hardcoded seed if not in DB
+    // Fallback: try DB first, then hardcoded seed
     if (!this.mockStocks.has(upperSymbol)) {
-      const seed = seedStocks.find((s) => s.symbol === upperSymbol);
-      this.mockStocks.set(upperSymbol, {
-        price: seed?.close ?? 100,
-        previousClose: seed?.close ?? 100,
-        currency: seed?.currency ?? getCurrencyFromSymbol(upperSymbol),
-      });
+      const dbStock = await this.stockModel
+        .findOne({ symbol: upperSymbol })
+        .lean()
+        .exec();
+      if (dbStock) {
+        this.mockStocks.set(upperSymbol, {
+          price: dbStock.close,
+          previousClose: dbStock.previousClose ?? dbStock.close,
+          currency: dbStock.currency,
+        });
+      } else {
+        const seed = seedStocks.find((s) => s.symbol === upperSymbol);
+        this.mockStocks.set(upperSymbol, {
+          price: seed?.close ?? 100,
+          previousClose: seed?.close ?? 100,
+          currency: seed?.currency ?? getCurrencyFromSymbol(upperSymbol),
+        });
+      }
     }
 
     const stock = this.mockStocks.get(upperSymbol)!;

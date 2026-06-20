@@ -9,8 +9,14 @@ jest.mock('cron', () => ({
   })),
 }));
 
+interface MarketRefreshSchedulerInternals {
+  logger: Logger;
+  runRefresh(): Promise<void>;
+}
+
 describe('MarketRefreshScheduler', () => {
   let scheduler: MarketRefreshScheduler;
+  let internals: MarketRefreshSchedulerInternals;
   let provider: { getName: jest.Mock; getRefreshSchedule: jest.Mock };
   let marketRefreshService: { refreshMarket: jest.Mock };
   let schedulerRegistry: {
@@ -38,6 +44,7 @@ describe('MarketRefreshScheduler', () => {
       marketRefreshService as never,
       schedulerRegistry as unknown as SchedulerRegistry,
     );
+    internals = scheduler as unknown as MarketRefreshSchedulerInternals;
   });
   beforeAll(() => {
     Logger.overrideLogger(false);
@@ -87,7 +94,7 @@ describe('MarketRefreshScheduler', () => {
 
   describe('runRefresh', () => {
     it('delegates to marketRefreshService.refreshMarket', async () => {
-      await (scheduler as any).runRefresh();
+      await internals.runRefresh();
       expect(marketRefreshService.refreshMarket).toHaveBeenCalled();
     });
 
@@ -95,9 +102,9 @@ describe('MarketRefreshScheduler', () => {
       marketRefreshService.refreshMarket.mockRejectedValue(
         new Error('network error'),
       );
-      const errorSpy = jest.spyOn((scheduler as any).logger, 'error');
+      const errorSpy = jest.spyOn(internals.logger, 'error');
 
-      await (scheduler as any).runRefresh();
+      await internals.runRefresh();
 
       expect(errorSpy).toHaveBeenCalledWith(
         expect.stringContaining('network error'),

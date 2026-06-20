@@ -9,7 +9,7 @@ export class AdminConfig {
   key!: string;
 
   @Prop({ required: true, type: SchemaTypes.Mixed })
-  value!: any;
+  value!: unknown;
 
   @Prop()
   name?: string;
@@ -25,11 +25,18 @@ export class AdminConfig {
 
   @Prop({ type: SchemaTypes.ObjectId, ref: 'User' })
   updatedBy?: Types.ObjectId;
+
+  createdAt?: Date;
+
+  updatedAt?: Date;
 }
 
 const schema = SchemaFactory.createForClass(AdminConfig);
 
-schema.index({ key: 1, inUse: 1 });
+schema.index(
+  { key: 1 },
+  { unique: true, partialFilterExpression: { inUse: true } },
+);
 schema.index({ key: 1, createdAt: -1 });
 
 export const AdminConfigSchema = schema;

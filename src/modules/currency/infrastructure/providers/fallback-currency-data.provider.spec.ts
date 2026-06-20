@@ -14,17 +14,21 @@ describe('FallbackCurrencyDataProvider', () => {
   let primary: MockedCurrencyDataProvider;
   let fallback: jest.Mocked<CurrencyDataProvider>;
   let provider: FallbackCurrencyDataProvider;
+  let primaryGetQuote: jest.MockedFunction<CurrencyDataProvider['getQuote']>;
+  let fallbackGetQuote: jest.MockedFunction<CurrencyDataProvider['getQuote']>;
 
   beforeEach(() => {
+    primaryGetQuote = jest.fn();
+    fallbackGetQuote = jest.fn();
     primary = {
-      getQuote: jest.fn(),
+      getQuote: primaryGetQuote,
       getName: jest.fn().mockReturnValue('exchangeRate'),
       getSymbols: jest.fn().mockReturnValue(['USDCLP', 'EURUSD']),
       getRefreshSchedule: jest.fn(),
     } as MockedCurrencyDataProvider;
 
     fallback = {
-      getQuote: jest.fn(),
+      getQuote: fallbackGetQuote,
       getName: jest.fn().mockReturnValue('mock'),
     } as unknown as jest.Mocked<CurrencyDataProvider>;
 
@@ -45,8 +49,8 @@ describe('FallbackCurrencyDataProvider', () => {
       const result = await provider.getQuote('USDCLP');
 
       expect(result).toBe(expected);
-      expect(primary.getQuote).toHaveBeenCalledWith('USDCLP');
-      expect(fallback.getQuote).not.toHaveBeenCalled();
+      expect(primaryGetQuote).toHaveBeenCalledWith('USDCLP');
+      expect(fallbackGetQuote).not.toHaveBeenCalled();
     });
 
     it('falls back to mock when primary fails', async () => {
@@ -63,8 +67,8 @@ describe('FallbackCurrencyDataProvider', () => {
       const result = await provider.getQuote('USDCLP');
 
       expect(result).toBe(expected);
-      expect(primary.getQuote).toHaveBeenCalledWith('USDCLP');
-      expect(fallback.getQuote).toHaveBeenCalledWith('USDCLP');
+      expect(primaryGetQuote).toHaveBeenCalledWith('USDCLP');
+      expect(fallbackGetQuote).toHaveBeenCalledWith('USDCLP');
     });
 
     it('rethrows when both primary and fallback fail', async () => {
@@ -98,7 +102,10 @@ describe('FallbackCurrencyDataProvider', () => {
     });
 
     it('returns undefined when primary has no schedule', () => {
-      delete (primary as any).getRefreshSchedule;
+      const optionalPrimary = primary as unknown as {
+        getRefreshSchedule?: CurrencyDataProvider['getRefreshSchedule'];
+      };
+      delete optionalPrimary.getRefreshSchedule;
 
       expect(provider.getRefreshSchedule()).toBeUndefined();
     });

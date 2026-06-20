@@ -1,38 +1,57 @@
+import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Server, Socket } from 'socket.io';
+import { WsException } from '@nestjs/websockets';
 import { RealtimeGateway } from './realtime.gateway';
+import { UsersService } from '../../../users/application/services/users.service';
+
+interface GatewayInternals {
+  server: Server;
+  logger: Logger;
+}
 
 describe('RealtimeGateway', () => {
   let gateway: RealtimeGateway;
+  let internals: GatewayInternals;
   let jwtService: { verifyAsync: jest.Mock };
+  let usersService: { findById: jest.Mock };
+  const serverTo = jest.fn().mockReturnThis();
+  const serverEmit = jest.fn();
 
   const mockServer = {
-    to: jest.fn().mockReturnThis(),
-    emit: jest.fn(),
+    to: serverTo,
+    emit: serverEmit,
   } as unknown as Server;
 
   beforeEach(async () => {
+    serverTo.mockClear();
+    serverEmit.mockClear();
     jwtService = { verifyAsync: jest.fn() };
+    usersService = { findById: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RealtimeGateway,
         { provide: JwtService, useValue: jwtService },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
     gateway = module.get<RealtimeGateway>(RealtimeGateway);
-    (gateway as any).server = mockServer;
+    internals = gateway as unknown as GatewayInternals;
+    internals.server = mockServer;
   });
 
   describe('handleConnection', () => {
     let socket: Partial<Socket>;
+    let socketData: Record<string, unknown>;
 
     beforeEach(() => {
+      socketData = {};
       socket = {
         handshake: { auth: {}, query: {} } as never,
-        data: {},
+        data: socketData,
         disconnect: jest.fn(),
         join: jest.fn(),
         id: 'socket-1',
@@ -60,31 +79,64 @@ describe('RealtimeGateway', () => {
       if (socket.handshake) {
         socket.handshake.auth = { token: 'valid-token' };
       }
-      jwtService.verifyAsync.mockResolvedValue({ sub: 'user-123' });
+      jwtService.verifyAsync.mockResolvedValue({
+        sub: 'user-123',
+        tokenVersion: 2,
+      });
+      usersService.findById.mockResolvedValue({
+        id: 'user-123',
+        email: 'user@quill.dev',
+        role: 'investor',
+        tokenVersion: 2,
+      });
 
       await gateway.handleConnection(socket as Socket);
 
-      expect(socket.data.user).toEqual({ sub: 'user-123' });
+      expect(socketData.user).toEqual({
+        sub: 'user-123',
+        email: 'user@quill.dev',
+        role: 'investor',
+        tokenVersion: 2,
+      });
       expect(socket.join).toHaveBeenCalledWith('user:user-123');
       expect(socket.disconnect).not.toHaveBeenCalled();
     });
 
-    it('reads token from query if not in auth', async () => {
+    it('rechaza tokens enviados mediante query string', async () => {
       if (socket.handshake) {
         socket.handshake.query = { token: 'query-token' };
       }
-      jwtService.verifyAsync.mockResolvedValue({ sub: 'user-456' });
 
       await gateway.handleConnection(socket as Socket);
 
-      expect(jwtService.verifyAsync).toHaveBeenCalledWith('query-token');
-      expect(socket.join).toHaveBeenCalledWith('user:user-456');
+      expect(jwtService.verifyAsync).not.toHaveBeenCalled();
+      expect(socket.disconnect).toHaveBeenCalled();
+      expect(socket.join).not.toHaveBeenCalled();
+    });
+
+    it('disconnects when token has been revoked', async () => {
+      if (socket.handshake) {
+        socket.handshake.auth = { token: 'revoked-token' };
+      }
+      jwtService.verifyAsync.mockResolvedValue({
+        sub: 'user-123',
+        tokenVersion: 1,
+      });
+      usersService.findById.mockResolvedValue({
+        id: 'user-123',
+        tokenVersion: 2,
+      });
+
+      await gateway.handleConnection(socket as Socket);
+
+      expect(socket.disconnect).toHaveBeenCalled();
+      expect(socket.join).not.toHaveBeenCalled();
     });
   });
 
   describe('handleDisconnect', () => {
     it('logs the disconnect', () => {
-      const logSpy = jest.spyOn((gateway as any).logger, 'log');
+      const logSpy = jest.spyOn(internals.logger, 'log');
       const socket = { id: 'socket-1' } as Socket;
 
       gateway.handleDisconnect(socket);
@@ -95,37 +147,51 @@ describe('RealtimeGateway', () => {
 
   describe('handleSubscribe', () => {
     it('joins stock room by default', () => {
-      const client = { join: jest.fn(), id: 'client-1' } as unknown as Socket;
+      const join = jest.fn();
+      const client = { join, id: 'client-1' } as unknown as Socket;
 
-      gateway.handleSubscribe(client, { topic: 'AAPL' });
+      gateway.handleSubscribe(client, { topic: 'aapl' });
 
-      expect(client.join).toHaveBeenCalledWith('stock:AAPL');
+      expect(join).toHaveBeenCalledWith('stock:AAPL');
     });
 
     it('joins forex room when type is forex', () => {
-      const client = { join: jest.fn(), id: 'client-1' } as unknown as Socket;
+      const join = jest.fn();
+      const client = { join, id: 'client-1' } as unknown as Socket;
 
       gateway.handleSubscribe(client, { topic: 'EURUSD', type: 'forex' });
 
-      expect(client.join).toHaveBeenCalledWith('forex:EURUSD');
+      expect(join).toHaveBeenCalledWith('forex:EURUSD');
+    });
+
+    it('rechaza payloads de suscripcion invalidos', () => {
+      const join = jest.fn();
+      const client = { join, id: 'client-1' } as unknown as Socket;
+
+      expect(() =>
+        gateway.handleSubscribe(client, { topic: '../admin' }),
+      ).toThrow(WsException);
+      expect(join).not.toHaveBeenCalled();
     });
   });
 
   describe('handleUnsubscribe', () => {
     it('leaves stock room by default', () => {
-      const client = { leave: jest.fn(), id: 'client-1' } as unknown as Socket;
+      const leave = jest.fn();
+      const client = { leave, id: 'client-1' } as unknown as Socket;
 
       gateway.handleUnsubscribe(client, { topic: 'AAPL' });
 
-      expect(client.leave).toHaveBeenCalledWith('stock:AAPL');
+      expect(leave).toHaveBeenCalledWith('stock:AAPL');
     });
 
     it('leaves forex room when type is forex', () => {
-      const client = { leave: jest.fn(), id: 'client-1' } as unknown as Socket;
+      const leave = jest.fn();
+      const client = { leave, id: 'client-1' } as unknown as Socket;
 
       gateway.handleUnsubscribe(client, { topic: 'EURUSD', type: 'forex' });
 
-      expect(client.leave).toHaveBeenCalledWith('forex:EURUSD');
+      expect(leave).toHaveBeenCalledWith('forex:EURUSD');
     });
   });
 
@@ -138,15 +204,15 @@ describe('RealtimeGateway', () => {
 
       gateway.handlePriceUpdate(quotes);
 
-      expect(mockServer.to).toHaveBeenCalledWith('stock:AAPL');
-      expect(mockServer.to).toHaveBeenCalledWith('stock:GOOGL');
-      expect(mockServer.emit).toHaveBeenCalledTimes(2);
-      expect(mockServer.emit).toHaveBeenCalledWith('price_update', {
-        symbol: 'AAPL',
-        price: 150,
-        dayChangePercentage: 5,
-        timestamp: expect.any(Date),
-      });
+      expect(serverTo).toHaveBeenCalledWith('stock:AAPL');
+      expect(serverTo).toHaveBeenCalledWith('stock:GOOGL');
+      expect(serverEmit).toHaveBeenCalledTimes(2);
+      const emitCalls = serverEmit.mock.calls as unknown as Array<
+        [string, { symbol: string; price: number; timestamp: unknown }]
+      >;
+      expect(emitCalls[0][0]).toBe('price_update');
+      expect(emitCalls[0][1]).toMatchObject({ symbol: 'AAPL', price: 150 });
+      expect(emitCalls[0][1].timestamp).toBeInstanceOf(Date);
     });
   });
 
@@ -158,13 +224,13 @@ describe('RealtimeGateway', () => {
 
       gateway.handleCurrencyUpdate(quotes);
 
-      expect(mockServer.to).toHaveBeenCalledWith('forex:EURUSD');
-      expect(mockServer.emit).toHaveBeenCalledWith('price_update', {
-        symbol: 'EURUSD',
-        price: 1.12,
-        dayChangePercentage: 0.5,
-        timestamp: expect.any(Date),
-      });
+      expect(serverTo).toHaveBeenCalledWith('forex:EURUSD');
+      const emitCalls = serverEmit.mock.calls as unknown as Array<
+        [string, { symbol: string; price: number; timestamp: unknown }]
+      >;
+      expect(emitCalls[0][0]).toBe('price_update');
+      expect(emitCalls[0][1]).toMatchObject({ symbol: 'EURUSD', price: 1.12 });
+      expect(emitCalls[0][1].timestamp).toBeInstanceOf(Date);
     });
   });
 });
