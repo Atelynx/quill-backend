@@ -11,10 +11,66 @@ Plataforma educativa para simular compra y venta de acciones con capital fictici
 
 ```bash
 npm install
-docker compose up -d          # MongoDB + Redis
 cp .env.example .env
-npm run start:dev             # Backend :3000, Frontend :5173
+docker compose up -d          # Backend + MongoDB + Redis
 ```
+
+El backend queda disponible en `http://localhost:3000/api`. Swagger queda
+disponible en desarrollo en `http://localhost:3000/api/swagger`.
+
+Para desarrollo local sin contenedor del backend, usa el mismo `.env`, levanta
+MongoDB y Redis con `docker compose up -d mongodb redis`, y ejecuta
+`npm run start:dev`.
+
+## Docker
+
+### Desarrollo
+
+`docker-compose.yml` levanta el backend, MongoDB y Redis. Expone al host:
+
+- Backend: `3000`
+- MongoDB: `27017`
+- Redis: `6379`
+
+MongoDB y Redis se exponen en desarrollo para permitir herramientas locales y
+ejecucion del backend con `npm run start:dev`. Los datos se guardan en volumenes
+persistentes de Docker separados del entorno de produccion.
+
+```bash
+cp .env.example .env
+docker compose up -d
+docker compose ps
+curl http://localhost:3000/api/system/health/ready
+docker compose logs --tail=100
+docker compose down
+```
+
+### Produccion o entrega
+
+`docker-compose-prod.yml` levanta el backend con MongoDB y Redis en red interna.
+Solo el backend queda expuesto al host en el puerto `3000`; MongoDB y Redis no
+publican puertos. Sus datos usan volumenes persistentes separados de desarrollo.
+
+Antes de levantarlo, ajusta `.env` con valores reales de despliegue. Como minimo:
+
+- `JWT_SECRET`: secreto largo, aleatorio y privado.
+- `FRONTEND_ORIGIN`: origenes permitidos para frontend web y mobile, separados
+  por coma si hay mas de uno.
+- Variables de proveedor externo si se usa `MARKET_PROVIDER=eodhd` o
+  `CURRENCY_PROVIDER=exchangeRate`.
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose-prod.yml config
+docker compose -f docker-compose-prod.yml up -d
+docker compose -f docker-compose-prod.yml ps
+curl http://localhost:3000/api/system/health/ready
+docker compose -f docker-compose-prod.yml logs --tail=100
+docker compose -f docker-compose-prod.yml down
+```
+
+El frontend web y la app mobile no son servicios obligatorios de este Compose.
+Deben conectarse al backend mediante la URL publicada para el entorno.
 
 ## Scripts
 

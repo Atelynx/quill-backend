@@ -174,7 +174,10 @@ export class OrderExecutionService {
     if (!openTime || !closeTime) return true;
 
     const days = closedDays
-      ? closedDays.split(',').map(Number).filter((d) => d >= 1 && d <= 7)
+      ? closedDays
+          .split(',')
+          .map(Number)
+          .filter((d) => d >= 1 && d <= 7)
       : [6, 7];
 
     return isMarketOpen(openTime, closeTime, days);
