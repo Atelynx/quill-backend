@@ -8,7 +8,14 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - .env.docker
+      - .env
+    environment:
+      NODE_ENV: production
+      BACKEND_PORT: 3000
+      MONGODB_URI: mongodb://mongodb:27017/quill?replicaSet=rs0
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET debe definirse para produccion}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
     depends_on:
       mongodb-init-replica:
         condition: service_completed_successfully
@@ -38,7 +45,7 @@ services:
     environment:
       MONGO_INITDB_DATABASE: quill
     volumes:
-      - mongodb_data:/data/db
+      - mongodb_prod_data:/data/db
     healthcheck:
       test:
         [
@@ -62,7 +69,7 @@ services:
       [
         "bash",
         "-lc",
-        "until mongosh --host mongodb:27017 --quiet --eval \"db.adminCommand({ ping: 1 }).ok\" | grep 1; do sleep 2; done; mongosh --host mongodb:27017 --quiet --eval \"try { rs.status().ok } catch (error) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongodb:27017' }] }) }\"",
+        "until mongosh mongodb://mongodb:27017/admin?directConnection=true --quiet --eval \"db.adminCommand({ ping: 1 }).ok\" | grep 1; do sleep 2; done; mongosh mongodb://mongodb:27017/admin?directConnection=true --quiet --eval \"const host = 'mongodb:27017'; const config = db.getSiblingDB('local').system.replset.findOne(); if (!config) { db.adminCommand({ replSetInitiate: { _id: 'rs0', members: [{ _id: 0, host }] } }); } else if (config.members[0].host !== host) { config.version = (config.version || 1) + 1; config.members[0].host = host; db.adminCommand({ replSetReconfig: config, force: true }); } else { db.adminCommand({ ping: 1 }).ok; }\"",
       ]
     networks:
       - data
@@ -71,8 +78,9 @@ services:
     image: redis:7-alpine
     container_name: quill-redis
     restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
     volumes:
-      - redis_data:/data
+      - redis_prod_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -82,8 +90,8 @@ services:
       - data
 
 volumes:
-  mongodb_data:
-  redis_data:
+  mongodb_prod_data:
+  redis_prod_data:
 
 networks:
   public:
