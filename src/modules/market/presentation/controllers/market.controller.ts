@@ -34,7 +34,10 @@ export class MarketController {
     const effectiveOpenTime = openTime ?? '09:30';
     const effectiveCloseTime = closeTime ?? '16:00';
     const days = closedDays
-      ? closedDays.split(',').map(Number).filter((d) => d >= 1 && d <= 7)
+      ? closedDays
+          .split(',')
+          .map(Number)
+          .filter((d) => d >= 1 && d <= 7)
       : [6, 7];
     const open = isMarketOpen(effectiveOpenTime, effectiveCloseTime, days);
 

@@ -498,5 +498,4 @@ describe('OrdersService', () => {
 
     expect(session.endSession).toHaveBeenCalled();
   });
-
 });
