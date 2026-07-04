@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
@@ -49,6 +50,8 @@ function normalizeStockSearch(value?: string): string {
 
 @Injectable()
 export class MarketService implements OnModuleInit {
+  private readonly logger = new Logger(MarketService.name);
+
   constructor(
     @InjectModel(Stock.name)
     private readonly stockModel: Model<StockDocument>,
@@ -70,10 +73,35 @@ export class MarketService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.marketSeedService.seedInitialStocks();
+    await this.seedInitialRedisPrices();
 
     if (this.configService.get<boolean>('MARKET_FETCH_ON_STARTUP')) {
       await this.marketRefreshService.refreshMarket();
     }
+  }
+
+  private async seedInitialRedisPrices(): Promise<void> {
+    const stocks = await this.stockModel.find().lean().exec();
+    for (const stock of stocks) {
+      const [existingBase, existingLive] = await Promise.all([
+        this.cacheService.get<number>(`stock:${stock.symbol}:base_price`),
+        this.cacheService.get<number>(`stock:${stock.symbol}:live_price`),
+      ]);
+      if (existingBase == null) {
+        await this.cacheService.set(
+          `stock:${stock.symbol}:base_price`,
+          stock.close,
+        );
+      }
+      if (existingLive == null) {
+        await this.cacheService.set(
+          `stock:${stock.symbol}:live_price`,
+          stock.close,
+          60_000,
+        );
+      }
+    }
+    this.logger.log(`Seeded initial Redis prices for ${stocks.length} stocks`);
   }
 
   async listQuotes() {

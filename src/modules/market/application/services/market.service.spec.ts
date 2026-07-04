@@ -23,6 +23,7 @@ describe('MarketService', () => {
     seedInitialStocks: jest.Mock;
   };
   let cacheService: {
+    get: jest.Mock;
     set: jest.Mock;
   };
   let eventEmitter: {
@@ -47,7 +48,7 @@ describe('MarketService', () => {
     configService = { get: jest.fn() };
     marketRefreshService = { refreshMarket: jest.fn() };
     marketSeedService = { seedInitialStocks: jest.fn() };
-    cacheService = { set: jest.fn() };
+    cacheService = { get: jest.fn().mockResolvedValue(null), set: jest.fn() };
     eventEmitter = { emit: jest.fn() };
     orderModel = { exists: jest.fn() };
     positionModel = { exists: jest.fn() };
@@ -75,7 +76,14 @@ describe('MarketService', () => {
   });
 
   describe('onModuleInit', () => {
+    function mockFindStock(): void {
+      const exec = jest.fn().mockResolvedValue([]);
+      const lean = jest.fn().mockReturnValue({ exec });
+      stockModel.find.mockReturnValue({ lean });
+    }
+
     it('seeds and refreshes when MARKET_FETCH_ON_STARTUP is true', async () => {
+      mockFindStock();
       configService.get.mockReturnValue(true);
 
       await service.onModuleInit();
@@ -85,6 +93,7 @@ describe('MarketService', () => {
     });
 
     it('seeds but does not refresh when MARKET_FETCH_ON_STARTUP is false', async () => {
+      mockFindStock();
       configService.get.mockReturnValue(false);
 
       await service.onModuleInit();
