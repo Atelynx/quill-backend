@@ -15,6 +15,7 @@ const mockRedisInstance = {
   flushall: jest.fn().mockResolvedValue(undefined),
   keys: jest.fn().mockResolvedValue([]),
   pttl: jest.fn().mockResolvedValue(-1),
+  __handlers: {} as Record<string, (...args: unknown[]) => void>,
 };
 
 jest.mock('ioredis', () => jest.fn(() => mockRedisInstance));
@@ -392,29 +393,29 @@ describe('CacheService', () => {
   });
 
   describe('Redis error fallback during operations', () => {
-    it('activates fallback when redis emits error event', async () => {
-      let errorHandler: (err: Error) => void;
+    function setupRedisMock(): void {
+      mockRedisInstance.__handlers = {};
       mockRedisInstance.on.mockImplementation(
-        (_event: string, handler: (err: Error) => void) => {
-          errorHandler = handler;
+        (event: string, handler: (...args: unknown[]) => void) => {
+          mockRedisInstance.__handlers[event] = handler;
         },
       );
+    }
 
+    beforeEach(() => {
+      setupRedisMock();
+    });
+
+    it('activates fallback when redis emits error event', async () => {
       config = { get: jest.fn().mockReturnValue('redis://localhost:6379') };
       service = new CacheService(config as ConfigService);
       await service.onModuleInit();
 
-      errorHandler!(new Error('ECONNREFUSED'));
+      mockRedisInstance.__handlers['error'](new Error('ECONNREFUSED'));
       expect(service.isConnected()).toBe(false);
     });
 
     it('does not activate local fallback after a Redis error in production', async () => {
-      let errorHandler: (err: Error) => void;
-      mockRedisInstance.on.mockImplementation(
-        (_event: string, handler: (err: Error) => void) => {
-          errorHandler = handler;
-        },
-      );
       config = {
         get: jest.fn((key: string) =>
           key === 'NODE_ENV' ? 'production' : 'redis://localhost:6379',
@@ -423,7 +424,7 @@ describe('CacheService', () => {
       service = new CacheService(config as ConfigService);
       await service.onModuleInit();
 
-      errorHandler!(new Error('ECONNREFUSED'));
+      mockRedisInstance.__handlers['error'](new Error('ECONNREFUSED'));
 
       await expect(service.get('critical')).rejects.toBeInstanceOf(
         ServiceUnavailableException,

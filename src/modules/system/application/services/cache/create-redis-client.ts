@@ -12,5 +12,17 @@ export function createRedisClient(
     retryStrategy: () => null,
   });
   redis.on('error', onError);
+  redis.on('connect', () => {
+    console.log('[Redis] Connected');
+  });
+  redis.on('close', () => {
+    console.warn('[Redis] Connection closed');
+  });
+  redis.on('reconnecting', () => {
+    console.warn('[Redis] Reconnecting...');
+  });
+  redis.on('end', () => {
+    console.error('[Redis] Connection ended');
+  });
   return redis;
 }

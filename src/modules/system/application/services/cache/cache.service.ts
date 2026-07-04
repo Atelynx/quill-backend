@@ -43,6 +43,7 @@ export class CacheService
       await this.redis.connect();
       await this.redis.ping();
       this.connected = true;
+      this.logger.log('Redis conectado correctamente.');
     } catch {
       this.handleRedisUnavailable('Redis no pudo inicializarse.');
     }

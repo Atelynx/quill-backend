@@ -124,6 +124,10 @@ export class CurrencyTickService implements OnModuleInit, OnModuleDestroy {
       if (updates.length) {
         this.eventEmitter.emit(CURRENCY_UPDATE_EVENT, updates);
       }
+    } catch (error) {
+      this.logger.error(
+        `Currency tick failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
     } finally {
       this.isTicking = false;
     }
