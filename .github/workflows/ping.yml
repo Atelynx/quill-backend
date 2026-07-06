@@ -1,0 +1,33 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          echo "=== Health check started at $(date) ==="
+
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --retry 3 --retry-delay 30 \
+            https://quill-backend-fccq.onrender.com/api/system/health)
+
+          HTTP_CODE=$?
+
+          if [ "$HTTP_CODE" -eq 0 ]; then
+            echo "HTTP Status: $RESPONSE"
+            if [ "$RESPONSE" = "200" ]; then
+              echo "Health check passed"
+            else
+              echo "Health check returned unexpected status: $RESPONSE"
+            fi
+          else
+            echo "Curl failed with exit code $HTTP_CODE (expected if cold start)"
+          fi
+
+          echo "=== Health check completed at $(date) ==="
