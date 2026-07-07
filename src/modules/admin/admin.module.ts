@@ -30,8 +30,8 @@ import { MarketModule } from '../../modules/market/market.module';
     MarketModule,
   ],
   controllers: [
-    AdminController,
     AdminSnapshotsController,
+    AdminController,
     AdminUsersController,
     AdminStockController,
   ],
